@@ -8,14 +8,20 @@ import {
     SectionList,
     Platform,
     Dimensions,
-    Alert
+    Alert,
+    Modal,
+    Image,
+    RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowRight, Search, Filter, SlidersHorizontal, ChevronDown, Trash2, FolderInput, Share as ShareIcon, X, Check, ArrowDown, ArrowUp } from 'lucide-react-native';
+import { ArrowRight, Search, Filter, SlidersHorizontal, ChevronDown, Trash2, FolderInput, Share as ShareIcon, X, Check, ArrowDown, ArrowUp, ImageIcon, Edit, Download } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useTransactions } from '../context/TransactionsContext';
 import { COLORS, FONTS } from '../constants/theme';
+import { exportToCSV } from '../utils/exportData';
+import { hapticFeedback } from '../utils/haptics';
+import { EmptyState } from '../components/EmptyState';
 
 const { width } = Dimensions.get('window');
 
@@ -33,6 +39,8 @@ export default function ExpensesListScreen() {
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [sortOption, setSortOption] = useState<SortOption>('date-newest');
     const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
+    const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Batch Ops State
     // const [selectionMode, setSelectionMode] = useState(false);
@@ -42,6 +50,38 @@ export default function ExpensesListScreen() {
     const parseAmount = (str?: string) => {
         if (!str) return 0;
         return parseFloat(str.replace(/[^0-9.-]+/g, '')) || 0;
+    };
+
+    // Export handler
+    const handleExport = async () => {
+        try {
+            hapticFeedback.light();
+            const expensesOnly = transactions
+                .filter(t => t.type === 'expense')
+                .map(t => ({
+                    ...t,
+                    date: t.date instanceof Date ? t.date.toISOString() : t.date
+                }));
+            if (expensesOnly.length === 0) {
+                hapticFeedback.warning();
+                Alert.alert('אין נתונים', 'אין הוצאות לייצוא');
+                return;
+            }
+            await exportToCSV(expensesOnly, 'finly_expenses.csv');
+            hapticFeedback.success();
+            Alert.alert('הצלחה!', `יוצאו ${expensesOnly.length} הוצאות`);
+        } catch (error) {
+            hapticFeedback.error();
+            Alert.alert('שגיאה', 'שגיאה בייצוא הנתונים');
+        }
+    };
+
+    // Pull to refresh handler
+    const onRefresh = async () => {
+        setRefreshing(true);
+        // Simulate refresh - in real app, would fetch from server
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        setRefreshing(false);
     };
 
     // --- Filtering & Sorting Logic ---
@@ -99,22 +139,102 @@ export default function ExpensesListScreen() {
 
     // --- Render Items ---
     const renderItem = ({ item }: { item: any }) => (
-        <TouchableOpacity style={styles.itemContainer}>
-            <View style={styles.itemRow}>
-                <View style={styles.itemIconData}>
-                    <Text style={styles.itemCategory}>{item.category || 'כללי'}</Text>
-                    <Text style={styles.itemDate}>{new Date(item.date).toLocaleDateString('he-IL')}</Text>
+        <View style={styles.itemContainer}>
+            <TouchableOpacity style={styles.itemContent}>
+                <View style={styles.itemRow}>
+                    <View style={styles.itemIconData}>
+                        <Text style={styles.itemCategory}>{item.category || 'כללי'}</Text>
+                        <Text style={styles.itemDate}>{new Date(item.date).toLocaleDateString('he-IL')}</Text>
+                    </View>
+                    <View style={styles.itemAmountData}>
+                        <Text style={styles.itemAmount}>₪{parseAmount(item.amount).toLocaleString()}</Text>
+                        {item.supplier && <Text style={styles.itemSupplier}>{item.supplier}</Text>}
+                    </View>
+                    {item.receiptImageUri && (
+                        <TouchableOpacity
+                            onPress={() => setSelectedReceipt(item.receiptImageUri)}
+                            style={{ marginRight: 8 }}
+                        >
+                            <ImageIcon size={20} color={COLORS.primary} />
+                        </TouchableOpacity>
+                    )}
                 </View>
-                <View style={styles.itemAmountData}>
-                    <Text style={styles.itemAmount}>₪{parseAmount(item.amount).toLocaleString()}</Text>
-                    {item.supplier && <Text style={styles.itemSupplier}>{item.supplier}</Text>}
+                {item.clientName && (
+                    <Text style={styles.itemProject}>פרויקט: {item.clientName}</Text>
+                )}
+            </TouchableOpacity>
+            <View style={styles.itemActions}>
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                        hapticFeedback.light();
+                        // Navigate to edit screen with expense data
+                        navigation.navigate('AddExpense' as never, { expense: item } as never);
+                    }}
+                >
+                    <Edit size={18} color={COLORS.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                        hapticFeedback.warning();
+                        Alert.alert(
+                            'מחיקת הוצאה',
+                            'האם למחוק הוצאה זו?',
+                            [
+                                {
+                                    text: 'ביטול',
+                                    style: 'cancel',
+                                    onPress: () => hapticFeedback.light()
+                                },
+                                {
+                                    text: 'מחק',
+                                    style: 'destructive',
+                                    onPress: () => {
+                                        hapticFeedback.success();
+                                        deleteTransaction(item.id);
+                                    },
+                                },
+                            ]
+                        );
+                    }}
+                >
+                    <Trash2 size={18} color={COLORS.danger} />
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+
+    const renderReceiptModal = () => (
+        <Modal
+            visible={selectedReceipt !== null}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setSelectedReceipt(null)}
+        >
+            <View style={styles.modalOverlay}>
+                <TouchableOpacity
+                    style={styles.modalCloseArea}
+                    activeOpacity={1}
+                    onPress={() => setSelectedReceipt(null)}
+                />
+                <View style={styles.receiptModalContent}>
+                    <View style={styles.receiptModalHeader}>
+                        <Text style={styles.receiptModalTitle}>קבלה</Text>
+                        <TouchableOpacity onPress={() => setSelectedReceipt(null)}>
+                            <X color={COLORS.textPrimary} size={24} />
+                        </TouchableOpacity>
+                    </View>
+                    {selectedReceipt && (
+                        <Image
+                            source={{ uri: selectedReceipt }}
+                            style={styles.receiptImage}
+                            resizeMode="contain"
+                        />
+                    )}
                 </View>
             </View>
-            {/* Optional details row */}
-            {item.clientName && (
-                <Text style={styles.itemProject}>פרויקט: {item.clientName}</Text>
-            )}
-        </TouchableOpacity>
+        </Modal>
     );
 
     return (
@@ -207,16 +327,32 @@ export default function ExpensesListScreen() {
             </View>
 
             {/* List */}
-            <SectionList
-                sections={processedData.grouped}
-                keyExtractor={item => item.id}
-                renderItem={renderItem}
-                renderSectionHeader={({ section: { title } }) => (
-                    <Text style={styles.sectionHeader}>{title}</Text>
-                )}
-                contentContainerStyle={{ paddingBottom: 100 }}
-                stickySectionHeadersEnabled={true}
-            />
+            {processedData.grouped.length === 0 ? (
+                <EmptyState
+                    icon="📊"
+                    title="אין הוצאות עדיין"
+                    message="לחץ על כפתור + בתפריט התחתון\nכדי להוסיף הוצאה ראשונה"
+                />
+            ) : (
+                <SectionList
+                    sections={processedData.grouped}
+                    keyExtractor={item => item.id}
+                    renderItem={renderItem}
+                    renderSectionHeader={({ section: { title } }) => (
+                        <Text style={styles.sectionHeader}>{title}</Text>
+                    )}
+                    contentContainerStyle={{ paddingBottom: 100 }}
+                    stickySectionHeadersEnabled={true}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={refreshing}
+                            onRefresh={onRefresh}
+                            tintColor={COLORS.primary}
+                            colors={[COLORS.primary]}
+                        />
+                    }
+                />
+            )}
 
             {/* Footer Totals */}
             <View style={styles.stickyFooter}>
@@ -227,6 +363,7 @@ export default function ExpensesListScreen() {
                 <Text style={styles.footerCount}>מספר פריטים: {processedData.raw.length}</Text>
             </View>
 
+            {renderReceiptModal()}
         </View>
     );
 }
@@ -247,6 +384,7 @@ const styles = StyleSheet.create({
         borderBottomColor: COLORS.border,
     },
     backButton: { padding: 4 },
+    exportButton: { padding: 4 },
     headerTitle: {
         fontSize: 20,
         color: COLORS.textPrimary,
@@ -339,13 +477,28 @@ const styles = StyleSheet.create({
         textAlign: 'left'
     },
     itemContainer: {
-        padding: 16,
         marginHorizontal: 16,
         marginVertical: 6,
         backgroundColor: COLORS.surface,
         borderRadius: 12,
         borderWidth: 1,
         borderColor: COLORS.border, // Subtle border
+    },
+    itemContent: {
+        padding: 16,
+    },
+    itemActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 12,
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.border,
+        paddingTop: 12,
+    },
+    actionButton: {
+        padding: 8,
     },
     itemRow: {
         flexDirection: 'row',
@@ -413,5 +566,40 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
         fontSize: 12,
         textAlign: 'left'
+    },
+
+    // Receipt Modal
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalCloseArea: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    receiptModalContent: {
+        width: width * 0.9,
+        maxHeight: '80%',
+        backgroundColor: COLORS.surface,
+        borderRadius: 16,
+        overflow: 'hidden',
+    },
+    receiptModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    receiptModalTitle: {
+        fontSize: 18,
+        fontFamily: FONTS.bold,
+        color: COLORS.textPrimary,
+    },
+    receiptImage: {
+        width: '100%',
+        height: 400,
     }
 });

@@ -67,53 +67,44 @@ export default function GoalsScreen() {
         current,
         target,
         percentage,
-        unit,
         goalType,
-        isExpense = false
+        color
     }: any) => {
-        const isOverLimit = isExpense && percentage > 100;
-        const progressColor = isExpense
-            ? (isOverLimit ? COLORS.danger : COLORS.success)
-            : (percentage >= 100 ? COLORS.success : COLORS.primary);
-
         return (
             <View style={styles.goalCard}>
-                <View style={styles.goalHeader}>
-                    <View style={styles.goalTitleRow}>
-                        <View style={[styles.iconBox, { backgroundColor: `${progressColor}20` }]}>
-                            <Icon size={24} color={progressColor} />
-                        </View>
-                        <Text style={styles.goalTitle}>{title}</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => handleEditGoal(goalType, target)}>
-                        <Edit2 size={20} color={COLORS.textPrimary} />
+                <View style={styles.goalCardHeader}>
+                    <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => handleEditGoal(goalType, target)}
+                    >
+                        <Edit2 size={22} color="rgba(255,255,255,0.4)" />
                     </TouchableOpacity>
+
+                    <View style={styles.goalInfoContainer}>
+                        <Text style={styles.goalCardTitle}>{title}</Text>
+                        <View style={[styles.cardIconBox, { backgroundColor: `${color}15` }]}>
+                            <Icon size={22} color={color} />
+                        </View>
+                    </View>
                 </View>
 
-                <View style={styles.progressSection}>
-                    <View style={styles.valuesRow}>
-                        <Text style={styles.currentValue}>
-                            {unit === '₪' ? `₪${current.toLocaleString()}` : `${current}${unit}`}
-                        </Text>
-                        <Text style={styles.targetValue}>
-                            / {unit === '₪' ? `₪${target.toLocaleString()}` : `${target}${unit}`}
-                        </Text>
+                <View style={styles.goalProgressSection}>
+                    <View style={styles.goalValueRow}>
+                        <Text style={styles.goalValueTarget}>/ {target.toLocaleString()}</Text>
+                        <Text style={styles.goalValueCurrent}>{current.toLocaleString()}</Text>
                     </View>
 
-                    <View style={styles.progressBarContainer}>
+                    <View style={styles.goalProgressBar}>
                         <View
                             style={[
-                                styles.progressBarFill,
-                                {
-                                    width: `${Math.min(percentage, 100)}%`,
-                                    backgroundColor: progressColor
-                                }
+                                styles.goalProgressFill,
+                                { width: `${Math.min(percentage, 100)}%`, backgroundColor: color }
                             ]}
                         />
                     </View>
 
-                    <Text style={[styles.percentageText, { color: progressColor }]}>
-                        {percentage.toFixed(1)}% {isExpense ? 'מהתקציב' : 'מהיעד'}
+                    <Text style={[styles.goalPercentageText, { color: color }]}>
+                        {percentage.toFixed(1)}% מהיעד
                     </Text>
                 </View>
             </View>
@@ -123,22 +114,29 @@ export default function GoalsScreen() {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color={COLORS.textPrimary} />
+            <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 60 : 40 }]}>
+                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+                    <ArrowLeft size={24} color="#FFFFFF" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>היעדים שלי</Text>
-                <View style={{ width: 40 }} />
+                <View style={{ width: 44 }} />
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollContent}
+            >
+                {/* Intro Card - Refined to match image */}
                 <View style={styles.introSection}>
-                    <Target size={32} color={COLORS.primary} />
+                    <View style={styles.targetIconCircle}>
+                        <Target size={32} color="#8a5cf5" />
+                    </View>
                     <Text style={styles.introText}>
                         הגדר יעדים חודשיים ועקוב אחר ההתקדמות שלך לקראת הצלחה פיננסית
                     </Text>
                 </View>
 
+                {/* Monthly Income Goal - Pink/Coral */}
                 <GoalCard
                     title="יעד הכנסות חודשי"
                     icon={TrendingUp}
@@ -147,8 +145,10 @@ export default function GoalsScreen() {
                     percentage={incomeProgress.percentage}
                     unit="₪"
                     goalType="income"
+                    color="#ff4785"
                 />
 
+                {/* Monthly Expense Budget - Green */}
                 <GoalCard
                     title="תקציב הוצאות חודשי"
                     icon={DollarSign}
@@ -158,8 +158,10 @@ export default function GoalsScreen() {
                     unit="₪"
                     goalType="expense"
                     isExpense={true}
+                    color="#00d4aa"
                 />
 
+                {/* Profit Margin Goal - Blue */}
                 <GoalCard
                     title="יעד שולי רווח"
                     icon={TrendingUp}
@@ -168,8 +170,10 @@ export default function GoalsScreen() {
                     percentage={(profitMarginProgress.current / profitMarginProgress.target) * 100}
                     unit="%"
                     goalType="margin"
+                    color="#3b82f6"
                 />
 
+                {/* Project Count Goal - Red/Coral */}
                 <GoalCard
                     title="יעד פרויקטים"
                     icon={Briefcase}
@@ -178,9 +182,10 @@ export default function GoalsScreen() {
                     percentage={projectProgress.percentage}
                     unit=""
                     goalType="projects"
+                    color="#ff6b6b"
                 />
 
-                <View style={{ height: 40 }} />
+                <View style={{ height: 100 }} />
             </ScrollView>
 
             {/* Edit Modal */}
@@ -233,150 +238,170 @@ export default function GoalsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
-        paddingTop: Platform.OS === 'android' ? 40 : 0,
+        backgroundColor: '#050505',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        paddingBottom: 20,
+        backgroundColor: '#050505',
     },
-    backButton: {
-        padding: 8,
+    headerButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerTitle: {
         fontSize: 20,
-        color: COLORS.textPrimary,
+        color: '#FFFFFF',
         fontFamily: FONTS.bold,
+        flex: 1,
+        textAlign: 'center',
     },
     scrollContent: {
-        padding: 20,
+        paddingHorizontal: 20,
     },
     introSection: {
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 32,
+        padding: 30,
         alignItems: 'center',
-        marginBottom: 32,
-        padding: 20,
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
+        marginBottom: 30,
         borderWidth: 1,
-        borderColor: COLORS.border,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    targetIconCircle: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(138, 92, 245, 0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(138, 92, 245, 0.2)',
     },
     introText: {
         fontSize: 16,
-        color: COLORS.textPrimary,
+        color: 'rgba(255,255,255,0.6)',
         textAlign: 'center',
-        marginTop: 12,
         fontFamily: FONTS.regular,
         lineHeight: 24,
     },
+
+    // Goal Card Styles
     goalCard: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 16,
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderRadius: 32,
+        padding: 24,
+        marginBottom: 20,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        borderColor: 'rgba(255,255,255,0.05)',
     },
-    goalHeader: {
+    goalCardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 30,
     },
-    goalTitleRow: {
+    editButton: {
+        padding: 8,
+    },
+    goalInfoContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 15,
     },
-    iconBox: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
+    goalCardTitle: {
+        fontSize: 19,
+        color: '#FFFFFF',
+        fontFamily: FONTS.bold,
+    },
+    cardIconBox: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        alignItems: 'center',
         justifyContent: 'center',
-        alignItems: 'center',
     },
-    goalTitle: {
-        fontSize: 18,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
+    goalProgressSection: {
+        gap: 15,
     },
-    progressSection: {
-        gap: 12,
-    },
-    valuesRow: {
+    goalValueRow: {
         flexDirection: 'row',
+        justifyContent: 'flex-end',
         alignItems: 'baseline',
-        gap: 4,
+        gap: 8,
     },
-    currentValue: {
-        fontSize: 28,
-        color: COLORS.textPrimary,
+    goalValueCurrent: {
+        fontSize: 32,
+        color: '#FFFFFF',
         fontFamily: FONTS.bold,
     },
-    targetValue: {
+    goalValueTarget: {
         fontSize: 16,
-        color: COLORS.textSecondary,
-        fontFamily: FONTS.regular,
+        color: 'rgba(255,255,255,0.4)',
+        fontFamily: FONTS.medium,
     },
-    progressBarContainer: {
-        height: 12,
-        backgroundColor: COLORS.border,
-        borderRadius: 6,
+    goalProgressBar: {
+        height: 8,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 4,
         overflow: 'hidden',
     },
-    progressBarFill: {
+    goalProgressFill: {
         height: '100%',
-        borderRadius: 6,
+        borderRadius: 4,
     },
-    percentageText: {
+    goalPercentageText: {
         fontSize: 14,
-        fontFamily: FONTS.medium,
-        textAlign: 'right',
+        fontFamily: FONTS.bold,
+        textAlign: 'left',
     },
+
+    // Modal Styles
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
     },
     modalContent: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 20,
+        backgroundColor: '#151515',
+        borderRadius: 24,
         padding: 24,
         width: '100%',
         maxWidth: 400,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
     },
     modalHeader: {
-        flexDirection: 'row',
+        flexDirection: 'row-reverse',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 24,
     },
     modalTitle: {
-        fontSize: 20,
-        color: COLORS.textPrimary,
+        fontSize: 18,
+        color: '#FFFFFF',
         fontFamily: FONTS.bold,
     },
     modalInput: {
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        padding: 16,
-        fontSize: 18,
-        color: COLORS.textPrimary,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 16,
+        padding: 18,
+        fontSize: 20,
+        color: '#FFFFFF',
         fontFamily: FONTS.medium,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        marginBottom: 20,
+        borderColor: 'rgba(255,255,255,0.1)',
+        marginBottom: 24,
     },
     modalButtons: {
         flexDirection: 'row',
@@ -385,24 +410,22 @@ const styles = StyleSheet.create({
     modalButton: {
         flex: 1,
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 16,
         alignItems: 'center',
     },
     cancelButton: {
-        backgroundColor: COLORS.background,
-        borderWidth: 1,
-        borderColor: COLORS.border,
+        backgroundColor: 'rgba(255,255,255,0.05)',
     },
     saveButton: {
-        backgroundColor: COLORS.primary,
+        backgroundColor: '#8a5cf5',
     },
     cancelButtonText: {
-        color: COLORS.textPrimary,
+        color: 'rgba(255,255,255,0.6)',
         fontSize: 16,
         fontFamily: FONTS.medium,
     },
     saveButtonText: {
-        color: COLORS.white,
+        color: '#FFFFFF',
         fontSize: 16,
         fontFamily: FONTS.bold,
     },

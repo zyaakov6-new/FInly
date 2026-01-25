@@ -11,7 +11,9 @@ import {
     Alert,
     Platform,
     I18nManager,
-    KeyboardAvoidingView
+    KeyboardAvoidingView,
+    ActivityIndicator,
+    Modal
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -21,24 +23,30 @@ import * as DocumentPicker from 'expo-document-picker';
 import { useTransactions } from '../context/TransactionsContext';
 import { SuccessModal } from '../components/SuccessModal';
 import { COLORS, FONTS } from '../constants/theme';
-import { scanReceipt } from '../services/MLKitOCRService';
+import { scanReceipt } from '../services/GoogleVisionService';
+import { handleError } from '../utils/errorHandler';
+import { uploadReceiptToCloud } from '../utils/receiptStorage';
 
-export default function AddExpenseScreen() {
+export default function AddExpenseScreen({ route }: any) {
     const navigation = useNavigation();
-    const { addTransaction, categories, transactions } = useTransactions();
+    const { addTransaction, updateTransaction, categories, transactions } = useTransactions();
 
-    // Form State
-    const [amount, setAmount] = useState('');
-    const [date, setDate] = useState(new Date());
-    const [category, setCategory] = useState('');
-    const [supplier, setSupplier] = useState('');
-    const [description, setDescription] = useState('');
+    // Check if editing existing expense
+    const editingExpense = route?.params?.expense;
+    const isEditMode = !!editingExpense;
+
+    // Form State - Pre-fill if editing
+    const [amount, setAmount] = useState(editingExpense ? editingExpense.amount.replace(/[^0-9.]/g, '') : '');
+    const [date, setDate] = useState(editingExpense ? new Date(editingExpense.date) : new Date());
+    const [category, setCategory] = useState(editingExpense?.category || '');
+    const [supplier, setSupplier] = useState(editingExpense?.supplier || '');
+    const [description, setDescription] = useState(editingExpense?.title || '');
 
     // Additional Expense Fields
-    const [projectId, setProjectId] = useState<string | null>(null);
-    const [isDeductible, setIsDeductible] = useState(true);
+    const [projectId, setProjectId] = useState<string | null>(editingExpense?.clientId || null);
+    const [isDeductible, setIsDeductible] = useState(editingExpense?.isDeductible ?? true);
     const [hasVat, setHasVat] = useState(true);
-    const [receiptUri, setReceiptUri] = useState<string | null>(null);
+    const [receiptUri, setReceiptUri] = useState<string | null>(editingExpense?.receiptImageUri || null);
     const [isScanning, setIsScanning] = useState(false);
 
     // Dropdown State
@@ -48,25 +56,33 @@ export default function AddExpenseScreen() {
     const [showSuccess, setShowSuccess] = useState(false);
     const [keepForm, setKeepForm] = useState(false); // If true, "Save and Create Another"
 
+    // Validation errors
+    const [amountError, setAmountError] = useState('');
+    const [categoryError, setCategoryError] = useState('');
+
     // Recent Invoices for Project Linking
     const recentInvoices = transactions.filter(t => t.type === 'invoice').slice(0, 5);
 
     const handleCamera = async () => {
-        const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permissionResult.granted) {
-            Alert.alert("דרושה הרשאה", "אפליקציה זו זקוקה לגישה למצלמה.");
-            return;
-        }
+        try {
+            const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+            if (!permissionResult.granted) {
+                Alert.alert("דרושה הרשאה", "אפליקציה זו זקוקה לגישה למצלמה.");
+                return;
+            }
 
-        const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 1,
-        });
+            const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ['images'],
+                allowsEditing: true,
+                quality: 1,
+            });
 
-        if (!result.canceled) {
-            setReceiptUri(result.assets[0].uri);
+            if (!result.canceled) {
+                setReceiptUri(result.assets[0].uri);
+            }
+        } catch (error) {
+            console.error('Camera error:', error);
+            Alert.alert('שגיאה', 'שגיאה בפתיחת המצלמה');
         }
     };
 
@@ -115,10 +131,11 @@ export default function AddExpenseScreen() {
                     // Try to match or set description
                     setDescription(data.category);
                 }
-                Alert.alert("סריקה הושלמה", "הפרטים מולאו אוטומטית!");
+                // Show success with auto-filled data
+                setShowSuccess(true);
+                setTimeout(() => setShowSuccess(false), 2000);
             } catch (error: any) {
-                const errorMessage = error?.message || 'Network request failed';
-                Alert.alert("שגיאה בסריקה", `${errorMessage}\n\nבדוק את החיבור לאינטרנט ואת ה-API Key.`);
+                handleError(error, true); // Show Hebrew error message
                 console.error('Scan error:', error);
             } finally {
                 setIsScanning(false);
@@ -150,10 +167,11 @@ export default function AddExpenseScreen() {
                     if (data.category) {
                         setDescription(data.category);
                     }
-                    Alert.alert("סריקה הושלמה", "הפרטים מולאו אוטומטית!");
+                    // Show success with auto-filled data
+                    setShowSuccess(true);
+                    setTimeout(() => setShowSuccess(false), 2000);
                 } catch (error: any) {
-                    const errorMessage = error?.message || 'Network request failed';
-                    Alert.alert("שגיאה בסריקה", `${errorMessage}`);
+                    handleError(error, true); // Show Hebrew error message
                     console.error('File Scan error:', error);
                 } finally {
                     setIsScanning(false);
@@ -164,31 +182,93 @@ export default function AddExpenseScreen() {
         }
     };
 
-    const handleSave = (createAnother: boolean = false) => {
-        if (!amount || !category) {
-            Alert.alert('חסרים פרטים', 'נא למלא סכום וקטגוריה לפחות.');
+    const validateForm = (): boolean => {
+        let isValid = true;
+
+        // Validate amount
+        if (!amount || amount.trim() === '') {
+            setAmountError('שדה חובה');
+            isValid = false;
+        } else if (parseFloat(amount) <= 0) {
+            setAmountError('הסכום חייב להיות גדול מ-0');
+            isValid = false;
+        } else {
+            setAmountError('');
+        }
+
+        // Validate category
+        if (!category || category.trim() === '') {
+            setCategoryError('שדה חובה');
+            isValid = false;
+        } else {
+            setCategoryError('');
+        }
+
+        return isValid;
+    };
+
+    const handleSave = async (createAnother: boolean = false) => {
+        if (!validateForm()) {
+            // Show detailed error message
+            const missingFields = [];
+            if (!amount || amount.trim() === '') missingFields.push('סכום');
+            if (parseFloat(amount) <= 0) missingFields.push('סכום תקין');
+            if (!category || category.trim() === '') missingFields.push('קטגוריה');
+
+            Alert.alert(
+                'שדות חסרים',
+                `אנא מלא את השדות הבאים:\n• ${missingFields.join('\n• ')}`,
+                [{ text: 'אישור', style: 'default' }]
+            );
             return;
         }
 
-        const newExpense = {
-            id: Date.now().toString(),
-            type: 'expense' as const,
-            title: supplier || description || 'הוצאה כללית',
-            amount: `₪ ${parseFloat(amount).toLocaleString()}`,
-            date: date,
-            category: category,
-            isIncome: false,
-            status: 'paid' as const,
-            notes: description,
-            clientName: supplier,
-            supplier: supplier,
-            receiptImageUri: receiptUri || undefined,
-            isDeductible: isDeductible,
-        };
+        // Upload receipt to cloud if present
+        let cloudReceiptUrl = receiptUri;
+        if (receiptUri && !receiptUri.startsWith('http')) {
+            console.log('📤 Uploading receipt to cloud...');
+            cloudReceiptUrl = await uploadReceiptToCloud(receiptUri, Date.now().toString());
+        }
 
-        addTransaction(newExpense);
-        setKeepForm(createAnother);
-        setShowSuccess(true);
+        if (isEditMode && editingExpense) {
+            // Update existing expense
+            updateTransaction(editingExpense.id, {
+                title: supplier || description || 'הוצאה כללית',
+                amount: `₪ ${parseFloat(amount).toLocaleString()}`,
+                date: date,
+                category: category,
+                notes: description,
+                clientName: supplier,
+                supplier: supplier,
+                receiptImageUri: cloudReceiptUrl || undefined,
+                isDeductible: isDeductible,
+            });
+            setShowSuccess(true);
+            setTimeout(() => {
+                navigation.goBack();
+            }, 1500);
+        } else {
+            // Create new expense
+            const newExpense = {
+                id: Date.now().toString(),
+                type: 'expense' as const,
+                title: supplier || description || 'הוצאה כללית',
+                amount: `₪ ${parseFloat(amount).toLocaleString()}`,
+                date: date,
+                category: category,
+                isIncome: false,
+                status: 'paid' as const,
+                notes: description,
+                clientName: supplier,
+                supplier: supplier,
+                receiptImageUri: cloudReceiptUrl || undefined,
+                isDeductible: isDeductible,
+            };
+
+            addTransaction(newExpense);
+            setKeepForm(createAnother);
+            setShowSuccess(true);
+        }
     };
 
     const handleModalClose = () => {
@@ -199,9 +279,8 @@ export default function AddExpenseScreen() {
             setSupplier('');
             setDescription('');
             setReceiptUri(null);
-        } else {
-            navigation.goBack();
         }
+        // Don't navigate back - let user review and edit
     };
 
     return (
@@ -214,13 +293,30 @@ export default function AddExpenseScreen() {
                 onClose={handleModalClose}
             />
 
+            {/* Loading Modal */}
+            <Modal
+                visible={isScanning}
+                transparent
+                animationType="fade"
+            >
+                <View style={styles.loadingOverlay}>
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={COLORS.primary} />
+                        <Text style={styles.loadingText}>סורק קבלה...</Text>
+                        <Text style={styles.loadingSubtext}>זה עשוי לקחת מספר שניות</Text>
+                    </View>
+                </View>
+            </Modal>
+
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <ChevronRight size={28} color={COLORS.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>הוסף הוצאה</Text>
-                <View style={{ width: 28 }} />
+                <Text style={styles.headerTitle}>{isEditMode ? 'עריכת הוצאה' : 'הוסף הוצאה'}</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('ExpenseTemplates' as never)} style={styles.templatesButton}>
+                    <Layers size={24} color={COLORS.primary} />
+                </TouchableOpacity>
             </View>
 
             <KeyboardAvoidingView
@@ -241,25 +337,22 @@ export default function AddExpenseScreen() {
                         ) : (
                             <View style={styles.placeholderContainer}>
                                 <Text style={styles.placeholderLabel}>העלה קבלה</Text>
-                                <View style={styles.imageActions}>
-                                    <TouchableOpacity style={styles.actionIconBtn} onPress={handleCamera}>
-                                        <Camera size={24} color={COLORS.primary} />
-                                        <Text style={styles.actionIconLabel}>צלם</Text>
+                                <View style={styles.imageActionsGrid}>
+                                    <TouchableOpacity style={styles.gridActionBtn} onPress={handleCamera}>
+                                        <Camera size={20} color={COLORS.primary} />
+                                        <Text style={styles.gridActionLabel}>צלם</Text>
                                     </TouchableOpacity>
-                                    <View style={styles.dividerVertical} />
-                                    <TouchableOpacity style={styles.actionIconBtn} onPress={handleGallery}>
-                                        <ImageIcon size={24} color={COLORS.primary} />
-                                        <Text style={styles.actionIconLabel}>גלריה</Text>
+                                    <TouchableOpacity style={styles.gridActionBtn} onPress={handleGallery}>
+                                        <ImageIcon size={20} color={COLORS.primary} />
+                                        <Text style={styles.gridActionLabel}>גלריה</Text>
                                     </TouchableOpacity>
-                                    <View style={styles.dividerVertical} />
-                                    <TouchableOpacity style={[styles.actionIconBtn, { backgroundColor: 'rgba(139, 92, 246, 0.1)', borderColor: COLORS.primary }]} onPress={handleMagicScan}>
-                                        <Wand2 size={24} color={COLORS.primary} />
-                                        <Text style={[styles.actionIconLabel, { color: COLORS.primary, fontWeight: 'bold' }]}>סרוק</Text>
+                                    <TouchableOpacity style={[styles.gridActionBtn, styles.gridActionHighlight]} onPress={handleMagicScan}>
+                                        <Wand2 size={20} color={COLORS.primary} />
+                                        <Text style={[styles.gridActionLabel, { color: COLORS.primary }]}>סרוק</Text>
                                     </TouchableOpacity>
-                                    <View style={styles.dividerVertical} />
-                                    <TouchableOpacity style={[styles.actionIconBtn, { backgroundColor: 'rgba(139, 92, 246, 0.1)', borderColor: COLORS.primary }]} onPress={handleGalleryScan}>
-                                        <ImageIcon size={24} color={COLORS.primary} />
-                                        <Text style={[styles.actionIconLabel, { color: COLORS.primary, fontWeight: 'bold' }]}>סרוק קובץ</Text>
+                                    <TouchableOpacity style={[styles.gridActionBtn, styles.gridActionHighlight]} onPress={handleGalleryScan}>
+                                        <ImageIcon size={20} color={COLORS.primary} />
+                                        <Text style={[styles.gridActionLabel, { color: COLORS.primary }]}>סרוק קובץ</Text>
                                     </TouchableOpacity>
                                 </View>
                                 {isScanning && <Text style={{ textAlign: 'center', marginTop: 10, color: COLORS.primary }}>סורק קבלה...</Text>}
@@ -447,6 +540,7 @@ const styles = StyleSheet.create({
         borderBottomColor: COLORS.border,
     },
     backButton: { padding: 8 },
+    templatesButton: { padding: 8 },
     headerTitle: {
         fontSize: 18,
         color: COLORS.textPrimary,
@@ -691,5 +785,72 @@ const styles = StyleSheet.create({
         color: COLORS.primary,
         fontSize: 14,
         fontFamily: FONTS.medium,
+    },
+
+    // Loading Modal
+    loadingOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingContainer: {
+        backgroundColor: COLORS.surface,
+        borderRadius: 16,
+        padding: 32,
+        alignItems: 'center',
+        minWidth: 200,
+    },
+    loadingText: {
+        marginTop: 16,
+        fontSize: 18,
+        fontFamily: FONTS.bold,
+        color: COLORS.textPrimary,
+    },
+    loadingSubtext: {
+        marginTop: 8,
+        fontSize: 14,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+    },
+
+    // Validation Errors
+    errorText: {
+        color: COLORS.danger,
+        fontSize: 12,
+        marginTop: 4,
+        marginRight: 16,
+        fontFamily: FONTS.regular,
+    },
+
+    // Grid Button Layout
+    imageActionsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginTop: 12,
+    },
+    gridActionBtn: {
+        flex: 1,
+        minWidth: '45%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        backgroundColor: COLORS.surface,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    gridActionHighlight: {
+        backgroundColor: 'rgba(0, 212, 170, 0.1)',
+        borderColor: COLORS.primary,
+    },
+    gridActionLabel: {
+        fontSize: 14,
+        fontFamily: FONTS.medium,
+        color: COLORS.textPrimary,
     },
 });

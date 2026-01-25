@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useMemo, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { syncTransactionToCloud, deleteTransactionFromCloud, loadTransactionsFromCloud, mergeTransactions } from '../utils/cloudSync';
 
 // --- Types ---
 export type TransactionType = 'invoice' | 'expense';
@@ -282,17 +283,28 @@ export const TransactionsProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         const loadData = async () => {
             try {
+                // Load from local storage
                 const storedTx = await AsyncStorage.getItem('@finly_transactions');
+                let localTransactions: Transaction[] = [];
                 if (storedTx) {
                     const parsedTx = JSON.parse(storedTx);
                     // Restore Dates
-                    const fixedTx = parsedTx.map((t: any) => ({
+                    localTransactions = parsedTx.map((t: any) => ({
                         ...t,
                         date: new Date(t.date),
                         paidDate: t.paidDate ? new Date(t.paidDate) : undefined
                     }));
-                    setTransactions(fixedTx);
                 }
+
+                // Load from cloud
+                console.log('Loading transactions from cloud...');
+                const cloudTransactions = await loadTransactionsFromCloud();
+
+                // Merge local and cloud data
+                const mergedTransactions = mergeTransactions(localTransactions, cloudTransactions);
+                setTransactions(mergedTransactions);
+
+                console.log(`✓ Loaded ${mergedTransactions.length} transactions (${localTransactions.length} local, ${cloudTransactions.length} cloud)`);
 
                 const storedCats = await AsyncStorage.getItem('@finly_categories');
                 if (storedCats) setCategories(JSON.parse(storedCats));
@@ -343,10 +355,20 @@ export const TransactionsProvider = ({ children }: { children: ReactNode }) => {
 
     const addTransaction = (tx: Transaction) => {
         setTransactions(prev => [tx, ...prev]);
+        // Sync to cloud
+        syncTransactionToCloud(tx).catch(err => console.error('Cloud sync failed:', err));
     };
 
     const updateTransaction = (id: string, updates: Partial<Transaction>) => {
-        setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+        setTransactions(prev => {
+            const updated = prev.map(t => t.id === id ? { ...t, ...updates } : t);
+            // Sync updated transaction to cloud
+            const updatedTx = updated.find(t => t.id === id);
+            if (updatedTx) {
+                syncTransactionToCloud(updatedTx).catch(err => console.error('Cloud sync failed:', err));
+            }
+            return updated;
+        });
     };
 
     const addCategory = (category: string) => {
@@ -371,6 +393,8 @@ export const TransactionsProvider = ({ children }: { children: ReactNode }) => {
     // New: Delete Transaction
     const deleteTransaction = (id: string) => {
         setTransactions(prev => prev.filter(t => t.id !== id));
+        // Delete from cloud
+        deleteTransactionFromCloud(id).catch(err => console.error('Cloud delete failed:', err));
     };
 
     const getPriceHistoryByCategory = (category: string) => {

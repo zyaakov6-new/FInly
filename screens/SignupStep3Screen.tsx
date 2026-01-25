@@ -3,7 +3,6 @@ import {
     StyleSheet,
     Text,
     View,
-    TextInput,
     TouchableOpacity,
     KeyboardAvoidingView,
     Platform,
@@ -12,32 +11,41 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { Mail, User, Building, TrendingUp, Briefcase, ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Car, Printer, Code, TrendingUp } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FONTS } from '../constants/theme';
 import { useUserProfile } from '../context/UserProfileContext';
 
 const { width } = Dimensions.get('window');
 
-const CATEGORIES = [
-    { id: 'design', label: 'עיצוב/ת', icon: '🎨' },
-    { id: 'dev', label: 'מפתח/ת', icon: '💻' },
-    { id: 'marketing', label: 'שיווק/ת', icon: '📊' },
-    { id: 'consulting', label: 'יועץ/ת', icon: '💼' },
+const EXPENSE_CATEGORIES = [
+    { id: 'transport', label: 'רכב ונסיעות', icon: <Car size={32} color="rgba(255,255,255,0.7)" /> },
+    { id: 'office', label: 'ציוד משרדי', icon: <Printer size={32} color="rgba(255,255,255,0.7)" /> },
+    { id: 'software', label: 'תוכנה ועגן', icon: <Code size={32} color="rgba(255,255,255,0.7)" /> },
+    { id: 'marketing', label: 'שיווק ופרסום', icon: <TrendingUp size={32} color="rgba(255,255,255,0.7)" /> },
 ];
 
-export default function SignupScreen() {
+export default function SignupStep3Screen() {
     const navigation = useNavigation<any>();
     const { updateUserProfile } = useUserProfile();
-    const [fullName, setFullName] = useState('');
-    const [email, setEmail] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [autoTrack, setAutoTrack] = useState(true);
+
+    const toggleCategory = (id: string) => {
+        if (selectedCategories.includes(id)) {
+            setSelectedCategories(selectedCategories.filter(c => c !== id));
+        } else {
+            setSelectedCategories([...selectedCategories, id]);
+        }
+    };
 
     const handleContinue = async () => {
-        // Save user data to profile
-        await updateUserProfile({ fullName, email });
-        // Navigate to step 2
-        navigation.navigate('SignupStep2' as never);
+        // Save expense preferences
+        await updateUserProfile({
+            expenseCategories: selectedCategories,
+            autoTrackExpenses: autoTrack
+        });
+        navigation.navigate('SignupStep4' as never);
     };
 
     return (
@@ -65,8 +73,8 @@ export default function SignupScreen() {
                     <View style={styles.progressContainer}>
                         <View style={styles.progressSteps}>
                             <View style={[styles.progressStep, styles.progressStepActive]} />
-                            <View style={styles.progressStep} />
-                            <View style={styles.progressStep} />
+                            <View style={[styles.progressStep, styles.progressStepActive]} />
+                            <View style={[styles.progressStep, styles.progressStepActive]} />
                             <View style={styles.progressStep} />
                         </View>
                     </View>
@@ -80,41 +88,55 @@ export default function SignupScreen() {
                     </TouchableOpacity>
 
                     {/* Title */}
-                    <Text style={styles.title}>בנה את העתיד</Text>
-                    <Text style={styles.title}>הפיננסי שלך</Text>
-                    <Text></Text>
+                    <Text style={styles.title}>ניהול הוצאות מוכרות</Text>
+                    <Text style={styles.subtitle}></Text>
 
-                    {/* Who Are You */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>מי אתה?</Text>
-                        <View style={styles.inputWrapper}>
-                            <User size={20} color="rgba(255,255,255,0.5)" style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="לדוגמה: ישראל ישראלי"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                value={fullName}
-                                onChangeText={setFullName}
-                            />
-                        </View>
+                    {/* Expense Categories Grid */}
+                    <View style={styles.categoryGrid}>
+                        {EXPENSE_CATEGORIES.map((category) => (
+                            <TouchableOpacity
+                                key={category.id}
+                                style={[
+                                    styles.categoryButton,
+                                    selectedCategories.includes(category.id) && styles.categoryButtonActive,
+                                ]}
+                                onPress={() => toggleCategory(category.id)}
+                                activeOpacity={0.7}
+                            >
+                                <View style={styles.categoryIcon}>
+                                    {category.icon}
+                                </View>
+                                <Text
+                                    style={[
+                                        styles.categoryLabel,
+                                        selectedCategories.includes(category.id) && styles.categoryLabelActive,
+                                    ]}
+                                >
+                                    {category.label}
+                                </Text>
+                                {selectedCategories.includes(category.id) && (
+                                    <View style={styles.categoryCheck}>
+                                        <Text style={styles.categoryCheckText}>✓</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        ))}
                     </View>
 
-                    {/* Email */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>אימייל</Text>
-                        <View style={styles.inputWrapper}>
-                            <Mail size={20} color="rgba(255,255,255,0.5)" style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="name@nexus.com"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                            />
+                    {/* Auto-track Checkbox */}
+                    <TouchableOpacity
+                        style={styles.checkboxContainer}
+                        onPress={() => setAutoTrack(!autoTrack)}
+                        activeOpacity={0.7}
+                    >
+                        <View style={[styles.checkbox, autoTrack && styles.checkboxActive]}>
+                            {autoTrack && <Text style={styles.checkboxCheck}>✓</Text>}
                         </View>
-                    </View>
+                        <Text style={styles.checkboxText}>
+                            המערכת תזהה ותרשום אלו באופן אוטומטי ותשאיר אותן
+                            לאישורך.
+                        </Text>
+                    </TouchableOpacity>
 
                     {/* Continue Button */}
                     <TouchableOpacity
@@ -133,13 +155,13 @@ export default function SignupScreen() {
                         </LinearGradient>
                     </TouchableOpacity>
 
-                    {/* Login Link */}
-                    <View style={styles.loginContainer}>
-                        <Text style={styles.loginText}>כבר יש לך חשבון? </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                            <Text style={styles.loginLink}>התחברות</Text>
-                        </TouchableOpacity>
-                    </View>
+                    {/* Skip Link */}
+                    <TouchableOpacity
+                        style={styles.skipContainer}
+                        onPress={() => navigation.navigate('SignupStep4' as never)}
+                    >
+                        <Text style={styles.skipText}>דלג לשלב הבא</Text>
+                    </TouchableOpacity>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -204,40 +226,11 @@ const styles = StyleSheet.create({
         marginBottom: 40,
         lineHeight: 20,
     },
-    section: {
-        marginBottom: 28,
-    },
-    sectionTitle: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.8)',
-        marginBottom: 12,
-        textAlign: 'left',
-    },
-    inputWrapper: {
-        flexDirection: 'row-reverse',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        paddingHorizontal: 16,
-        height: 56,
-    },
-    inputIcon: {
-        marginLeft: 12,
-    },
-    input: {
-        flex: 1,
-        fontSize: 16,
-        fontFamily: FONTS.regular,
-        color: '#ffffff',
-        textAlign: 'left',
-    },
     categoryGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 12,
+        marginBottom: 32,
     },
     categoryButton: {
         width: (width - 60) / 2,
@@ -245,10 +238,10 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
-        padding: 16,
+        padding: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 100,
+        minHeight: 120,
         position: 'relative',
     },
     categoryButtonActive: {
@@ -256,9 +249,8 @@ const styles = StyleSheet.create({
         borderColor: '#00ff88',
         borderWidth: 2,
     },
-    categoryEmoji: {
-        fontSize: 32,
-        marginBottom: 8,
+    categoryIcon: {
+        marginBottom: 12,
     },
     categoryLabel: {
         fontSize: 14,
@@ -271,8 +263,8 @@ const styles = StyleSheet.create({
     },
     categoryCheck: {
         position: 'absolute',
-        top: 8,
-        right: 8,
+        top: 12,
+        right: 12,
         width: 24,
         height: 24,
         borderRadius: 12,
@@ -285,9 +277,44 @@ const styles = StyleSheet.create({
         color: '#0a3d2e',
         fontFamily: FONTS.bold,
     },
+    checkboxContainer: {
+        flexDirection: 'row-reverse',
+        alignItems: 'flex-start',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 32,
+    },
+    checkbox: {
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.3)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 12,
+        marginTop: 2,
+    },
+    checkboxActive: {
+        backgroundColor: '#00ff88',
+        borderColor: '#00ff88',
+    },
+    checkboxCheck: {
+        fontSize: 14,
+        color: '#0a3d2e',
+        fontFamily: FONTS.bold,
+    },
+    checkboxText: {
+        flex: 1,
+        fontSize: 13,
+        fontFamily: FONTS.regular,
+        color: 'rgba(255,255,255,0.7)',
+        textAlign: 'right',
+        lineHeight: 20,
+    },
     continueButton: {
-        marginTop: 40,
-        marginBottom: 24,
+        marginBottom: 16,
         borderRadius: 16,
         overflow: 'hidden',
         shadowColor: '#00ff88',
@@ -311,19 +338,13 @@ const styles = StyleSheet.create({
     arrowIcon: {
         transform: [{ rotate: '0deg' }],
     },
-    loginContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
+    skipContainer: {
         alignItems: 'center',
+        paddingVertical: 12,
     },
-    loginText: {
+    skipText: {
         fontSize: 14,
         fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
-    },
-    loginLink: {
-        fontSize: 14,
-        fontFamily: FONTS.bold,
-        color: '#00ff88',
+        color: 'rgba(255,255,255,0.5)',
     },
 });

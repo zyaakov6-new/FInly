@@ -19,7 +19,7 @@ export default function MainTabs() {
                 tabBarStyle: styles.tabBar,
                 tabBarShowLabel: true,
                 tabBarActiveTintColor: COLORS.primary,
-                tabBarInactiveTintColor: COLORS.textSecondary,
+                tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.4)',
                 tabBarLabelStyle: styles.tabLabel,
             }}
         >
@@ -73,19 +73,19 @@ const styles = StyleSheet.create({
         bottom: 20,
         left: 20,
         right: 20,
-        backgroundColor: COLORS.surface,
+        backgroundColor: '#0a0a0a', // Dark theme
         borderRadius: 24,
         borderTopWidth: 0,
         elevation: 10,
-        shadowColor: COLORS.black,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.25,
+        shadowOpacity: 0.3,
         shadowRadius: 10,
         height: 70,
         paddingBottom: 10,
         paddingTop: 10,
         borderWidth: 1,
-        borderColor: COLORS.border,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
     },
     tabLabel: {
         fontFamily: FONTS.medium,

@@ -12,32 +12,42 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { Mail, User, Building, TrendingUp, Briefcase, ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Briefcase, TrendingUp, Code, Palette, Edit3 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FONTS } from '../constants/theme';
 import { useUserProfile } from '../context/UserProfileContext';
 
 const { width } = Dimensions.get('window');
 
-const CATEGORIES = [
-    { id: 'design', label: 'עיצוב/ת', icon: '🎨' },
-    { id: 'dev', label: 'מפתח/ת', icon: '💻' },
-    { id: 'marketing', label: 'שיווק/ת', icon: '📊' },
-    { id: 'consulting', label: 'יועץ/ת', icon: '💼' },
+const BUSINESS_CATEGORIES = [
+    { id: 'lab', label: 'מעבדת', icon: <Briefcase size={24} color="rgba(255,255,255,0.7)" /> },
+    { id: 'design', label: 'מפתח/ת', icon: <Code size={24} color="rgba(255,255,255,0.7)" /> },
+    { id: 'marketing', label: 'עיצוב/ת', icon: <Palette size={24} color="rgba(255,255,255,0.7)" /> },
+    { id: 'consulting', label: 'מחבר/ת', icon: <TrendingUp size={24} color="rgba(255,255,255,0.7)" /> },
+    { id: 'other', label: 'אחר', icon: <Edit3 size={24} color="rgba(255,255,255,0.7)" /> },
 ];
 
-export default function SignupScreen() {
+export default function SignupStep2Screen() {
     const navigation = useNavigation<any>();
     const { updateUserProfile } = useUserProfile();
-    const [fullName, setFullName] = useState('');
-    const [email, setEmail] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [customCategory, setCustomCategory] = useState('');
+
+    const handleCategorySelect = (id: string) => {
+        setSelectedCategory(id);
+        if (id !== 'other') {
+            setCustomCategory('');
+        }
+    };
 
     const handleContinue = async () => {
-        // Save user data to profile
-        await updateUserProfile({ fullName, email });
-        // Navigate to step 2
-        navigation.navigate('SignupStep2' as never);
+        // Save business category data
+        const categoryToSave = selectedCategory === 'other' ? customCategory : selectedCategory;
+        await updateUserProfile({
+            businessCategory: categoryToSave || '',
+            customCategory: selectedCategory === 'other' ? customCategory : undefined
+        });
+        navigation.navigate('SignupStep3' as never);
     };
 
     return (
@@ -65,7 +75,7 @@ export default function SignupScreen() {
                     <View style={styles.progressContainer}>
                         <View style={styles.progressSteps}>
                             <View style={[styles.progressStep, styles.progressStepActive]} />
-                            <View style={styles.progressStep} />
+                            <View style={[styles.progressStep, styles.progressStepActive]} />
                             <View style={styles.progressStep} />
                             <View style={styles.progressStep} />
                         </View>
@@ -80,41 +90,60 @@ export default function SignupScreen() {
                     </TouchableOpacity>
 
                     {/* Title */}
-                    <Text style={styles.title}>בנה את העתיד</Text>
-                    <Text style={styles.title}>הפיננסי שלך</Text>
+                    <Text style={styles.title}>הצטרף לעידן החדש של בנקאות לעצמאיים</Text>
                     <Text></Text>
-
-                    {/* Who Are You */}
+                    <Text></Text>
+                    {/* Business Category Selection */}
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>מי אתה?</Text>
-                        <View style={styles.inputWrapper}>
-                            <User size={20} color="rgba(255,255,255,0.5)" style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="לדוגמה: ישראל ישראלי"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                value={fullName}
-                                onChangeText={setFullName}
-                            />
+                        <Text style={styles.sectionTitle}>קטגוריית עסק</Text>
+                        <View style={styles.categoryGrid}>
+                            {BUSINESS_CATEGORIES.map((category) => (
+                                <TouchableOpacity
+                                    key={category.id}
+                                    style={[
+                                        styles.categoryButton,
+                                        selectedCategory === category.id && styles.categoryButtonActive,
+                                    ]}
+                                    onPress={() => handleCategorySelect(category.id)}
+                                    activeOpacity={0.7}
+                                >
+                                    <View style={styles.categoryIcon}>
+                                        {category.icon}
+                                    </View>
+                                    <Text
+                                        style={[
+                                            styles.categoryLabel,
+                                            selectedCategory === category.id && styles.categoryLabelActive,
+                                        ]}
+                                    >
+                                        {category.label}
+                                    </Text>
+                                    {selectedCategory === category.id && (
+                                        <View style={styles.categoryCheck}>
+                                            <Text style={styles.categoryCheckText}>✓</Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     </View>
 
-                    {/* Email */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>אימייל</Text>
-                        <View style={styles.inputWrapper}>
-                            <Mail size={20} color="rgba(255,255,255,0.5)" style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="name@nexus.com"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                            />
+                    {/* Custom Category Input - Shows when "Other" is selected */}
+                    {selectedCategory === 'other' && (
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>מה תחום העיסוק שלך?</Text>
+                            <View style={styles.inputWrapper}>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="לדוגמה: צלם, מאמן כושר, יועץ משכנתאות..."
+                                    placeholderTextColor="rgba(255,255,255,0.3)"
+                                    value={customCategory}
+                                    onChangeText={setCustomCategory}
+                                    autoFocus
+                                />
+                            </View>
                         </View>
-                    </View>
+                    )}
 
                     {/* Continue Button */}
                     <TouchableOpacity
@@ -133,13 +162,7 @@ export default function SignupScreen() {
                         </LinearGradient>
                     </TouchableOpacity>
 
-                    {/* Login Link */}
-                    <View style={styles.loginContainer}>
-                        <Text style={styles.loginText}>כבר יש לך חשבון? </Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                            <Text style={styles.loginLink}>התחברות</Text>
-                        </TouchableOpacity>
-                    </View>
+
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -214,26 +237,6 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         textAlign: 'left',
     },
-    inputWrapper: {
-        flexDirection: 'row-reverse',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        paddingHorizontal: 16,
-        height: 56,
-    },
-    inputIcon: {
-        marginLeft: 12,
-    },
-    input: {
-        flex: 1,
-        fontSize: 16,
-        fontFamily: FONTS.regular,
-        color: '#ffffff',
-        textAlign: 'left',
-    },
     categoryGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -245,10 +248,10 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
-        padding: 16,
+        padding: 20,
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 100,
+        minHeight: 110,
         position: 'relative',
     },
     categoryButtonActive: {
@@ -256,9 +259,8 @@ const styles = StyleSheet.create({
         borderColor: '#00ff88',
         borderWidth: 2,
     },
-    categoryEmoji: {
-        fontSize: 32,
-        marginBottom: 8,
+    categoryIcon: {
+        marginBottom: 12,
     },
     categoryLabel: {
         fontSize: 14,
@@ -271,8 +273,8 @@ const styles = StyleSheet.create({
     },
     categoryCheck: {
         position: 'absolute',
-        top: 8,
-        right: 8,
+        top: 12,
+        right: 12,
         width: 24,
         height: 24,
         borderRadius: 12,
@@ -284,6 +286,21 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#0a3d2e',
         fontFamily: FONTS.bold,
+    },
+    inputWrapper: {
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)',
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        minHeight: 56,
+    },
+    input: {
+        fontSize: 16,
+        fontFamily: FONTS.regular,
+        color: '#ffffff',
+        textAlign: 'left',
     },
     continueButton: {
         marginTop: 40,

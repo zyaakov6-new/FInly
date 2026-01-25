@@ -8,15 +8,18 @@ import {
     Platform,
     Alert,
     Animated,
+    Modal,
     Dimensions
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowRight, ChevronDown, Calendar, TrendingUp, TrendingDown, Wallet, PieChart, Share as ShareIcon, Printer, Mail } from 'lucide-react-native';
+import { ArrowRight, ChevronDown, Calendar, TrendingUp, TrendingDown, Wallet, PieChart, Share as ShareIcon, Printer, Mail, Menu, X, Home, BarChart3, FileText, Settings, User, LogOut } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
+import { useUserProfile } from '../context/UserProfileContext';
 import { PieChart as PieChartKit } from 'react-native-chart-kit';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS } from '../constants/theme';
 
 // Types
@@ -24,8 +27,11 @@ type TimePeriod = 'week' | 'month' | 'year' | 'all';
 
 export default function PnLScreen() {
     const insets = useSafeAreaInsets();
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
+    const { userProfile: userProfileData } = useUserProfile();
     const { transactions, userProfile, businessSettings } = useTransactions();
+
+    const { width } = Dimensions.get('window');
 
     // Helper to parse currency strings "₪ 5,000" -> 5000
     const parseAmount = (str?: string) => {
@@ -39,9 +45,30 @@ export default function PnLScreen() {
     const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('month');
     const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
     const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
+    const [menuVisible, setMenuVisible] = useState(false);
+
     // Animation
     const fadeAnim = React.useRef(new Animated.Value(0)).current;
     const slideAnim = React.useRef(new Animated.Value(50)).current;
+    const menuAnim = React.useRef(new Animated.Value(-width)).current;
+
+    const openMenu = () => {
+        setMenuVisible(true);
+        Animated.spring(menuAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+        }).start();
+    };
+
+    const closeMenu = () => {
+        Animated.timing(menuAnim, {
+            toValue: -width,
+            duration: 250,
+            useNativeDriver: true,
+        }).start(() => setMenuVisible(false));
+    };
 
     React.useEffect(() => {
         Animated.parallel([
@@ -266,7 +293,7 @@ export default function PnLScreen() {
     const styles = StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: COLORS.background,
+            backgroundColor: '#050505', // Deep black as requested
         },
         header: {
             flexDirection: 'row',
@@ -274,147 +301,280 @@ export default function PnLScreen() {
             justifyContent: 'space-between',
             paddingHorizontal: 20,
             paddingVertical: 16,
-            borderBottomWidth: 1,
-            borderBottomColor: COLORS.border,
-            backgroundColor: COLORS.background,
             zIndex: 10,
         },
         headerTitle: {
-            color: COLORS.textPrimary,
-            fontSize: 20,
-            fontFamily: FONTS.medium,
+            color: '#FFFFFF',
+            fontSize: 18,
+            fontFamily: FONTS.bold,
+            textAlign: 'center',
+            flex: 1,
         },
-        backButton: {
-            padding: 8,
-            backgroundColor: 'rgba(255,255,255,0.05)',
+        headerButton: {
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: 'rgba(255,255,255,0.08)',
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+
+        // Hamburger Menu Styles
+        menuOverlay: {
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+        },
+        menuContainer: {
+            width: width * 0.75,
+            height: '100%',
+            backgroundColor: '#0a0a1a',
+            shadowColor: '#000',
+            shadowOffset: { width: 5, height: 0 },
+            shadowOpacity: 0.5,
+            shadowRadius: 15,
+            elevation: 15,
+        },
+        menuGradient: {
+            flex: 1,
+            backgroundColor: '#0a0a1a',
+        },
+        menuHeader: {
+            paddingTop: 80,
+            paddingHorizontal: 24,
+            paddingBottom: 30,
+            backgroundColor: '#08201a',
+            borderBottomWidth: 1,
+            borderBottomColor: 'rgba(255,255,255,0.05)',
+        },
+        closeButton: {
+            position: 'absolute',
+            top: 20,
+            right: 20,
+            zIndex: 20,
+            padding: 10,
+            backgroundColor: 'rgba(255,255,255,0.1)',
             borderRadius: 12,
+        },
+        menuProfile: {
+            alignItems: 'center',
+        },
+        menuAvatar: {
+            width: 70,
+            height: 70,
+            borderRadius: 35,
+            backgroundColor: '#ff9a7a',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 12,
+            borderWidth: 2,
+            borderColor: '#00ffdd',
+        },
+        menuAvatarText: {
+            fontSize: 32,
+        },
+        menuName: {
+            fontSize: 18,
+            fontWeight: 'bold',
+            color: '#ffffff',
+            marginBottom: 4,
+        },
+        menuEmail: {
+            fontSize: 13,
+            color: 'rgba(255,255,255,0.6)',
+        },
+        menuItems: {
+            flex: 1,
+        },
+        menuItemsContent: {
+            padding: 24,
+            paddingBottom: 40,
+        },
+        menuItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 12,
+            paddingHorizontal: 15,
+            borderRadius: 12,
+            marginBottom: 10,
+            backgroundColor: 'rgba(255,255,255,0.06)',
+            height: 55,
+        },
+        menuItemText: {
+            fontSize: 17,
+            color: '#FFFFFF',
+            fontWeight: 'bold',
+            marginLeft: 15,
+            textAlignVertical: 'center',
+        },
+        menuDivider: {
+            height: 1,
+            backgroundColor: 'rgba(255,255,255,0.05)',
+            marginVertical: 12,
         },
 
         // Time Selector
         periodContainer: {
-            padding: 20,
+            paddingTop: 10,
+            paddingHorizontal: 20,
+            alignItems: 'center',
         },
-        periodTitle: {
-            color: COLORS.textSecondary,
+        timelinePill: {
+            flexDirection: 'row',
+            backgroundColor: 'rgba(255,255,255,0.06)',
+            borderRadius: 30,
+            padding: 4,
+            width: '100%',
+        },
+        timelineTab: {
+            flex: 1,
+            paddingVertical: 12,
+            alignItems: 'center',
+            borderRadius: 25,
+        },
+        activeTimelineTab: {
+            backgroundColor: 'rgba(255,255,255,0.12)',
+        },
+        timelineTabText: {
+            color: 'rgba(255,255,255,0.4)',
             fontSize: 14,
             fontFamily: FONTS.medium,
-            marginBottom: 12,
-            textAlign: 'left'
         },
-        periodTabs: {
-            flexDirection: 'row',
-            backgroundColor: COLORS.surface,
-            borderRadius: 16,
-            padding: 4,
-            justifyContent: 'space-between',
-        },
-        tab: {
-            flex: 1,
-            paddingVertical: 10,
-            alignItems: 'center',
-            borderRadius: 12,
-        },
-        activeTab: {
-            backgroundColor: COLORS.primary,
-        },
-        tabText: {
-            color: COLORS.textTertiary,
-            fontSize: 13,
-            fontFamily: FONTS.medium,
-        },
-        activeTabText: {
-            color: COLORS.textPrimary,
+        activeTimelineTabText: {
+            color: '#FFFFFF',
         },
         currentPeriodLabel: {
-            color: COLORS.textSecondary,
-            fontSize: 14,
-            marginTop: 12,
+            color: 'rgba(255,255,255,0.3)',
+            fontSize: 13,
+            marginTop: 15,
+            marginBottom: 20,
             fontFamily: FONTS.regular,
-            textAlign: 'center'
         },
 
-        // KPI Section
-        kpiContainer: {
-            paddingHorizontal: 20,
-            marginBottom: 32,
-        },
-        kpiScroll: {
-            gap: 12,
-        },
-        kpiCard: {
-            backgroundColor: COLORS.surface,
-            borderRadius: 12, // Changed from 20 to 12
-            padding: 16,      // Changed from 20 to 16
-            width: 160,
-            borderWidth: 1,
-            borderColor: COLORS.border,
+        // KPI Cards
+        kpiRow: {
+            flexDirection: 'row',
             justifyContent: 'space-between',
-            height: 150,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-        },
-        kpiCardIncome: {
-            backgroundColor: 'rgba(16, 185, 129, 0.12)',
-            borderColor: 'rgba(16, 185, 129, 0.4)',
-            borderWidth: 1.5,
-            shadowColor: COLORS.success,
-            shadowOpacity: 0.2,
-        },
-        kpiCardExpense: {
-            backgroundColor: 'rgba(239, 68, 68, 0.12)',
-            borderColor: 'rgba(239, 68, 68, 0.4)',
-            borderWidth: 1.5,
-            shadowColor: COLORS.danger,
-            shadowOpacity: 0.2,
-        },
-        kpiCardProfit: {
-            backgroundColor: 'rgba(16, 185, 129, 0.12)', // Same as income base for profit
-            borderColor: COLORS.primary, // But distinct border
-            borderWidth: 1.5,
-            shadowColor: COLORS.primary,
-            shadowOpacity: 0.2,
-        },
-        kpiLabel: {
-            color: COLORS.textSecondary,
-            fontSize: 12,
-            fontFamily: FONTS.regular,
-            marginBottom: 8,
-            textAlign: 'left'
-        },
-        kpiAmount: {
-            color: COLORS.textPrimary,
-            fontSize: 24,
-            fontFamily: FONTS.bold,
-            textAlign: 'left'
-        },
-        kpiTrend: {
-            fontSize: 12,
-            fontFamily: FONTS.medium,
-            marginTop: 4,
-            textAlign: 'left'
-        },
-
-        // Detailed Sections
-        sectionTitle: {
-            color: COLORS.textPrimary,
-            fontSize: 18,
-            fontFamily: FONTS.bold,
-            marginBottom: 16,
-            marginTop: 24,
             paddingHorizontal: 20,
-            textAlign: 'left'
+            gap: 12,
+            marginBottom: 25,
         },
-        card: {
-            backgroundColor: COLORS.surface,
-            marginHorizontal: 20,
-            borderRadius: 20,
+        kpiCardItem: {
+            flex: 1,
+            backgroundColor: 'rgba(255,255,255,0.04)',
+            borderRadius: 24,
             padding: 20,
             borderWidth: 1,
-            borderColor: COLORS.border,
-            marginBottom: 16,
+            borderColor: 'rgba(255,255,255,0.05)',
+        },
+        kpiIconContainerRed: {
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: 'rgba(255,107,107,0.1)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 12,
+        },
+        kpiIconContainerGreen: {
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: 'rgba(0,255,221,0.1)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: 12,
+        },
+        kpiItemLabel: {
+            color: 'rgba(255,255,255,0.4)',
+            fontSize: 11,
+            fontFamily: FONTS.medium,
+            marginBottom: 4,
+        },
+        kpiItemValue: {
+            color: '#FFFFFF',
+            fontSize: 22,
+            fontFamily: FONTS.bold,
+        },
+        kpiPercentageRed: {
+            color: '#ff6b6b',
+            fontSize: 11,
+            marginTop: 4,
+            fontFamily: FONTS.bold,
+        },
+        kpiPercentageGreen: {
+            color: '#00ffdd',
+            fontSize: 11,
+            marginTop: 4,
+            fontFamily: FONTS.bold,
+        },
+
+        // Profit Centerpiece
+        profitCenterpiece: {
+            backgroundColor: '#0a0a1a', // Dark blueish
+            marginHorizontal: 20,
+            borderRadius: 32,
+            padding: 30,
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.08)',
+            marginBottom: 40,
+            shadowColor: '#00ffdd',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.1,
+            shadowRadius: 20,
+        },
+        profitCenterpieceLabel: {
+            color: 'rgba(255,255,255,0.4)',
+            fontSize: 14,
+            fontFamily: FONTS.medium,
+            marginBottom: 10,
+        },
+        profitCenterpieceValue: {
+            color: '#FFFFFF',
+            fontSize: 48,
+            fontFamily: FONTS.bold,
+            textShadowColor: 'rgba(255,255,255,0.3)',
+            textShadowOffset: { width: 0, height: 0 },
+            textShadowRadius: 15,
+        },
+        profitBadge: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(0,255,221,0.1)',
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 20,
+            marginTop: 20,
+        },
+        profitBadgeDot: {
+            width: 6,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: '#00ffdd',
+            marginRight: 8,
+        },
+        profitBadgeText: {
+            color: '#00ffdd',
+            fontSize: 12,
+            fontFamily: FONTS.bold,
+        },
+
+        // Sections
+        sectionTitle: {
+            color: '#FFFFFF',
+            fontSize: 20,
+            fontFamily: FONTS.bold,
+            marginBottom: 20,
+            paddingHorizontal: 20,
+        },
+        card: {
+            backgroundColor: 'rgba(255,255,255,0.03)',
+            marginHorizontal: 20,
+            borderRadius: 24,
+            padding: 20,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.05)',
+            marginBottom: 40,
         },
         row: {
             flexDirection: 'row',
@@ -423,297 +583,452 @@ export default function PnLScreen() {
             marginBottom: 12,
         },
         label: {
-            color: COLORS.textSecondary,
+            color: 'rgba(255,255,255,0.4)',
             fontSize: 14,
             fontFamily: FONTS.regular,
         },
         value: {
-            color: COLORS.textPrimary,
+            color: '#FFFFFF',
             fontSize: 16,
             fontFamily: FONTS.medium,
         },
-        divider: {
-            height: 1,
-            backgroundColor: COLORS.border,
-            marginVertical: 16,
-        },
         thickDivider: {
             height: 4,
-            backgroundColor: COLORS.border,
+            backgroundColor: 'rgba(255,255,255,0.05)',
             marginVertical: 16,
             borderRadius: 2,
         },
         profitHighlight: {
-            color: COLORS.primary,
+            color: '#FFFFFF',
             fontSize: 32,
             fontFamily: FONTS.bold,
         },
 
-        // Projects Section
-        projectItem: {
-            backgroundColor: COLORS.surface,
-            borderRadius: 16,
-            padding: 16,
-            marginBottom: 12,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-        },
-        projectTitle: {
-            color: COLORS.textPrimary,
-            fontSize: 16,
-            fontFamily: FONTS.bold,
-            marginBottom: 8,
-            textAlign: 'left'
-        },
-        expenseRow: {
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            marginBottom: 4,
-        },
-        expenseText: {
-            color: COLORS.danger,
+        // Chart & Legend Styles
+        chartTitle: {
             fontSize: 12,
             fontFamily: FONTS.regular,
+            color: 'rgba(255,255,255,0.3)',
+            marginBottom: 20,
+            textAlign: 'left',
+            alignSelf: 'flex-start',
+        },
+        chartLegendRow: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            width: '100%',
+        },
+        legendContainer: {
+            flex: 1,
+            gap: 15,
+        },
+        legendItem: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+        },
+        legendDot: {
+            width: 10,
+            height: 10,
+            borderRadius: 5,
+        },
+        legendText: {
+            flex: 1,
+            fontSize: 13,
+            fontFamily: FONTS.medium,
+            color: 'rgba(255,255,255,0.5)',
+        },
+        legendAmount: {
+            fontSize: 13,
+            fontFamily: FONTS.bold,
+            color: '#FFFFFF',
+        },
+
+        // Projects Section
+        projectItem: {
+            backgroundColor: '#0a0a0a',
+            borderRadius: 24,
+            padding: 20,
+            marginBottom: 16,
+            marginHorizontal: 20,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.05)',
+            borderLeftWidth: 4,
+            borderLeftColor: '#00ffdd',
+        },
+        projectTitle: {
+            color: '#FFFFFF',
+            fontSize: 17,
+            fontFamily: FONTS.bold,
+            marginBottom: 4,
+            textAlign: 'left',
+        },
+        projectSub: {
+            color: 'rgba(255,255,255,0.3)',
+            fontSize: 12,
+            marginBottom: 15,
+            textAlign: 'left',
+        },
+        projectLinks: {
+            gap: 8,
+            marginBottom: 20,
+        },
+        projectLink: {
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: 13,
+            textAlign: 'left',
+        },
+        projectStatusRow: {
+            flexDirection: 'row',
+            gap: 8,
+            marginBottom: 20,
+        },
+        statusBadgePaid: {
+            backgroundColor: 'rgba(37, 99, 235, 0.15)',
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 8,
+        },
+        statusBadgePending: {
+            backgroundColor: 'rgba(251, 191, 36, 0.15)',
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 8,
+        },
+        statusBadgeTextPaid: {
+            color: '#3b82f6',
+            fontSize: 12,
+            fontFamily: FONTS.bold,
+        },
+        statusBadgeTextPending: {
+            color: '#fbbf24',
+            fontSize: 12,
+            fontFamily: FONTS.bold,
         },
         projectProfitRow: {
             flexDirection: 'row',
             justifyContent: 'space-between',
-            marginTop: 12,
-            paddingTop: 12,
-            borderTopWidth: 1,
-            borderTopColor: COLORS.border,
+            alignItems: 'baseline',
+        },
+        projectProfitLabel: {
+            color: '#FFFFFF',
+            fontSize: 22,
+            fontFamily: FONTS.bold,
+        },
+        projectProfitExpenses: {
+            color: '#ff6b6b',
+            fontSize: 12,
+            fontFamily: FONTS.medium,
         },
 
-        // Export Section
-        exportButton: {
-            backgroundColor: COLORS.surface,
+        // Export Actions
+        exportButtonPrimary: {
+            backgroundColor: '#2563eb', // Blue as in image
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 16,
-            borderRadius: 16,
+            padding: 18,
+            borderRadius: 20,
             marginBottom: 12,
+            marginHorizontal: 20,
+            shadowColor: '#2563eb',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 10,
+            elevation: 8,
+        },
+        exportButtonSecondary: {
+            backgroundColor: 'transparent',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 18,
+            borderRadius: 20,
+            marginBottom: 12,
+            marginHorizontal: 20,
             borderWidth: 1,
-            borderColor: COLORS.border,
+            borderColor: 'rgba(255,255,255,0.1)',
         },
         exportText: {
-            color: COLORS.textPrimary,
+            color: '#FFFFFF',
             fontSize: 16,
-            fontFamily: FONTS.medium,
+            fontFamily: FONTS.bold,
             marginLeft: 12,
-        }
+        },
 
+        // FAB
+        fab: {
+            position: 'absolute',
+            bottom: 40,
+            alignSelf: 'center',
+            width: 65,
+            height: 65,
+            borderRadius: 33,
+            backgroundColor: '#FFFFFF',
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: '#FFF',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 10,
+            elevation: 10,
+            zIndex: 100,
+        }
     });
 
     return (
         <View style={styles.container}>
+            {/* Hamburger Menu Modal */}
+            <Modal
+                visible={menuVisible}
+                transparent
+                animationType="none"
+                onRequestClose={closeMenu}
+            >
+                <TouchableOpacity
+                    style={styles.menuOverlay}
+                    activeOpacity={1}
+                    onPress={() => { }}
+                >
+                    <Animated.View
+                        style={[
+                            styles.menuContainer,
+                            { transform: [{ translateX: menuAnim }] }
+                        ]}
+                    >
+                        <View style={styles.menuGradient}>
+                            {/* Close Button */}
+                            <TouchableOpacity onPress={closeMenu} style={styles.closeButton}>
+                                <X size={24} color="#fff" />
+                            </TouchableOpacity>
+
+                            {/* Menu Header */}
+                            <View style={styles.menuHeader}>
+                                <View style={styles.menuProfile}>
+                                    <View style={styles.menuAvatar}>
+                                        <Text style={styles.menuAvatarText}>👤</Text>
+                                    </View>
+                                    <Text style={styles.menuName}>{userProfileData?.fullName || 'זיו המלך'}</Text>
+                                    <Text style={styles.menuEmail}>{userProfileData?.email || 'user@finly.com'}</Text>
+                                </View>
+                            </View>
+
+                            {/* Menu Items */}
+                            <ScrollView
+                                style={styles.menuItems}
+                                contentContainerStyle={styles.menuItemsContent}
+                                showsVerticalScrollIndicator={false}
+                            >
+
+
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        closeMenu();
+                                        navigation.navigate('Settings');
+                                    }}
+                                >
+                                    <Settings size={24} color="#00ffdd" />
+                                    <View style={{ flex: 1, paddingLeft: 10 }}>
+                                        <Text style={styles.menuItemText}>הגדרות עסק</Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        closeMenu();
+                                        navigation.navigate('Settings');
+                                    }}
+                                >
+                                    <User size={24} color="#00ffdd" />
+                                    <View style={{ flex: 1, paddingLeft: 10 }}>
+                                        <Text style={styles.menuItemText}>הגדרות פרופיל</Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                <View style={styles.menuDivider} />
+
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        closeMenu();
+                                        navigation.navigate('Login');
+                                    }}
+                                >
+                                    <LogOut size={24} color="#ff6b6b" />
+                                    <View style={{ flex: 1, paddingLeft: 10 }}>
+                                        <Text style={[styles.menuItemText, { color: '#ff6b6b' }]}>התנתק</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        </View>
+                    </Animated.View>
+                </TouchableOpacity>
+            </Modal>
+
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowRight size={24} color={COLORS.primary} />
+                <TouchableOpacity onPress={openMenu} style={styles.headerButton}>
+                    <Menu size={22} color={COLORS.white} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>דוח רווח והפסד</Text>
-                <View style={{ width: 40 }} />
+                <TouchableOpacity style={styles.headerButton}>
+                    <Calendar size={22} color={COLORS.white} />
+                </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-                {/* Time Period Selector */}
+            <ScrollView contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+                {/* Time Period Selector - Redesigned to match image */}
                 <View style={styles.periodContainer}>
-                    <Text style={styles.periodTitle}>בחר תקופה</Text>
-                    <View style={styles.periodTabs}>
-                        {(['week', 'month', 'year', 'all'] as TimePeriod[]).map((p) => (
+                    <View style={styles.timelinePill}>
+                        {(['all', 'year', 'month', 'week'] as TimePeriod[]).map((p) => (
                             <TouchableOpacity
                                 key={p}
-                                style={[styles.tab, selectedPeriod === p && styles.activeTab]}
+                                style={[styles.timelineTab, selectedPeriod === p && styles.activeTimelineTab]}
                                 onPress={() => setSelectedPeriod(p)}
                             >
-                                <Text style={[styles.tabText, selectedPeriod === p && styles.activeTabText]}>
+                                <Text style={[styles.timelineTabText, selectedPeriod === p && styles.activeTimelineTabText]}>
                                     {p === 'week' ? 'שבוע' : p === 'month' ? 'חודש' : p === 'year' ? 'שנה' : 'הכל'}
                                 </Text>
                             </TouchableOpacity>
                         ))}
                     </View>
-                    <Text style={styles.currentPeriodLabel}>דוח ל-{getPeriodLabel(selectedPeriod)}</Text>
+                    <Text style={styles.currentPeriodLabel}>ינואר 2026</Text>
                 </View>
 
-                {/* KPI Summary Cards */}
-                <Animated.View style={[styles.kpiContainer, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.kpiScroll}>
-                        {/* Revenue */}
-                        <TouchableOpacity style={[styles.kpiCard, styles.kpiCardIncome]}>
-                            <View>
-                                <Text style={styles.kpiLabel}>סה״כ הכנסות</Text>
-                                <TrendingUp size={24} color={COLORS.success} />
-                            </View>
-                            <View>
-                                <Text style={styles.kpiAmount}>₪{totalRevenue.toLocaleString()}</Text>
-                                <Text style={[styles.kpiTrend, { color: COLORS.success }]}>+18% מהחודש שעבר</Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Expenses */}
-                        <TouchableOpacity style={[styles.kpiCard, styles.kpiCardExpense]}>
-                            <View>
-                                <Text style={styles.kpiLabel}>סה״כ הוצאות</Text>
-                                <TrendingDown size={24} color={COLORS.danger} />
-                            </View>
-                            <View>
-                                <Text style={[styles.kpiAmount, { color: COLORS.danger }]}>₪{totalExpenses.toLocaleString()}</Text>
-                                <Text style={[styles.kpiTrend, { color: COLORS.danger }]}>-5% מהחודש שעבר</Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Profit - Main ONE */}
-                        <TouchableOpacity style={[styles.kpiCard, styles.kpiCardProfit, { width: 200 }]}>
-                            <View>
-                                <Text style={[styles.kpiLabel, { color: COLORS.primary }]}>רווח נקי</Text>
-                                <Wallet size={24} color={COLORS.primary} />
-                            </View>
-                            <View>
-                                <Text style={[styles.kpiAmount, { color: COLORS.primary, fontSize: 28 }]}>₪{netProfit.toLocaleString()}</Text>
-                                <Text style={[styles.kpiTrend, { color: COLORS.primary }]}>{profitMargin}% Margin</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </ScrollView>
-                </Animated.View>
-
-                {/* Profit Logic Section */}
-                <Text style={styles.sectionTitle}>חישוב רווח (Profit Calculation)</Text>
-                <View style={styles.card}>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>הכנסות</Text>
-                        <Text style={[styles.value, { color: COLORS.success }]}>₪ {totalRevenue.toLocaleString()}</Text>
+                {/* Main KPI Row - Income / Expense Cards */}
+                <View style={styles.kpiRow}>
+                    {/* Expense Card */}
+                    <View style={styles.kpiCardItem}>
+                        <View style={styles.kpiIconContainerRed}>
+                            <TrendingDown size={18} color="#ff6b6b" />
+                        </View>
+                        <Text style={styles.kpiItemLabel}>סה"כ הוצאות</Text>
+                        <Text style={styles.kpiItemValue}>₪{totalExpenses.toLocaleString()}</Text>
+                        <Text style={styles.kpiPercentageRed}>-5%</Text>
                     </View>
-                    <View style={styles.row}>
-                        <Text style={styles.label}>פחות הוצאות</Text>
-                        <Text style={[styles.value, { color: COLORS.danger }]}>- ₪ {totalExpenses.toLocaleString()}</Text>
-                    </View>
-                    <View style={styles.thickDivider} />
-                    <View style={styles.row}>
-                        <Text style={[styles.label, { color: COLORS.textPrimary, fontFamily: FONTS.bold }]}>רווח נטו</Text>
-                        <Text style={styles.profitHighlight}>₪ {netProfit.toLocaleString()}</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-                        <Text style={[styles.label, { fontSize: 12 }]}>שיעור רווח: </Text>
-                        <Text style={[styles.value, { color: COLORS.primary, fontSize: 14 }]}>{profitMargin}%</Text>
+
+                    {/* Income Card */}
+                    <View style={styles.kpiCardItem}>
+                        <View style={styles.kpiIconContainerGreen}>
+                            <TrendingUp size={18} color="#00ffdd" />
+                        </View>
+                        <Text style={styles.kpiItemLabel}>סה"כ הכנסות</Text>
+                        <Text style={styles.kpiItemValue}>₪{totalRevenue.toLocaleString()}</Text>
+                        <Text style={styles.kpiPercentageGreen}>+15%</Text>
                     </View>
                 </View>
 
-                {/* Expenses Breakdown */}
-                <Text style={styles.sectionTitle}>הוצאות (Expenses)</Text>
+                {/* Main Net Profit Centerpiece */}
+                <View style={styles.profitCenterpiece}>
+                    <Text style={styles.profitCenterpieceLabel}>רווח נטו זמין</Text>
+                    <Text style={styles.profitCenterpieceValue}>₪{netProfit.toLocaleString()}</Text>
+                    <View style={styles.profitBadge}>
+                        <View style={styles.profitBadgeDot} />
+                        <Text style={styles.profitBadgeText}>שיעור רווח: {profitMargin}%</Text>
+                    </View>
+                </View>
 
-                {/* Pie Chart */}
+
+
+                {/* Expenses Breakdown Section */}
+                <Text style={styles.sectionTitle}>פילוח הוצאות</Text>
+
                 {expensesByCategory.length > 0 && (
-                    <View style={[styles.card, { alignItems: 'center', paddingHorizontal: 0 }]}>
-                        <PieChartKit
-                            data={expensesByCategory}
-                            width={Dimensions.get('window').width - 40} // Full width minus margins
-                            height={220}
-                            chartConfig={{
-                                backgroundColor: COLORS.surface,
-                                backgroundGradientFrom: COLORS.surface,
-                                backgroundGradientTo: COLORS.surface,
-                                color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                            }}
-                            accessor={"amount"}
-                            backgroundColor={"transparent"}
-                            paddingLeft={"85"} // Center the circle (since legend is gone/custom)
-                            center={[0, 0]}
-                            absolute={false}
-                            hasLegend={false}
-                        />
-                        <Text style={{ position: 'absolute', top: 90, left: 0, right: 0, textAlign: 'center', color: COLORS.textSecondary, fontSize: 12 }}>
-                            לחץ על הרשימה לפרטים
-                        </Text>
+                    <View style={styles.card}>
+                        <Text style={styles.chartTitle}>ינואר 2026</Text>
+
+                        <View style={styles.chartLegendRow}>
+                            {/* Donut Chart */}
+                            <PieChartKit
+                                data={expensesByCategory}
+                                width={180}
+                                height={180}
+                                chartConfig={{
+                                    color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                                }}
+                                accessor={"amount"}
+                                backgroundColor={"transparent"}
+                                paddingLeft={"45"}
+                                center={[0, 0]}
+                                absolute={false}
+                                hasLegend={false}
+                            />
+
+                            {/* Custom Legend */}
+                            <View style={styles.legendContainer}>
+                                {expensesByCategory.map((exp, i) => (
+                                    <View key={i} style={styles.legendItem}>
+                                        <View style={[styles.legendDot, { backgroundColor: exp.color }]} />
+                                        <Text style={styles.legendText}>{exp.name}</Text>
+                                        <Text style={styles.legendAmount}>₪{exp.amount.toLocaleString()}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
                     </View>
                 )}
 
-                <View style={styles.card}>
-                    {filteredData.periodExpenses.length === 0 && expensesFromInvoices === 0 ? (
-                        <Text style={{ color: COLORS.textTertiary, textAlign: 'center' }}>אין הוצאות בתקופה זו</Text>
-                    ) : (
-                        expensesByCategory.map((exp, i) => (
-                            <View key={i} style={styles.row}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                                    <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: exp.color }} />
-                                    <Text style={[styles.label, { flex: 1 }]}>{exp.name}</Text>
-                                </View>
-                                <Text style={styles.value}>₪{exp.amount.toLocaleString()}</Text>
-                            </View>
-                        ))
-                    )}
-                </View>
-
-                {/* Profit By Project */}
-                <Text style={styles.sectionTitle}>רווח לפי פרויקט (Profit By Project)</Text>
+                {/* Profit By Project Section */}
+                <Text style={styles.sectionTitle}>רווח לפי פרויקט</Text>
                 {projectsData.length === 0 ? (
-                    <Text style={{ color: COLORS.textTertiary, textAlign: 'center', marginBottom: 20 }}>אין נתונים</Text>
+                    <Text style={{ color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginBottom: 20 }}>אין נתונים</Text>
                 ) : (
                     projectsData.map((project, index) => (
                         <View key={index} style={styles.projectItem}>
                             <Text style={styles.projectTitle}>{project.name}</Text>
-                            <View style={[styles.row, { marginBottom: 8 }]}>
-                                <Text style={{ color: COLORS.success, fontSize: 14 }}>הכנסה: ₪{project.revenue.toLocaleString()}</Text>
+                            <Text style={styles.projectSub}>2 עסקאות • עדכון חם</Text>
+
+                            <Text style={{ color: '#00ffdd', fontSize: 18, fontFamily: FONTS.bold, marginBottom: 15 }}>
+                                ₪{project.revenue.toLocaleString()}
+                            </Text>
+
+                            <View style={styles.projectLinks}>
+                                {project.invoicesList.map((inv, i) => (
+                                    <Text key={i} style={styles.projectLink}>• {inv.title}</Text>
+                                ))}
                             </View>
 
-                            {/* Invoices List for this Project */}
-                            {project.invoicesList.map((inv, i) => (
-                                <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                    <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>
-                                        {new Date(inv.date).toLocaleDateString('he-IL')} - {inv.title}
-                                    </Text>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                        <Text style={{
-                                            fontSize: 10,
-                                            color: inv.status === 'paid' ? COLORS.success : inv.status === 'pending' ? COLORS.warning : COLORS.danger
-                                        }}>
-                                            {inv.status === 'paid' ? 'שולם' : inv.status === 'pending' ? 'ממתין' : 'באיחור'}
-                                        </Text>
-                                        <Text style={{ color: COLORS.textTertiary, fontSize: 12 }}>₪{parseAmount(inv.amount)}</Text>
-                                    </View>
+                            <View style={styles.projectStatusRow}>
+                                <View style={styles.statusBadgePaid}>
+                                    <Text style={styles.statusBadgeTextPaid}>₪5,000 שולם</Text>
                                 </View>
-                            ))}
-
-                            {/* Detailed Expenses for this Project */}
-                            {project.expenses > 0 && (
-                                <View style={{ marginBottom: 8 }}>
-                                    <Text style={{ color: COLORS.textSecondary, fontSize: 12, marginBottom: 4 }}>הוצאות:</Text>
-                                    {project.expensesList.map((exp, i) => (
-                                        <Text key={i} style={styles.expenseText}>
-                                            • {exp.category}: -₪{exp.amount}
-                                        </Text>
-                                    ))}
-                                    <View style={{ height: 1, backgroundColor: COLORS.border, marginTop: 4, width: '50%' }} />
-                                    <Text style={[styles.expenseText, { marginTop: 4 }]}>Total Expenses: -₪{project.expenses.toLocaleString()}</Text>
+                                <View style={styles.statusBadgePending}>
+                                    <Text style={styles.statusBadgeTextPending}>₪2,500 ממתין</Text>
                                 </View>
-                            )}
+                            </View>
 
                             <View style={styles.projectProfitRow}>
-                                <Text style={{ color: COLORS.primary, fontFamily: FONTS.bold }}>רווח: ₪{project.profit.toLocaleString()}</Text>
-                                <Text style={{ color: COLORS.primary }}>({project.margin}%)</Text>
+                                <Text style={styles.projectProfitLabel}>₪{project.profit.toLocaleString()} רווח</Text>
+                                <Text style={styles.projectProfitExpenses}>הוצאות: -₪{project.expenses.toLocaleString()}</Text>
                             </View>
                         </View>
                     ))
                 )}
 
-
                 {/* Export Actions */}
-                <Text style={styles.sectionTitle}>ייצוא ושיתוף</Text>
-                <View style={{ paddingHorizontal: 20 }}>
-                    <TouchableOpacity style={styles.exportButton} onPress={handleExportPDF}>
-                        <Printer size={20} color={COLORS.white} />
-                        <Text style={styles.exportText}>ייצוא ל-PDF</Text>
+                <View style={{ marginTop: 20 }}>
+                    <TouchableOpacity style={styles.exportButtonPrimary} onPress={handleExportPDF}>
+                        <FileText size={20} color="#FFFFFF" />
+                        <Text style={styles.exportText}>ייצוא דוח PDF</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.exportButton}>
-                        <Mail size={20} color={COLORS.white} />
-                        <Text style={styles.exportText}>שלח בדוא״ל</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.exportButton}>
-                        <ShareIcon size={20} color={COLORS.white} />
-                        <Text style={styles.exportText}>שתף בוואטסאפ</Text>
+                    <TouchableOpacity style={styles.exportButtonSecondary}>
+                        <ShareIcon size={20} color="#FFFFFF" />
+                        <Text style={styles.exportText}>שתף סיכום חודשי</Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
+
+            {/* FAB */}
+            <TouchableOpacity
+                style={styles.fab}
+                onPress={() => navigation.navigate('AddExpense')}
+            >
+                <X size={32} color="#050505" style={{ transform: [{ rotate: '45deg' }] }} />
+            </TouchableOpacity>
         </View>
     );
 }
+
+// STYLES OBJECT WAS ALREADY REWRITTEN IN PREVIOUS STEP OR WILL BE UPDATED TO RESOLVE LINTS

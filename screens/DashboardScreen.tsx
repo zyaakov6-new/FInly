@@ -1,236 +1,429 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Dimensions, StatusBar, Animated } from 'react-native';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, Modal } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowUpRight, ArrowDownLeft, Wallet, TrendingUp, TrendingDown, Bell, Search, Menu, FileText, Briefcase, Target } from 'lucide-react-native';
+import { Search, Menu, TrendingUp, Trash2, FileText, AlertCircle, ShoppingCart, X, Home, BarChart3, Settings, User, LogOut, ArrowUpRight, ArrowDownLeft } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTransactions } from '../context/TransactionsContext';
-import { COLORS, FONTS } from '../constants/theme';
-import DashboardWidgets from '../components/DashboardWidgets';
+import { useUserProfile } from '../context/UserProfileContext';
+import { FONTS } from '../constants/theme';
 
 const { width } = Dimensions.get('window');
 
-// --- Helper Components ---
-const ActivityRow = ({ item }: { item: any }) => {
-    const isIncome = item.isIncome;
-    return (
-        <View style={styles.activityRow}>
-            <View style={styles.activityIconBox}>
-                {isIncome ?
-                    <ArrowDownLeft size={24} color={COLORS.success} /> :
-                    <ArrowUpRight size={24} color={COLORS.danger} />
-                }
-            </View>
-            <View style={styles.activityInfo}>
-                <Text style={styles.activityTitle}>{item.title}</Text>
-                <Text style={styles.activityDate}>{new Date(item.date).toLocaleDateString('he-IL')}</Text>
-            </View>
-            <Text style={[styles.activityAmount, { color: isIncome ? COLORS.success : COLORS.danger }]}>
-                {item.amount}
-            </Text>
-        </View>
-    );
-};
-
-const QuickActionButton = ({ label, icon: Icon, onPress }: any) => (
-    <TouchableOpacity style={styles.quickActionBtn} onPress={onPress}>
-        <View style={styles.quickActionIcon}>
-            <Icon size={20} color={COLORS.secondary} />
-        </View>
-        <Text style={styles.quickActionText}>{label}</Text>
-    </TouchableOpacity>
-);
-
 export default function DashboardScreen() {
     const navigation = useNavigation<any>();
-    const {
-        userProfile,
-        totalRevenue,
-        totalExpenses,
-        netProfit,
-        profitMargin,
-        projectsCount,
-        recentActivity
-    } = useTransactions();
+    const { userProfile: userProfileData } = useUserProfile();
+    const { totalRevenue, totalExpenses, netProfit, profitMargin, transactions, recentActivity } = useTransactions();
+    const [menuVisible, setMenuVisible] = useState(false);
+    const [chartView, setChartView] = useState<'expenses' | 'income'>('expenses');
 
-    const getGreeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return 'בוקר טוב';
-        if (hour < 18) return 'צהריים טובים';
-        return 'ערב טוב';
-    };
-
-    // Animation values
     const fadeAnim = useRef(new Animated.Value(0)).current;
-    const slideAnim = useRef(new Animated.Value(30)).current;
-    const scaleAnim = useRef(new Animated.Value(0.95)).current;
+    const slideAnim = useRef(new Animated.Value(-width)).current;
+
+    // Calculate year-over-year growth
+    const yearlyGrowth = useMemo(() => {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const lastYear = currentYear - 1;
+
+        const currentYearRevenue = transactions
+            .filter(tx => {
+                const txDate = new Date(tx.date);
+                return txDate.getFullYear() === currentYear && tx.isIncome && tx.status === 'paid';
+            })
+            .reduce((sum, tx) => sum + (parseFloat(tx.amount.replace(/[^\d.-]/g, '')) || 0), 0);
+
+        const lastYearRevenue = transactions
+            .filter(tx => {
+                const txDate = new Date(tx.date);
+                return txDate.getFullYear() === lastYear && tx.isIncome && tx.status === 'paid';
+            })
+            .reduce((sum, tx) => sum + (parseFloat(tx.amount.replace(/[^\d.-]/g, '')) || 0), 0);
+
+        if (lastYearRevenue === 0) return 0;
+        return parseFloat(((currentYearRevenue - lastYearRevenue) / lastYearRevenue * 100).toFixed(1));
+    }, [transactions]);
 
     useEffect(() => {
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 600,
-                useNativeDriver: true,
-            }),
-            Animated.timing(slideAnim, {
-                toValue: 0,
-                duration: 500,
-                useNativeDriver: true,
-            }),
-            Animated.spring(scaleAnim, {
-                toValue: 1,
-                friction: 8,
-                tension: 40,
-                useNativeDriver: true,
-            }),
-        ]).start();
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+        }).start();
     }, []);
+
+    const openMenu = () => {
+        setMenuVisible(true);
+        Animated.spring(slideAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: 65,
+            friction: 11,
+        }).start();
+    };
+
+    const closeMenu = () => {
+        Animated.timing(slideAnim, {
+            toValue: -width,
+            duration: 250,
+            useNativeDriver: true,
+        }).start(() => setMenuVisible(false));
+    };
+
+    // Get real transactions for chart - group by month
+    const monthlyChartData = useMemo(() => {
+        const monthNames = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יוני', 'יולי', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ'];
+        const last6Months = [];
+        const now = new Date();
+
+        for (let i = 5; i >= 0; i--) {
+            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const monthIndex = date.getMonth();
+            const year = date.getFullYear();
+
+            // Filter transactions for this month
+            const monthTransactions = transactions.filter(tx => {
+                const txDate = new Date(tx.date);
+                return txDate.getMonth() === monthIndex &&
+                    txDate.getFullYear() === year &&
+                    (chartView === 'expenses' ? !tx.isIncome : tx.isIncome) &&
+                    tx.status === 'paid';
+            });
+
+            // Sum up the amounts
+            const total = monthTransactions.reduce((sum, tx) => {
+                const amount = parseFloat(tx.amount.replace(/[^\d.-]/g, '')) || 0;
+                return sum + amount;
+            }, 0);
+
+            last6Months.push({
+                month: monthNames[monthIndex],
+                value: total
+            });
+        }
+
+        return last6Months;
+    }, [transactions, chartView]);
+
+    const maxValue = Math.max(...monthlyChartData.map(d => d.value), 1);
+
+    // Get recent transactions (last 3)
+    const recentTransactions = useMemo(() => {
+        return transactions
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 3);
+    }, [transactions]);
 
     return (
         <View style={styles.container}>
+            {/* Header */}
+            <View style={styles.header}>
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity style={styles.iconButton} onPress={openMenu}>
+                        <Menu size={24} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.iconButton}>
+                        <Search size={24} color="#fff" />
+                    </TouchableOpacity>
+                </View>
+                <View style={styles.headerRight}>
+                    <Text style={styles.greeting}>{userProfileData?.fullName || 'זיו המלך'}</Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+                        <View style={styles.avatar}>
+                            <Text style={styles.avatarText}>👤</Text>
+                        </View>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
-                {/* 1. Header & Quick Actions */}
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.greeting}>{getGreeting()},</Text>
-                        <Text style={styles.username}>{userProfile?.name || 'User'}</Text>
-                    </View>
-                    <View style={styles.headerRight}>
-                        <TouchableOpacity style={styles.iconBtn}>
-                            <Search size={22} color={COLORS.textPrimary} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.iconBtn}>
-                            <Bell size={22} color={COLORS.textPrimary} />
-                            <View style={styles.badge} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                {/* Main Balance Card */}
+                <Animated.View style={[styles.balanceCard, { opacity: fadeAnim }]}>
+                    <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PnL')}>
+                        <LinearGradient
+                            colors={['#1a4d3e', '#0f3329', '#0a2419']}
+                            style={styles.balanceGradient}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                        >
+                            <View style={styles.balanceHeader}>
+                                <Text style={styles.balanceLabel}>מיקוד שנתי נכון</Text>
+                                <View style={styles.percentageBadge}>
+                                    <TrendingUp size={12} color="#00ff88" />
+                                    <Text style={styles.percentageText}>
+                                        {yearlyGrowth >= 0 ? '+' : ''}{yearlyGrowth}%
+                                    </Text>
+                                </View>
+                            </View>
 
-                {/* Quick Actions Scroll */}
-                <View style={{ marginBottom: 24 }}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickActionsScroll}>
-                        <QuickActionButton
-                            label="יצירת חשבונית"
-                            icon={FileText}
-                            onPress={() => navigation.navigate('CreateInvoice')}
-                        />
-                        <QuickActionButton
-                            label="הוספת הוצאה"
-                            icon={ArrowUpRight} // Or Wallet
-                            onPress={() => navigation.navigate('AddExpense')}
-                        />
-                        <QuickActionButton
-                            label="כל ההוצאות"
-                            icon={FileText}
-                            onPress={() => navigation.navigate('ExpensesList')}
-                        />
-                        <QuickActionButton
-                            label="פרויקטים"
-                            icon={Briefcase}
-                            onPress={() => navigation.navigate('Customers')}
-                        />
-                        <QuickActionButton
-                            label="היעדים שלי"
-                            icon={Target}
-                            onPress={() => navigation.navigate('Goals')}
-                        />
-                    </ScrollView>
-                </View>
+                            <Text style={styles.balanceAmount}>₪{totalRevenue.toLocaleString()}</Text>
 
-                {/* 2. Premium KPI ScrollView */}
-                <Animated.View style={[
-                    styles.kpiContainer,
-                    {
-                        opacity: fadeAnim,
-                        transform: [
-                            { translateY: slideAnim },
-                            { scale: scaleAnim }
-                        ]
-                    }
-                ]}>
-                    <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.kpiScrollContent}
-                    >
-                        {/* Income Card */}
-                        <TouchableOpacity style={[styles.kpiCard, styles.kpiCardIncome]}>
-                            <View style={styles.kpiIconBg}>
-                                <ArrowDownLeft size={20} color={COLORS.success} />
+                            <View style={styles.balanceFooter}>
+                                <View style={styles.balanceItem}>
+                                    <Text style={styles.balanceItemLabel}>רווח אמיתי</Text>
+                                    <Text style={styles.balanceItemValue}>₪{netProfit.toLocaleString()}</Text>
+                                </View>
+                                <View style={styles.balanceItem}>
+                                    <Text style={styles.balanceItemLabel}>מהה הרווח</Text>
+                                    <Text style={styles.balanceItemValue}>{profitMargin}%</Text>
+                                </View>
                             </View>
-                            <View>
-                                <Text style={styles.kpiLabel}>הכנסות</Text>
-                                <Text style={styles.kpiValue}>₪{totalRevenue.toLocaleString()}</Text>
-                            </View>
-                            <View style={styles.kpiTrendBadge}>
-                                <TrendingUp size={12} color={COLORS.success} />
-                                <Text style={styles.kpiTrendText}>+12%</Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Expense Card */}
-                        <TouchableOpacity style={[styles.kpiCard, styles.kpiCardExpense]}>
-                            <View style={[styles.kpiIconBg, { backgroundColor: 'rgba(248, 113, 113, 0.1)' }]}>
-                                <ArrowUpRight size={20} color={COLORS.danger} />
-                            </View>
-                            <View>
-                                <Text style={styles.kpiLabel}>הוצאות</Text>
-                                <Text style={styles.kpiValue}>₪{totalExpenses.toLocaleString()}</Text>
-                            </View>
-                            <View style={[styles.kpiTrendBadge, { backgroundColor: 'rgba(248, 113, 113, 0.1)' }]}>
-                                <TrendingDown size={12} color={COLORS.danger} />
-                                <Text style={[styles.kpiTrendText, { color: COLORS.danger }]}>-5%</Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Profit Card */}
-                        <TouchableOpacity style={[styles.kpiCard, netProfit >= 0 ? styles.kpiCardProfit : styles.kpiCardExpense]}>
-                            <View style={[styles.kpiIconBg, { backgroundColor: netProfit >= 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
-                                <Wallet size={20} color={netProfit >= 0 ? COLORS.success : COLORS.danger} />
-                            </View>
-                            <View>
-                                <Text style={styles.kpiLabel}>רווח נקי</Text>
-                                <Text style={[styles.kpiValue, { color: netProfit >= 0 ? COLORS.success : COLORS.danger }]}>₪{netProfit.toLocaleString()}</Text>
-                            </View>
-                            <View style={[styles.kpiTrendBadge, { backgroundColor: netProfit >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)' }]}>
-                                <TrendingUp size={12} color={netProfit >= 0 ? COLORS.success : COLORS.danger} />
-                                <Text style={[styles.kpiTrendText, { color: netProfit >= 0 ? COLORS.success : COLORS.danger }]}>{profitMargin}%</Text>
-                            </View>
-                        </TouchableOpacity>
-
-                        {/* Projects Card */}
-                        <TouchableOpacity style={styles.kpiCard}>
-                            <View style={[styles.kpiIconBg, { backgroundColor: 'rgba(96, 165, 250, 0.1)' }]}>
-                                <Briefcase size={20} color="#60a5fa" />
-                            </View>
-                            <View>
-                                <Text style={styles.kpiLabel}>פרויקטים</Text>
-                                <Text style={styles.kpiValue}>{projectsCount}</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </ScrollView>
+                        </LinearGradient>
+                    </TouchableOpacity>
                 </Animated.View>
 
-                {/* 3. New Dashboard Widgets */}
-                <DashboardWidgets />
+                {/* Monthly Summary Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>סיכום ביניים</Text>
+                        <TouchableOpacity>
+                            <View style={styles.dateBadge}>
+                                <Trash2 size={16} color="#00ff88" />
+                                <Text style={styles.dateText}>
+                                    {new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
+                    </View>
 
-                {/* 4. Detailed Activity Feed */}
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>תנועות אחרונות</Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('AllActivity')}>
-                        <Text style={styles.seeAll}>הצג הכל</Text>
+                    <TouchableOpacity
+                        style={styles.summaryCard}
+                        activeOpacity={0.9}
+                        onPress={() => navigation.navigate('ExpensesList')}
+                    >
+                        <View style={styles.summaryHeader}>
+                            <Text style={styles.summaryAmount}>₪{totalExpenses.toLocaleString()}</Text>
+                            <Text style={styles.summarySubtext}>מתוך ₪12,450</Text>
+                        </View>
+                        <Text style={styles.summaryLabel}>הוצאות אובדת 74%</Text>
+
+                        {/* Progress Bar */}
+                        <View style={styles.progressBar}>
+                            <View style={[styles.progressFill, { width: '74%' }]} />
+                        </View>
+
+                        <Text style={styles.summaryNote}>
+                            חדל מה שאתה מוציא הוא מהמכסה שהגדרת לחודש הזה. 54.2% יותר מאשר בחודש שעבר
+                        </Text>
                     </TouchableOpacity>
                 </View>
 
-                <View style={styles.feedContainer}>
-                    {recentActivity.map((item: any) => (
-                        <ActivityRow key={item.id} item={item} />
-                    ))}
+                {/* Monthly Chart Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>תנועה חודשית</Text>
+                        <View style={styles.chartTabs}>
+                            <TouchableOpacity
+                                style={[styles.chartTab, chartView === 'expenses' && styles.chartTabActive]}
+                                onPress={() => setChartView('expenses')}
+                            >
+                                <Text style={chartView === 'expenses' ? styles.chartTabTextActive : styles.chartTabText}>
+                                    הוצאות
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.chartTab, chartView === 'income' && styles.chartTabActive]}
+                                onPress={() => setChartView('income')}
+                            >
+                                <Text style={chartView === 'income' ? styles.chartTabTextActive : styles.chartTabText}>
+                                    הכנסות
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    <TouchableOpacity
+                        style={styles.chartCard}
+                        activeOpacity={0.9}
+                        onPress={() => navigation.navigate('PnL')}
+                    >
+                        <View style={styles.chart}>
+                            {monthlyChartData.map((item, index) => (
+                                <View key={index} style={styles.chartBar}>
+                                    <View style={styles.chartBarContainer}>
+                                        <View
+                                            style={[
+                                                styles.chartBarFill,
+                                                {
+                                                    height: item.value > 0 ? `${(item.value / maxValue) * 100}%` : '5%',
+                                                    backgroundColor: index === monthlyChartData.length - 1 ? '#00ffdd' : '#1a5c4a'
+                                                }
+                                            ]}
+                                        />
+                                    </View>
+                                    <Text style={styles.chartLabel}>{item.month}</Text>
+                                </View>
+                            ))}
+                        </View>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Transactions Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>תשבוניות אחרונות</Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('AllActivity')}>
+                            <Text style={styles.seeAllText}>בטל הכל</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Real Transaction Items from user data */}
+                    {recentTransactions.length > 0 ? (
+                        recentTransactions.map((transaction) => (
+                            <TouchableOpacity
+                                key={transaction.id}
+                                style={styles.transactionCard}
+                                onPress={() => {
+                                    if (transaction.isIncome) {
+                                        navigation.navigate('InvoiceDetails', { transactionId: transaction.id });
+                                    } else {
+                                        navigation.navigate('AddExpense', { transactionId: transaction.id });
+                                    }
+                                }}
+                            >
+                                <View style={styles.transactionLeft}>
+                                    <View style={[
+                                        styles.transactionIcon,
+                                        {
+                                            backgroundColor: transaction.isIncome
+                                                ? '#1a3d5c'
+                                                : transaction.status === 'overdue'
+                                                    ? '#5c3d1a'
+                                                    : '#2a2a3c'
+                                        }
+                                    ]}>
+                                        {transaction.isIncome ? (
+                                            <ArrowDownLeft size={20} color="#4a9eff" />
+                                        ) : transaction.status === 'overdue' ? (
+                                            <AlertCircle size={20} color="#ff9a4a" />
+                                        ) : (
+                                            <ArrowUpRight size={20} color="#9a9aaa" />
+                                        )}
+                                    </View>
+                                    <View>
+                                        <Text style={styles.transactionTitle}>{transaction.title}</Text>
+                                        <Text style={styles.transactionDate}>
+                                            {new Date(transaction.date).toLocaleDateString('he-IL')} •
+                                            {transaction.status === 'paid' ? ' שולם' :
+                                                transaction.status === 'pending' ? ' ממתין' :
+                                                    transaction.status === 'overdue' ? ' באיחור' : ' טיוטה'}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <Text style={[
+                                    styles.transactionAmount,
+                                    { color: transaction.status === 'overdue' ? '#ff9a4a' : '#fff' }
+                                ]}>
+                                    {transaction.amount}
+                                </Text>
+                            </TouchableOpacity>
+                        ))
+                    ) : (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyStateText}>אין תשבוניות אחרונות</Text>
+                            <TouchableOpacity
+                                style={styles.addButton}
+                                onPress={() => navigation.navigate('AddExpense')}
+                            >
+                                <Text style={styles.addButtonText}>הוסף הוצאה</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
 
                 <View style={{ height: 100 }} />
             </ScrollView>
+
+            {/* Slide-out Menu */}
+            <Modal
+                visible={menuVisible}
+                transparent
+                animationType="none"
+                onRequestClose={closeMenu}
+            >
+                <TouchableOpacity
+                    style={styles.menuOverlay}
+                    activeOpacity={1}
+                    onPress={() => { }} // No longer closing on overlay press
+                >
+                    <Animated.View
+                        style={[
+                            styles.menuContainer,
+                            { transform: [{ translateX: slideAnim }] }
+                        ]}
+                    >
+                        <View style={styles.menuGradient}>
+                            {/* Close Button */}
+                            <TouchableOpacity onPress={closeMenu} style={styles.closeButton}>
+                                <X size={24} color="#fff" />
+                            </TouchableOpacity>
+
+                            {/* Menu Header */}
+                            <View style={styles.menuHeader}>
+                                <View style={styles.menuProfile}>
+                                    <View style={styles.menuAvatar}>
+                                        <Text style={styles.menuAvatarText}>👤</Text>
+                                    </View>
+                                    <Text style={styles.menuName}>{userProfileData?.fullName || 'זיו המלך'}</Text>
+                                    <Text style={styles.menuEmail}>{userProfileData?.email || 'user@finly.com'}</Text>
+                                </View>
+                            </View>
+
+                            {/* Menu Items */}
+                            <ScrollView
+                                style={styles.menuItems}
+                                contentContainerStyle={styles.menuItemsContent}
+                                showsVerticalScrollIndicator={false}
+                            >
+
+
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        closeMenu();
+                                        navigation.navigate('Settings');
+                                    }}
+                                >
+                                    <Settings size={24} color="#00ffdd" />
+                                    <View style={{ flex: 1, paddingLeft: 10 }}>
+                                        <Text style={styles.menuItemText}>הגדרות עסק</Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        closeMenu();
+                                        navigation.navigate('Settings'); // Temporarily linking to settings as a placeholder or specific profile screen if exists
+                                    }}
+                                >
+                                    <User size={24} color="#00ffdd" />
+                                    <View style={{ flex: 1, paddingLeft: 10 }}>
+                                        <Text style={styles.menuItemText}>הגדרות פרופיל</Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                <View style={styles.menuDivider} />
+
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        closeMenu();
+                                        navigation.navigate('Login');
+                                    }}
+                                >
+                                    <LogOut size={24} color="#ff6b6b" />
+                                    <View style={{ flex: 1, paddingLeft: 10 }}>
+                                        <Text style={[styles.menuItemText, { color: '#ff6b6b' }]}>התנתק</Text>
+                                    </View>
+                                </TouchableOpacity>
+                            </ScrollView>
+                        </View>
+                    </Animated.View>
+                </TouchableOpacity>
+            </Modal>
         </View>
     );
 }
@@ -238,257 +431,417 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
-        paddingTop: Platform.OS === 'android' ? 40 : 0,
+        backgroundColor: '#0a0a0f',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 24,
-        paddingBottom: 24,
-        paddingTop: 12,
+        paddingHorizontal: 20,
+        paddingTop: 50,
+        paddingBottom: 20,
     },
-    greeting: {
-        color: COLORS.textSecondary,
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        textAlign: 'left',
-    },
-    username: {
-        color: COLORS.textPrimary,
-        fontSize: 20,
-        fontFamily: FONTS.bold,
-        textAlign: 'left',
-        marginTop: 2,
+    headerLeft: {
+        flexDirection: 'row',
+        gap: 12,
     },
     headerRight: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 16,
-    },
-    iconBtn: {
-        padding: 8,
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    badge: {
-        width: 8,
-        height: 8,
-        backgroundColor: COLORS.danger,
-        borderRadius: 4,
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        borderWidth: 1,
-        borderColor: COLORS.surface,
-    },
-    scrollContent: {
-        // paddingHorizontal: 24, // Removed global padding to allow full-width scrolls if needed, but added back in sections
-    },
-    // Quick Actions
-    quickActionsScroll: {
-        flexDirection: 'row',
         gap: 12,
-        paddingHorizontal: 24,
     },
-    quickActionBtn: {
-        width: 120,
-        height: 110,
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        padding: 16,
-        justifyContent: 'space-between',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    quickActionIcon: {
-        backgroundColor: 'rgba(132, 101, 243, 0.15)',
+    iconButton: {
         width: 40,
         height: 40,
         borderRadius: 12,
-        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.05)',
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    quickActionText: {
-        color: COLORS.secondary,
+    greeting: {
         fontSize: 14,
         fontFamily: FONTS.medium,
-        textAlign: 'left'
+        color: '#fff',
+        textAlign: 'right',
     },
-    // KPI Cards Scroll
-    kpiContainer: {
-        marginBottom: 32,
-    },
-    kpiScrollContent: {
-        paddingHorizontal: 24,
-        gap: 12,
-    },
-    kpiCard: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        padding: 16,
-        width: 150,
-        height: 160,
-        justifyContent: 'space-between',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    kpiCardHighlight: {
-        backgroundColor: COLORS.primary,
-        borderColor: COLORS.primary,
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
-        elevation: 8,
-    },
-    kpiCardIncome: {
-        backgroundColor: 'rgba(16, 185, 129, 0.12)',
-        borderColor: 'rgba(16, 185, 129, 0.4)',
-        borderWidth: 1.5,
-        shadowColor: COLORS.success,
-        shadowOpacity: 0.2,
-    },
-    kpiCardExpense: {
-        backgroundColor: 'rgba(239, 68, 68, 0.12)',
-        borderColor: 'rgba(239, 68, 68, 0.4)',
-        borderWidth: 1.5,
-        shadowColor: COLORS.danger,
-        shadowOpacity: 0.2,
-    },
-    kpiCardProfit: {
-        backgroundColor: 'rgba(16, 185, 129, 0.12)',
-        borderColor: 'rgba(16, 185, 129, 0.4)',
-        borderWidth: 1.5,
-        shadowColor: COLORS.success,
-        shadowOpacity: 0.2,
-    },
-    kpiIconBg: {
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        width: 36,
-        height: 36,
-        borderRadius: 12,
-        justifyContent: 'center',
+    avatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#ff9a7a',
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    kpiLabel: {
-        color: COLORS.textSecondary,
+    avatarText: {
+        fontSize: 20,
+    },
+    scrollContent: {
+        paddingHorizontal: 20,
+        paddingBottom: 20,
+    },
+    balanceCard: {
+        marginBottom: 24,
+        borderRadius: 24,
+        overflow: 'hidden',
+    },
+    balanceGradient: {
+        padding: 24,
+    },
+    balanceHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    balanceLabel: {
         fontSize: 13,
         fontFamily: FONTS.regular,
-        marginBottom: 4,
-        textAlign: 'left',
+        color: 'rgba(255,255,255,0.6)',
+        textAlign: 'right',
     },
-    kpiValue: {
-        color: COLORS.textPrimary,
-        fontSize: 20,
-        fontFamily: FONTS.bold,
-        textAlign: 'left',
-    },
-    kpiLabelWhite: {
-        color: COLORS.textPrimary,
-        fontSize: 13,
-        fontFamily: FONTS.regular,
-        marginBottom: 4,
-        textAlign: 'left',
-    },
-    kpiValueWhite: {
-        color: COLORS.textPrimary,
-        fontSize: 20,
-        fontFamily: FONTS.bold,
-        textAlign: 'left',
-    },
-    kpiTrendBadge: {
+    percentageBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        paddingHorizontal: 8,
+        backgroundColor: 'rgba(0,255,136,0.15)',
+        paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
-        alignSelf: 'flex-start',
         gap: 4,
     },
-    kpiTrendText: {
-        color: COLORS.success,
-        fontSize: 11,
-        fontFamily: FONTS.medium,
+    percentageText: {
+        fontSize: 12,
+        fontFamily: FONTS.bold,
+        color: '#00ff88',
     },
-    // Feed
+    balanceAmount: {
+        fontSize: 40,
+        fontFamily: FONTS.bold,
+        color: '#fff',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    balanceFooter: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: 16,
+        padding: 16,
+    },
+    balanceItem: {
+        flex: 1,
+    },
+    balanceItemLabel: {
+        fontSize: 12,
+        fontFamily: FONTS.regular,
+        color: 'rgba(255,255,255,0.5)',
+        marginBottom: 4,
+        textAlign: 'right',
+    },
+    balanceItemValue: {
+        fontSize: 18,
+        fontFamily: FONTS.bold,
+        color: '#00ffdd',
+        textAlign: 'right',
+    },
+    section: {
+        marginBottom: 24,
+    },
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 16,
-        paddingHorizontal: 24,
     },
     sectionTitle: {
-        color: COLORS.textPrimary,
         fontSize: 18,
         fontFamily: FONTS.bold,
+        color: '#fff',
+        textAlign: 'right',
     },
-    seeAll: {
-        color: COLORS.secondary,
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-    },
-    feedContainer: {
-        gap: 12,
-        paddingHorizontal: 24,
-    },
-    activityRow: {
+    dateBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.surface,
-        padding: 16,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: 12,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-        elevation: 2,
+        gap: 6,
     },
-    activityIconBox: {
+    dateText: {
+        fontSize: 12,
+        fontFamily: FONTS.medium,
+        color: 'rgba(255,255,255,0.7)',
+    },
+    summaryCard: {
+        backgroundColor: '#151520',
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    summaryHeader: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        justifyContent: 'flex-end',
+        marginBottom: 8,
+        gap: 8,
+    },
+    summaryAmount: {
+        fontSize: 28,
+        fontFamily: FONTS.bold,
+        color: '#fff',
+    },
+    summarySubtext: {
+        fontSize: 14,
+        fontFamily: FONTS.regular,
+        color: 'rgba(255,255,255,0.4)',
+    },
+    summaryLabel: {
+        fontSize: 13,
+        fontFamily: FONTS.medium,
+        color: '#00ff88',
+        marginBottom: 16,
+        textAlign: 'right',
+    },
+    progressBar: {
+        height: 6,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 3,
+        overflow: 'hidden',
+        marginBottom: 12,
+    },
+    progressFill: {
+        height: '100%',
+        backgroundColor: '#00ff88',
+        borderRadius: 3,
+    },
+    summaryNote: {
+        fontSize: 11,
+        fontFamily: FONTS.regular,
+        color: 'rgba(255,255,255,0.4)',
+        lineHeight: 16,
+        textAlign: 'right',
+    },
+    chartTabs: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: 12,
+        padding: 4,
+        gap: 4,
+    },
+    chartTab: {
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    chartTabActive: {
+        backgroundColor: '#00ffdd',
+    },
+    chartTabText: {
+        fontSize: 12,
+        fontFamily: FONTS.medium,
+        color: 'rgba(255,255,255,0.6)',
+    },
+    chartTabTextActive: {
+        fontSize: 12,
+        fontFamily: FONTS.bold,
+        color: '#0a0a0f',
+    },
+    chartCard: {
+        backgroundColor: '#151520',
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    chart: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        height: 140,
+    },
+    chartBar: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 8,
+    },
+    chartBarContainer: {
+        flex: 1,
+        width: '70%',
+        justifyContent: 'flex-end',
+    },
+    chartBarFill: {
+        width: '100%',
+        borderRadius: 6,
+        minHeight: 20,
+    },
+    chartLabel: {
+        fontSize: 11,
+        fontFamily: FONTS.regular,
+        color: 'rgba(255,255,255,0.5)',
+    },
+    seeAllText: {
+        fontSize: 13,
+        fontFamily: FONTS.medium,
+        color: '#00ffdd',
+    },
+    transactionCard: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#151520',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    transactionLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
+    },
+    transactionIcon: {
         width: 44,
         height: 44,
-        borderRadius: 14,
-        backgroundColor: COLORS.background, // Contrast
-        justifyContent: 'center',
+        borderRadius: 12,
         alignItems: 'center',
-        marginRight: 16,
+        justifyContent: 'center',
     },
-    activityInfo: {
-        flex: 1,
-        marginHorizontal: 12,
+    transactionTitle: {
+        fontSize: 14,
+        fontFamily: FONTS.bold,
+        color: '#fff',
+        marginBottom: 4,
+        textAlign: 'right',
     },
-    activityTitle: {
-        color: COLORS.textPrimary,
-        fontSize: 16,
-        fontFamily: FONTS.medium,
-        marginBottom: 2,
-        textAlign: 'left',
-    },
-    activityDate: {
-        color: COLORS.textSecondary,
+    transactionDate: {
         fontSize: 12,
         fontFamily: FONTS.regular,
-        textAlign: 'left',
+        color: 'rgba(255,255,255,0.5)',
+        textAlign: 'right',
     },
-    activityAmount: {
+    transactionAmount: {
         fontSize: 16,
         fontFamily: FONTS.bold,
+        color: '#fff',
+    },
+    emptyState: {
+        backgroundColor: '#151520',
+        borderRadius: 16,
+        padding: 32,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    emptyStateText: {
+        fontSize: 14,
+        fontFamily: FONTS.regular,
+        color: 'rgba(255,255,255,0.5)',
+        marginBottom: 16,
+    },
+    addButton: {
+        backgroundColor: '#00ffdd',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 12,
+    },
+    addButtonText: {
+        fontSize: 14,
+        fontFamily: FONTS.bold,
+        color: '#0a0a0f',
+    },
+    // Menu Styles
+    menuOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    menuContainer: {
+        width: width * 0.75,
+        height: '100%',
+        backgroundColor: '#1a1a2e',
+        shadowColor: '#000',
+        shadowOffset: { width: 2, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 10,
+        elevation: 10,
+    },
+    menuGradient: {
+        flex: 1,
+        backgroundColor: '#1a1a2e',
+    },
+    menuHeader: {
+        paddingTop: 80,
+        paddingHorizontal: 24,
+        paddingBottom: 30,
+        backgroundColor: '#0f3329',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.1)',
+    },
+    closeButton: {
+        position: 'absolute',
+        top: 15,
+        left: 20,
+        zIndex: 10,
+        padding: 8,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 8,
+    },
+    menuProfile: {
+        alignItems: 'center',
+    },
+    menuAvatar: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: '#ff9a7a',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 12,
+        borderWidth: 3,
+        borderColor: '#00ffdd',
+    },
+    menuAvatarText: {
+        fontSize: 36,
+    },
+    menuName: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#ffffff',
+        marginBottom: 4,
+    },
+    menuEmail: {
+        fontSize: 14,
+        color: 'rgba(255,255,255,0.7)',
+    },
+    menuItems: {
+        flex: 1,
+    },
+    menuItemsContent: {
+        padding: 24,
+        paddingBottom: 40,
+    },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 15,
+        borderRadius: 12,
+        marginBottom: 10,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        height: 55,
+    },
+    menuItemText: {
+        fontSize: 18,
+        color: '#FFFFFF',
+        fontWeight: 'bold',
+        marginLeft: 15,
+        textAlignVertical: 'center',
+    },
+    menuDivider: {
+        height: 1,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        marginVertical: 12,
     },
 });
