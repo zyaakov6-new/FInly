@@ -1,31 +1,70 @@
 export const COLORS = {
-    // Brand
-    primary: '#FD7979', // Coral
-    secondary: '#FDACAC', // Salmon
-    accent: '#FFCDC9', // Light Peach
-    primaryGradient: ['#FD7979', '#FF9F9F'], // Coral to lighter coral fusion
+    light: {
+        // Brand
+        primary: '#FD7979',
+        secondary: '#FDACAC',
+        accent: '#FFCDC9',
 
-    // Status
-    danger: '#ef4444',
-    success: '#10b981',
-    warning: '#f59e0b',
-    info: '#3b82f6',
+        // Status
+        danger: '#ef4444',
+        success: '#10b981',
+        warning: '#f59e0b',
+        info: '#3b82f6',
 
-    // Backgrounds
-    background: '#FEEAC9', // Cream
-    surface: '#FFF9F0',    // Very light warm white for better blending
-    surfaceLight: '#FFF5E6',
+        // Backgrounds
+        background: '#FEEAC9',
+        surface: '#FFF9F0',
+        surfaceLight: '#FFF5E6',
+        card: '#FFFFFF',
 
-    // Text
-    textPrimary: '#000000', // Pure black for maximum readability
-    textSecondary: '#000000', // Pure black
-    textTertiary: '#000000', // Pure black
+        // Text
+        textPrimary: '#000000',
+        textSecondary: '#444444',
+        textTertiary: '#666666',
+        textOnDark: '#FFFFFF',
 
-    // UI
-    border: '#E6D5C4', // Soft beige/brown border
-    white: '#ffffff',
-    black: '#000000',
-    transparent: 'transparent',
+        // UI
+        border: '#E6D5C4',
+        divider: 'rgba(0,0,0,0.05)',
+        white: '#ffffff',
+        black: '#000000',
+        transparent: 'transparent',
+    },
+    dark: {
+        // Brand
+        primary: '#FD7979',
+        secondary: '#FDACAC',
+        accent: '#FFCDC9',
+
+        // Status
+        danger: '#ff6b6b',
+        success: '#00ff88',
+        warning: '#ff9a4a',
+        info: '#4a9eff',
+
+        // Backgrounds
+        background: '#0a0a0f',
+        surface: '#12121e',
+        surfaceLight: '#151520',
+        card: '#1c1c2b',
+
+        // Text
+        textPrimary: '#FFFFFF',
+        textSecondary: '#AAAAAA',
+        textTertiary: '#666666',
+        textOnDark: '#FFFFFF',
+
+        // UI
+        border: 'rgba(255,255,255,0.05)',
+        divider: 'rgba(255,255,255,0.1)',
+        white: '#ffffff',
+        black: '#000000',
+        transparent: 'transparent',
+    }
+};
+
+export const getColors = (scheme: 'light' | 'dark' | null | undefined) => {
+    return COLORS[scheme === 'dark' ? 'dark' : 'light'];
 };
 
 export const SPACING = {

@@ -1,20 +1,37 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, Modal, useColorScheme, StatusBar } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Search, Menu, TrendingUp, Trash2, FileText, AlertCircle, ShoppingCart, X, Home, BarChart3, Settings, User, LogOut, ArrowUpRight, ArrowDownLeft } from 'lucide-react-native';
+import { Search, Menu, TrendingUp, Trash2, FileText, AlertCircle, ShoppingCart, X, Home, BarChart3, Settings, User, LogOut, ArrowUpRight, ArrowDownLeft, Info } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTransactions } from '../context/TransactionsContext';
 import { useUserProfile } from '../context/UserProfileContext';
-import { FONTS } from '../constants/theme';
+import { FONTS, getColors } from '../constants/theme';
+import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters';
+import { AccessibleAmount } from '../components/AccessibleAmount';
+import { Tooltip } from '../components/Tooltip';
 
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
     const navigation = useNavigation<any>();
+    const colorScheme = useColorScheme();
+    const colors = getColors(colorScheme);
+
     const { userProfile: userProfileData } = useUserProfile();
-    const { totalRevenue, totalExpenses, netProfit, profitMargin, transactions, recentActivity } = useTransactions();
+    const {
+        totalRevenue,
+        totalExpenses,
+        netProfit,
+        profitMargin,
+        transactions,
+        getMonthlyExpenseProgress
+    } = useTransactions();
+
     const [menuVisible, setMenuVisible] = useState(false);
     const [chartView, setChartView] = useState<'expenses' | 'income'>('expenses');
+
+    // Get dynamic expense progress
+    const expenseProgress = useMemo(() => getMonthlyExpenseProgress(), [getMonthlyExpenseProgress]);
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(-width)).current;
@@ -114,19 +131,27 @@ export default function DashboardScreen() {
     }, [transactions]);
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                    <TouchableOpacity style={styles.iconButton} onPress={openMenu}>
-                        <Menu size={24} color="#fff" />
+                    <TouchableOpacity
+                        style={[styles.iconButton, { backgroundColor: colors.divider }]}
+                        onPress={openMenu}
+                    >
+                        <Menu size={24} color={colors.textPrimary} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.iconButton}>
-                        <Search size={24} color="#fff" />
+                    <TouchableOpacity
+                        style={[styles.iconButton, { backgroundColor: colors.divider }]}
+                    >
+                        <Search size={24} color={colors.textPrimary} />
                     </TouchableOpacity>
                 </View>
                 <View style={styles.headerRight}>
-                    <Text style={styles.greeting}>{userProfileData?.fullName || 'זיו המלך'}</Text>
+                    <Text style={[styles.greeting, { color: colors.textPrimary }]}>
+                        {userProfileData?.fullName || 'זיו המלך'}
+                    </Text>
                     <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
                         <View style={styles.avatar}>
                             <Text style={styles.avatarText}>👤</Text>
@@ -143,31 +168,52 @@ export default function DashboardScreen() {
                 <Animated.View style={[styles.balanceCard, { opacity: fadeAnim }]}>
                     <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PnL')}>
                         <LinearGradient
-                            colors={['#1a4d3e', '#0f3329', '#0a2419']}
+                            colors={colorScheme === 'dark' ? ['#1a4d3e', '#0f3329', '#0a2419'] : ['#FD7979', '#FDACAC', '#FFCDC9']}
                             style={styles.balanceGradient}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                         >
                             <View style={styles.balanceHeader}>
-                                <Text style={styles.balanceLabel}>מיקוד שנתי נכון</Text>
+                                <Tooltip text="השוואה בין ההכנסות בשנה הנוכחית לעומת השנה הקודמת" colors={colors}>
+                                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+                                        <Text style={styles.balanceLabel}>מיקוד שנתי</Text>
+                                        <Info size={12} color="rgba(255,255,255,0.6)" />
+                                    </View>
+                                </Tooltip>
                                 <View style={styles.percentageBadge}>
                                     <TrendingUp size={12} color="#00ff88" />
                                     <Text style={styles.percentageText}>
-                                        {yearlyGrowth >= 0 ? '+' : ''}{yearlyGrowth}%
+                                        {formatPercent((yearlyGrowth >= 0 ? '+' : '') + yearlyGrowth)}
                                     </Text>
                                 </View>
                             </View>
 
-                            <Text style={styles.balanceAmount}>₪{totalRevenue.toLocaleString()}</Text>
+                            <AccessibleAmount
+                                amount={totalRevenue}
+                                label="סך הכנסות שנתיות"
+                                style={styles.balanceAmount}
+                                colors={colors}
+                            />
 
                             <View style={styles.balanceFooter}>
                                 <View style={styles.balanceItem}>
-                                    <Text style={styles.balanceItemLabel}>רווח אמיתי</Text>
-                                    <Text style={styles.balanceItemValue}>₪{netProfit.toLocaleString()}</Text>
+                                    <Text style={styles.balanceItemLabel}>רווח נקי</Text>
+                                    <AccessibleAmount
+                                        amount={netProfit}
+                                        label="רווח נקי"
+                                        style={styles.balanceItemValue}
+                                        colors={colors}
+                                        type="income"
+                                    />
                                 </View>
                                 <View style={styles.balanceItem}>
-                                    <Text style={styles.balanceItemLabel}>מהה הרווח</Text>
-                                    <Text style={styles.balanceItemValue}>{profitMargin}%</Text>
+                                    <Tooltip text="היחס בין הרווח הנקי לסך ההכנסות" colors={colors}>
+                                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+                                            <Text style={styles.balanceItemLabel}>מתח רווח</Text>
+                                            <Info size={10} color="rgba(255,255,255,0.5)" />
+                                        </View>
+                                    </Tooltip>
+                                    <Text style={styles.balanceItemValue}>{formatPercent(profitMargin)}</Text>
                                 </View>
                             </View>
                         </LinearGradient>
@@ -177,11 +223,11 @@ export default function DashboardScreen() {
                 {/* Monthly Summary Section */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>סיכום ביניים</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>סיכום חודשי</Text>
                         <TouchableOpacity>
-                            <View style={styles.dateBadge}>
-                                <Trash2 size={16} color="#00ff88" />
-                                <Text style={styles.dateText}>
+                            <View style={[styles.dateBadge, { backgroundColor: colors.divider }]}>
+                                <FileText size={16} color={colors.success} />
+                                <Text style={[styles.dateText, { color: colors.textSecondary }]}>
                                     {new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
                                 </Text>
                             </View>
@@ -189,23 +235,34 @@ export default function DashboardScreen() {
                     </View>
 
                     <TouchableOpacity
-                        style={styles.summaryCard}
+                        style={[styles.summaryCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
                         activeOpacity={0.9}
                         onPress={() => navigation.navigate('ExpensesList')}
                     >
                         <View style={styles.summaryHeader}>
-                            <Text style={styles.summaryAmount}>₪{totalExpenses.toLocaleString()}</Text>
-                            <Text style={styles.summarySubtext}>מתוך ₪12,450</Text>
+                            <AccessibleAmount
+                                amount={expenseProgress.current}
+                                label="הוצאות החודש"
+                                style={[styles.summaryAmount, { color: colors.textPrimary }]}
+                                colors={colors}
+                            />
+                            <Text style={[styles.summarySubtext, { color: colors.textTertiary }]}>
+                                מתוך {formatCurrency(expenseProgress.limit)}
+                            </Text>
                         </View>
-                        <Text style={styles.summaryLabel}>הוצאות אובדת 74%</Text>
+                        <Text style={[styles.summaryLabel, { color: colors.success }]}>
+                            נוצלו {formatPercent(expenseProgress.percentage)} מהתקציב
+                        </Text>
 
                         {/* Progress Bar */}
-                        <View style={styles.progressBar}>
-                            <View style={[styles.progressFill, { width: '74%' }]} />
+                        <View style={[styles.progressBar, { backgroundColor: colors.divider }]}>
+                            <View style={[styles.progressFill, { width: `${expenseProgress.percentage}%`, backgroundColor: colors.success }]} />
                         </View>
 
-                        <Text style={styles.summaryNote}>
-                            חדל מה שאתה מוציא הוא מהמכסה שהגדרת לחודש הזה. 54.2% יותר מאשר בחודש שעבר
+                        <Text style={[styles.summaryNote, { color: colors.textSecondary }]}>
+                            {expenseProgress.percentage > 90
+                                ? 'שים לב, אתה מתקרב למכסת ההוצאות החודשית שהגדרת.'
+                                : 'ההוצאות שלך נמצאות בטווח היעדים שהגדרת לחודש זה.'}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -213,21 +270,27 @@ export default function DashboardScreen() {
                 {/* Monthly Chart Section */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>תנועה חודשית</Text>
-                        <View style={styles.chartTabs}>
+                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תנועה חודשית</Text>
+                        <View style={[styles.chartTabs, { backgroundColor: colors.divider }]}>
                             <TouchableOpacity
-                                style={[styles.chartTab, chartView === 'expenses' && styles.chartTabActive]}
+                                style={[styles.chartTab, chartView === 'expenses' && { backgroundColor: colors.success }]}
                                 onPress={() => setChartView('expenses')}
                             >
-                                <Text style={chartView === 'expenses' ? styles.chartTabTextActive : styles.chartTabText}>
+                                <Text style={[
+                                    chartView === 'expenses' ? styles.chartTabTextActive : styles.chartTabText,
+                                    { color: chartView === 'expenses' ? colors.background : colors.textSecondary }
+                                ]}>
                                     הוצאות
                                 </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.chartTab, chartView === 'income' && styles.chartTabActive]}
+                                style={[styles.chartTab, chartView === 'income' && { backgroundColor: colors.info }]}
                                 onPress={() => setChartView('income')}
                             >
-                                <Text style={chartView === 'income' ? styles.chartTabTextActive : styles.chartTabText}>
+                                <Text style={[
+                                    chartView === 'income' ? styles.chartTabTextActive : styles.chartTabText,
+                                    { color: chartView === 'income' ? colors.background : colors.textSecondary }
+                                ]}>
                                     הכנסות
                                 </Text>
                             </TouchableOpacity>
@@ -235,7 +298,7 @@ export default function DashboardScreen() {
                     </View>
 
                     <TouchableOpacity
-                        style={styles.chartCard}
+                        style={[styles.chartCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
                         activeOpacity={0.9}
                         onPress={() => navigation.navigate('PnL')}
                     >
@@ -248,12 +311,14 @@ export default function DashboardScreen() {
                                                 styles.chartBarFill,
                                                 {
                                                     height: item.value > 0 ? `${(item.value / maxValue) * 100}%` : '5%',
-                                                    backgroundColor: index === monthlyChartData.length - 1 ? '#00ffdd' : '#1a5c4a'
+                                                    backgroundColor: index === monthlyChartData.length - 1
+                                                        ? (chartView === 'expenses' ? colors.success : colors.info)
+                                                        : (chartView === 'expenses' ? 'rgba(0,255,136,0.3)' : 'rgba(74,158,255,0.3)')
                                                 }
                                             ]}
                                         />
                                     </View>
-                                    <Text style={styles.chartLabel}>{item.month}</Text>
+                                    <Text style={[styles.chartLabel, { color: colors.textTertiary }]}>{item.month}</Text>
                                 </View>
                             ))}
                         </View>
@@ -263,9 +328,9 @@ export default function DashboardScreen() {
                 {/* Transactions Section */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>תשבוניות אחרונות</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תשבוניות אחרונות</Text>
                         <TouchableOpacity onPress={() => navigation.navigate('AllActivity')}>
-                            <Text style={styles.seeAllText}>בטל הכל</Text>
+                            <Text style={[styles.seeAllText, { color: colors.info }]}>צפה בהכל</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -274,7 +339,7 @@ export default function DashboardScreen() {
                         recentTransactions.map((transaction) => (
                             <TouchableOpacity
                                 key={transaction.id}
-                                style={styles.transactionCard}
+                                style={[styles.transactionCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
                                 onPress={() => {
                                     if (transaction.isIncome) {
                                         navigation.navigate('InvoiceDetails', { transactionId: transaction.id });
@@ -288,36 +353,40 @@ export default function DashboardScreen() {
                                         styles.transactionIcon,
                                         {
                                             backgroundColor: transaction.isIncome
-                                                ? '#1a3d5c'
+                                                ? 'rgba(74,158,255,0.1)'
                                                 : transaction.status === 'overdue'
-                                                    ? '#5c3d1a'
-                                                    : '#2a2a3c'
+                                                    ? 'rgba(255,154,74,0.1)'
+                                                    : 'rgba(170,170,170,0.1)'
                                         }
                                     ]}>
                                         {transaction.isIncome ? (
-                                            <ArrowDownLeft size={20} color="#4a9eff" />
+                                            <ArrowDownLeft size={20} color={colors.info} />
                                         ) : transaction.status === 'overdue' ? (
-                                            <AlertCircle size={20} color="#ff9a4a" />
+                                            <AlertCircle size={20} color={colors.warning} />
                                         ) : (
-                                            <ArrowUpRight size={20} color="#9a9aaa" />
+                                            <ArrowUpRight size={20} color={colors.textTertiary} />
                                         )}
                                     </View>
                                     <View>
-                                        <Text style={styles.transactionTitle}>{transaction.title}</Text>
-                                        <Text style={styles.transactionDate}>
-                                            {new Date(transaction.date).toLocaleDateString('he-IL')} •
+                                        <Text style={[styles.transactionTitle, { color: colors.textPrimary }]}>{transaction.title}</Text>
+                                        <Text style={[styles.transactionDate, { color: colors.textTertiary }]}>
+                                            {formatNumber(transaction.amount)} |
                                             {transaction.status === 'paid' ? ' שולם' :
                                                 transaction.status === 'pending' ? ' ממתין' :
                                                     transaction.status === 'overdue' ? ' באיחור' : ' טיוטה'}
                                         </Text>
                                     </View>
                                 </View>
-                                <Text style={[
-                                    styles.transactionAmount,
-                                    { color: transaction.status === 'overdue' ? '#ff9a4a' : '#fff' }
-                                ]}>
-                                    {transaction.amount}
-                                </Text>
+                                <AccessibleAmount
+                                    amount={transaction.amount}
+                                    label={`סכום ${transaction.isIncome ? 'הכנסה' : 'הוצאה'}`}
+                                    style={[
+                                        styles.transactionAmount,
+                                        { color: transaction.status === 'overdue' ? colors.warning : colors.textPrimary }
+                                    ]}
+                                    colors={colors}
+                                    type={transaction.isIncome ? 'income' : 'expense'}
+                                />
                             </TouchableOpacity>
                         ))
                     ) : (
@@ -354,20 +423,20 @@ export default function DashboardScreen() {
                             { transform: [{ translateX: slideAnim }] }
                         ]}
                     >
-                        <View style={styles.menuGradient}>
+                        <View style={[styles.menuGradient, { backgroundColor: colors.surface }]}>
                             {/* Close Button */}
-                            <TouchableOpacity onPress={closeMenu} style={styles.closeButton}>
-                                <X size={24} color="#fff" />
+                            <TouchableOpacity onPress={closeMenu} style={[styles.closeButton, { backgroundColor: colors.divider }]}>
+                                <X size={24} color={colors.textPrimary} />
                             </TouchableOpacity>
 
                             {/* Menu Header */}
-                            <View style={styles.menuHeader}>
+                            <View style={[styles.menuHeader, { backgroundColor: colorScheme === 'dark' ? '#0f3329' : colors.primary }]}>
                                 <View style={styles.menuProfile}>
                                     <View style={styles.menuAvatar}>
                                         <Text style={styles.menuAvatarText}>👤</Text>
                                     </View>
-                                    <Text style={styles.menuName}>{userProfileData?.fullName || 'זיו המלך'}</Text>
-                                    <Text style={styles.menuEmail}>{userProfileData?.email || 'user@finly.com'}</Text>
+                                    <Text style={[styles.menuName, { color: colors.textOnDark }]}>{userProfileData?.fullName || 'זיו המלך'}</Text>
+                                    <Text style={[styles.menuEmail, { color: 'rgba(255,255,255,0.7)' }]}>{userProfileData?.email || 'user@finly.com'}</Text>
                                 </View>
                             </View>
 
@@ -377,7 +446,18 @@ export default function DashboardScreen() {
                                 contentContainerStyle={styles.menuItemsContent}
                                 showsVerticalScrollIndicator={false}
                             >
-
+                                <TouchableOpacity
+                                    style={styles.menuItem}
+                                    onPress={() => {
+                                        closeMenu();
+                                        navigation.navigate('Settings');
+                                    }}
+                                >
+                                    <Settings size={24} color={colors.info} />
+                                    <View style={{ flex: 1, paddingRight: 10 }}>
+                                        <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות עסק</Text>
+                                    </View>
+                                </TouchableOpacity>
 
                                 <TouchableOpacity
                                     style={styles.menuItem}
@@ -386,26 +466,13 @@ export default function DashboardScreen() {
                                         navigation.navigate('Settings');
                                     }}
                                 >
-                                    <Settings size={24} color="#00ffdd" />
-                                    <View style={{ flex: 1, paddingLeft: 10 }}>
-                                        <Text style={styles.menuItemText}>הגדרות עסק</Text>
+                                    <User size={24} color={colors.info} />
+                                    <View style={{ flex: 1, paddingRight: 10 }}>
+                                        <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות פרופיל</Text>
                                     </View>
                                 </TouchableOpacity>
 
-                                <TouchableOpacity
-                                    style={styles.menuItem}
-                                    onPress={() => {
-                                        closeMenu();
-                                        navigation.navigate('Settings'); // Temporarily linking to settings as a placeholder or specific profile screen if exists
-                                    }}
-                                >
-                                    <User size={24} color="#00ffdd" />
-                                    <View style={{ flex: 1, paddingLeft: 10 }}>
-                                        <Text style={styles.menuItemText}>הגדרות פרופיל</Text>
-                                    </View>
-                                </TouchableOpacity>
-
-                                <View style={styles.menuDivider} />
+                                <View style={[styles.menuDivider, { backgroundColor: colors.divider }]} />
 
                                 <TouchableOpacity
                                     style={styles.menuItem}
@@ -414,9 +481,9 @@ export default function DashboardScreen() {
                                         navigation.navigate('Login');
                                     }}
                                 >
-                                    <LogOut size={24} color="#ff6b6b" />
-                                    <View style={{ flex: 1, paddingLeft: 10 }}>
-                                        <Text style={[styles.menuItemText, { color: '#ff6b6b' }]}>התנתק</Text>
+                                    <LogOut size={24} color={colors.danger} />
+                                    <View style={{ flex: 1, paddingRight: 10 }}>
+                                        <Text style={[styles.menuItemText, { color: colors.danger }]}>התנתק</Text>
                                     </View>
                                 </TouchableOpacity>
                             </ScrollView>
