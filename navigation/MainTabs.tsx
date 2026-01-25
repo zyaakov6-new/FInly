@@ -1,25 +1,27 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Platform, StyleSheet } from 'react-native';
-import { Home, PieChart, Users, Settings, Briefcase, Target } from 'lucide-react-native';
+import { View, Platform, StyleSheet, useColorScheme } from 'react-native';
+import { Home, BarChart3, ShoppingCart, User } from 'lucide-react-native';
 import DashboardScreen from '../screens/DashboardScreen';
 import PnLScreen from '../screens/PnLScreen';
-import InvoicesListScreen from '../screens/InvoicesListScreen';
-import GoalsScreen from '../screens/GoalsScreen';
+import ExpensesListScreen from '../screens/ExpensesListScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import { COLORS, FONTS } from '../constants/theme';
+import { COLORS, FONTS, getColors } from '../constants/theme';
 
 const Tab = createBottomTabNavigator();
 
 export default function MainTabs() {
+    const colorScheme = useColorScheme();
+    const colors = getColors(colorScheme);
+
     return (
         <Tab.Navigator
             screenOptions={{
                 headerShown: false,
-                tabBarStyle: styles.tabBar,
+                tabBarStyle: [styles.tabBar, { backgroundColor: colors.surface, borderColor: colors.border }],
                 tabBarShowLabel: true,
-                tabBarActiveTintColor: COLORS.primary,
-                tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.4)',
+                tabBarActiveTintColor: colors.primary,
+                tabBarInactiveTintColor: colors.textTertiary,
                 tabBarLabelStyle: styles.tabLabel,
             }}
         >
@@ -28,39 +30,31 @@ export default function MainTabs() {
                 component={DashboardScreen}
                 options={{
                     tabBarLabel: 'ראשי',
-                    tabBarIcon: ({ color, size }: { color: string, size: number }) => <Home color={color} size={size} />,
+                    tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
                 }}
             />
             <Tab.Screen
-                name="Reports"
+                name="Expenses"
+                component={ExpensesListScreen}
+                options={{
+                    tabBarLabel: 'הוצאות',
+                    tabBarIcon: ({ color, size }) => <ShoppingCart color={color} size={size} />,
+                }}
+            />
+            <Tab.Screen
+                name="Insights"
                 component={PnLScreen}
                 options={{
-                    tabBarLabel: 'דוחות',
-                    tabBarIcon: ({ color, size }: { color: string, size: number }) => <PieChart color={color} size={size} />,
+                    tabBarLabel: 'תובנות',
+                    tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size} />,
                 }}
             />
             <Tab.Screen
-                name="Goals"
-                component={GoalsScreen}
-                options={{
-                    tabBarLabel: 'יעדים',
-                    tabBarIcon: ({ color, size }: { color: string, size: number }) => <Target color={color} size={size} />,
-                }}
-            />
-            <Tab.Screen
-                name="Customers"
-                component={InvoicesListScreen}
-                options={{
-                    tabBarLabel: 'לקוחות',
-                    tabBarIcon: ({ color, size }: { color: string, size: number }) => <Users color={color} size={size} />,
-                }}
-            />
-            <Tab.Screen
-                name="Settings"
+                name="Profile"
                 component={SettingsScreen}
                 options={{
-                    tabBarLabel: 'הגדרות',
-                    tabBarIcon: ({ color, size }: { color: string, size: number }) => <Settings color={color} size={size} />,
+                    tabBarLabel: 'פרופיל',
+                    tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
                 }}
             />
         </Tab.Navigator>

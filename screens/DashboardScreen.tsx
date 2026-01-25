@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, Modal, useColorScheme, StatusBar } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { Search, Menu, TrendingUp, Trash2, FileText, AlertCircle, ShoppingCart, X, Home, BarChart3, Settings, User, LogOut, ArrowUpRight, ArrowDownLeft, Info } from 'lucide-react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Search, Menu, TrendingUp, Trash2, FileText, AlertCircle, ShoppingCart, X, Home, BarChart3, Settings, User, LogOut, ArrowUpRight, ArrowDownLeft, Info, Plus, ArrowUp, ArrowDown, Camera } from 'lucide-react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTransactions } from '../context/TransactionsContext';
 import { useUserProfile } from '../context/UserProfileContext';
@@ -60,21 +61,26 @@ export default function DashboardScreen() {
         return parseFloat(((currentYearRevenue - lastYearRevenue) / lastYearRevenue * 100).toFixed(1));
     }, [transactions]);
 
-    useEffect(() => {
-        Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-        }).start();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 600,
+                useNativeDriver: true,
+            }).start();
+
+            // Re-opening the menu if it was open could be tricky, 
+            // but usually we just want to ensure layout sync
+        }, [])
+    );
 
     const openMenu = () => {
         setMenuVisible(true);
         Animated.spring(slideAnim, {
             toValue: 0,
             useNativeDriver: true,
-            tension: 65,
-            friction: 11,
+            tension: 50,
+            friction: 8,
         }).start();
     };
 
@@ -84,6 +90,41 @@ export default function DashboardScreen() {
             duration: 250,
             useNativeDriver: true,
         }).start(() => setMenuVisible(false));
+    };
+
+    const onGestureEvent = (event: any) => {
+        const { translationX } = event.nativeEvent;
+        // Only allow pulling from the left if menu is closed
+        if (!menuVisible) {
+            if (translationX > 0) {
+                slideAnim.setValue(-width + translationX);
+            }
+        } else {
+            // Allow pushing back to the left if menu is open
+            if (translationX < 0) {
+                slideAnim.setValue(translationX);
+            }
+        }
+    };
+
+    const onHandlerStateChange = (event: any) => {
+        if (event.nativeEvent.state === State.END) {
+            const { translationX, velocityX } = event.nativeEvent;
+
+            if (!menuVisible) {
+                if (translationX > width * 0.25 || velocityX > 500) {
+                    openMenu();
+                } else {
+                    closeMenu();
+                }
+            } else {
+                if (translationX < -width * 0.25 || velocityX < -500) {
+                    closeMenu();
+                } else {
+                    openMenu();
+                }
+            }
+        }
     };
 
     // Get real transactions for chart - group by month
@@ -132,365 +173,414 @@ export default function DashboardScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <TouchableOpacity
-                        style={[styles.iconButton, { backgroundColor: colors.divider }]}
-                        onPress={openMenu}
-                    >
-                        <Menu size={24} color={colors.textPrimary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.iconButton, { backgroundColor: colors.divider }]}
-                    >
-                        <Search size={24} color={colors.textPrimary} />
-                    </TouchableOpacity>
-                </View>
-                <View style={styles.headerRight}>
-                    <Text style={[styles.greeting, { color: colors.textPrimary }]}>
-                        {userProfileData?.fullName || 'זיו המלך'}
-                    </Text>
-                    <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-                        <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>👤</Text>
-                        </View>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            <ScrollView
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContent}
+            <PanGestureHandler
+                onGestureEvent={onGestureEvent}
+                onHandlerStateChange={onHandlerStateChange}
+                activeOffsetX={[-10, 10]}
             >
-                {/* Main Balance Card */}
-                <Animated.View style={[styles.balanceCard, { opacity: fadeAnim }]}>
-                    <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PnL')}>
-                        <LinearGradient
-                            colors={colorScheme === 'dark' ? ['#1a4d3e', '#0f3329', '#0a2419'] : ['#FD7979', '#FDACAC', '#FFCDC9']}
-                            style={styles.balanceGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                        >
-                            <View style={styles.balanceHeader}>
-                                <Tooltip text="השוואה בין ההכנסות בשנה הנוכחית לעומת השנה הקודמת" colors={colors}>
-                                    <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
-                                        <Text style={styles.balanceLabel}>מיקוד שנתי</Text>
-                                        <Info size={12} color="rgba(255,255,255,0.6)" />
-                                    </View>
-                                </Tooltip>
-                                <View style={styles.percentageBadge}>
-                                    <TrendingUp size={12} color="#00ff88" />
-                                    <Text style={styles.percentageText}>
-                                        {formatPercent((yearlyGrowth >= 0 ? '+' : '') + yearlyGrowth)}
-                                    </Text>
-                                </View>
-                            </View>
-
-                            <AccessibleAmount
-                                amount={totalRevenue}
-                                label="סך הכנסות שנתיות"
-                                style={styles.balanceAmount}
-                                colors={colors}
-                            />
-
-                            <View style={styles.balanceFooter}>
-                                <View style={styles.balanceItem}>
-                                    <Text style={styles.balanceItemLabel}>רווח נקי</Text>
-                                    <AccessibleAmount
-                                        amount={netProfit}
-                                        label="רווח נקי"
-                                        style={styles.balanceItemValue}
-                                        colors={colors}
-                                        type="income"
-                                    />
-                                </View>
-                                <View style={styles.balanceItem}>
-                                    <Tooltip text="היחס בין הרווח הנקי לסך ההכנסות" colors={colors}>
-                                        <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
-                                            <Text style={styles.balanceItemLabel}>מתח רווח</Text>
-                                            <Info size={10} color="rgba(255,255,255,0.5)" />
-                                        </View>
-                                    </Tooltip>
-                                    <Text style={styles.balanceItemValue}>{formatPercent(profitMargin)}</Text>
-                                </View>
-                            </View>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                </Animated.View>
-
-                {/* Monthly Summary Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>סיכום חודשי</Text>
-                        <TouchableOpacity>
-                            <View style={[styles.dateBadge, { backgroundColor: colors.divider }]}>
-                                <FileText size={16} color={colors.success} />
-                                <Text style={[styles.dateText, { color: colors.textSecondary }]}>
-                                    {new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
-                                </Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity
-                        style={[styles.summaryCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
-                        activeOpacity={0.9}
-                        onPress={() => navigation.navigate('ExpensesList')}
-                    >
-                        <View style={styles.summaryHeader}>
-                            <AccessibleAmount
-                                amount={expenseProgress.current}
-                                label="הוצאות החודש"
-                                style={[styles.summaryAmount, { color: colors.textPrimary }]}
-                                colors={colors}
-                            />
-                            <Text style={[styles.summarySubtext, { color: colors.textTertiary }]}>
-                                מתוך {formatCurrency(expenseProgress.limit)}
+                <View style={{ flex: 1 }}>
+                    <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+                    {/* Header */}
+                    <View style={styles.header}>
+                        <View style={styles.headerLeft}>
+                            <TouchableOpacity
+                                style={[styles.iconButton, { backgroundColor: colors.divider }]}
+                                onPress={openMenu}
+                            >
+                                <Menu size={24} color={colors.textPrimary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.iconButton, { backgroundColor: colors.divider }]}
+                            >
+                                <Search size={24} color={colors.textPrimary} />
+                            </TouchableOpacity>
+                        </View>
+                        <View style={styles.headerRight}>
+                            <Text style={[styles.greeting, { color: colors.textPrimary }]}>
+                                {userProfileData?.fullName || 'זיו המלך'}
                             </Text>
-                        </View>
-                        <Text style={[styles.summaryLabel, { color: colors.success }]}>
-                            נוצלו {formatPercent(expenseProgress.percentage)} מהתקציב
-                        </Text>
-
-                        {/* Progress Bar */}
-                        <View style={[styles.progressBar, { backgroundColor: colors.divider }]}>
-                            <View style={[styles.progressFill, { width: `${expenseProgress.percentage}%`, backgroundColor: colors.success }]} />
-                        </View>
-
-                        <Text style={[styles.summaryNote, { color: colors.textSecondary }]}>
-                            {expenseProgress.percentage > 90
-                                ? 'שים לב, אתה מתקרב למכסת ההוצאות החודשית שהגדרת.'
-                                : 'ההוצאות שלך נמצאות בטווח היעדים שהגדרת לחודש זה.'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Monthly Chart Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תנועה חודשית</Text>
-                        <View style={[styles.chartTabs, { backgroundColor: colors.divider }]}>
-                            <TouchableOpacity
-                                style={[styles.chartTab, chartView === 'expenses' && { backgroundColor: colors.success }]}
-                                onPress={() => setChartView('expenses')}
-                            >
-                                <Text style={[
-                                    chartView === 'expenses' ? styles.chartTabTextActive : styles.chartTabText,
-                                    { color: chartView === 'expenses' ? colors.background : colors.textSecondary }
-                                ]}>
-                                    הוצאות
-                                </Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.chartTab, chartView === 'income' && { backgroundColor: colors.info }]}
-                                onPress={() => setChartView('income')}
-                            >
-                                <Text style={[
-                                    chartView === 'income' ? styles.chartTabTextActive : styles.chartTabText,
-                                    { color: chartView === 'income' ? colors.background : colors.textSecondary }
-                                ]}>
-                                    הכנסות
-                                </Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
+                                <View style={styles.avatar}>
+                                    <Text style={styles.avatarText}>👤</Text>
+                                </View>
                             </TouchableOpacity>
                         </View>
                     </View>
 
-                    <TouchableOpacity
-                        style={[styles.chartCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
-                        activeOpacity={0.9}
-                        onPress={() => navigation.navigate('PnL')}
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.scrollContent}
                     >
-                        <View style={styles.chart}>
-                            {monthlyChartData.map((item, index) => (
-                                <View key={index} style={styles.chartBar}>
-                                    <View style={styles.chartBarContainer}>
-                                        <View
-                                            style={[
-                                                styles.chartBarFill,
-                                                {
-                                                    height: item.value > 0 ? `${(item.value / maxValue) * 100}%` : '5%',
-                                                    backgroundColor: index === monthlyChartData.length - 1
-                                                        ? (chartView === 'expenses' ? colors.success : colors.info)
-                                                        : (chartView === 'expenses' ? 'rgba(0,255,136,0.3)' : 'rgba(74,158,255,0.3)')
-                                                }
-                                            ]}
-                                        />
+                        {/* Main Balance Card */}
+                        <Animated.View style={[styles.balanceCard, { opacity: fadeAnim }]}>
+                            <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PnL')}>
+                                <LinearGradient
+                                    colors={colorScheme === 'dark' ? ['#1a4d3e', '#0f3329', '#0a2419'] : ['#FD7979', '#FDACAC', '#FFCDC9']}
+                                    style={styles.balanceGradient}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                >
+                                    <View style={styles.balanceHeader}>
+                                        <Tooltip text="השוואה בין ההכנסות בשנה הנוכחית לעומת השנה הקודמת" colors={colors}>
+                                            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+                                                <Text style={styles.balanceLabel}>מיקוד שנתי</Text>
+                                                <Info size={12} color="rgba(255,255,255,0.6)" />
+                                            </View>
+                                        </Tooltip>
+                                        <View style={styles.percentageBadge}>
+                                            <TrendingUp size={12} color="#00ff88" />
+                                            <Text style={styles.percentageText}>
+                                                {formatPercent((yearlyGrowth >= 0 ? '+' : '') + yearlyGrowth)}
+                                            </Text>
+                                        </View>
                                     </View>
-                                    <Text style={[styles.chartLabel, { color: colors.textTertiary }]}>{item.month}</Text>
-                                </View>
-                            ))}
-                        </View>
-                    </TouchableOpacity>
-                </View>
 
-                {/* Transactions Section */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תשבוניות אחרונות</Text>
-                        <TouchableOpacity onPress={() => navigation.navigate('AllActivity')}>
-                            <Text style={[styles.seeAllText, { color: colors.info }]}>צפה בהכל</Text>
-                        </TouchableOpacity>
-                    </View>
+                                    <AccessibleAmount
+                                        amount={totalRevenue}
+                                        label="סך הכנסות שנתיות"
+                                        style={styles.balanceAmount}
+                                        colors={colors}
+                                    />
 
-                    {/* Real Transaction Items from user data */}
-                    {recentTransactions.length > 0 ? (
-                        recentTransactions.map((transaction) => (
-                            <TouchableOpacity
-                                key={transaction.id}
-                                style={[styles.transactionCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
-                                onPress={() => {
-                                    if (transaction.isIncome) {
-                                        navigation.navigate('InvoiceDetails', { transactionId: transaction.id });
-                                    } else {
-                                        navigation.navigate('AddExpense', { transactionId: transaction.id });
-                                    }
-                                }}
-                            >
-                                <View style={styles.transactionLeft}>
-                                    <View style={[
-                                        styles.transactionIcon,
-                                        {
-                                            backgroundColor: transaction.isIncome
-                                                ? 'rgba(74,158,255,0.1)'
-                                                : transaction.status === 'overdue'
-                                                    ? 'rgba(255,154,74,0.1)'
-                                                    : 'rgba(170,170,170,0.1)'
-                                        }
-                                    ]}>
-                                        {transaction.isIncome ? (
-                                            <ArrowDownLeft size={20} color={colors.info} />
-                                        ) : transaction.status === 'overdue' ? (
-                                            <AlertCircle size={20} color={colors.warning} />
-                                        ) : (
-                                            <ArrowUpRight size={20} color={colors.textTertiary} />
-                                        )}
+                                    <View style={styles.balanceFooter}>
+                                        <View style={styles.balanceItem}>
+                                            <Text style={styles.balanceItemLabel}>רווח נקי</Text>
+                                            <AccessibleAmount
+                                                amount={netProfit}
+                                                label="רווח נקי"
+                                                style={styles.balanceItemValue}
+                                                colors={colors}
+                                                type="income"
+                                            />
+                                        </View>
+                                        <View style={styles.balanceItem}>
+                                            <Tooltip text="היחס בין הרווח הנקי לסך ההכנסות" colors={colors}>
+                                                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+                                                    <Text style={styles.balanceItemLabel}>מתח רווח</Text>
+                                                    <Info size={10} color="rgba(255,255,255,0.5)" />
+                                                </View>
+                                            </Tooltip>
+                                            <Text style={styles.balanceItemValue}>{formatPercent(profitMargin)}</Text>
+                                        </View>
                                     </View>
-                                    <View>
-                                        <Text style={[styles.transactionTitle, { color: colors.textPrimary }]}>{transaction.title}</Text>
-                                        <Text style={[styles.transactionDate, { color: colors.textTertiary }]}>
-                                            {formatNumber(transaction.amount)} |
-                                            {transaction.status === 'paid' ? ' שולם' :
-                                                transaction.status === 'pending' ? ' ממתין' :
-                                                    transaction.status === 'overdue' ? ' באיחור' : ' טיוטה'}
-                                        </Text>
-                                    </View>
-                                </View>
-                                <AccessibleAmount
-                                    amount={transaction.amount}
-                                    label={`סכום ${transaction.isIncome ? 'הכנסה' : 'הוצאה'}`}
-                                    style={[
-                                        styles.transactionAmount,
-                                        { color: transaction.status === 'overdue' ? colors.warning : colors.textPrimary }
-                                    ]}
-                                    colors={colors}
-                                    type={transaction.isIncome ? 'income' : 'expense'}
-                                />
+                                </LinearGradient>
                             </TouchableOpacity>
-                        ))
-                    ) : (
-                        <View style={styles.emptyState}>
-                            <Text style={styles.emptyStateText}>אין תשבוניות אחרונות</Text>
+                        </Animated.View>
+
+                        {/* Quick Actions */}
+                        <View style={styles.quickActions}>
                             <TouchableOpacity
-                                style={styles.addButton}
+                                style={[styles.quickAction, { backgroundColor: colors.info + '15' }]}
+                                onPress={() => navigation.navigate('CreateInvoice')}
+                            >
+                                <View style={[styles.quickActionIcon, { backgroundColor: colors.info }]}>
+                                    <ArrowDown size={20} color="#fff" />
+                                </View>
+                                <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>הכנסה</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.quickAction, { backgroundColor: colors.primary + '15' }]}
                                 onPress={() => navigation.navigate('AddExpense')}
                             >
-                                <Text style={styles.addButtonText}>הוסף הוצאה</Text>
+                                <View style={[styles.quickActionIcon, { backgroundColor: colors.primary }]}>
+                                    <Plus size={20} color="#fff" />
+                                </View>
+                                <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>הוצאה</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.quickAction, { backgroundColor: colors.success + '15' }]}
+                                onPress={() => navigation.navigate('ReceiptGallery')}
+                            >
+                                <View style={[styles.quickActionIcon, { backgroundColor: colors.success }]}>
+                                    <Camera size={20} color="#fff" />
+                                </View>
+                                <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>סריקה</Text>
                             </TouchableOpacity>
                         </View>
-                    )}
-                </View>
 
-                <View style={{ height: 100 }} />
-            </ScrollView>
-
-            {/* Slide-out Menu */}
-            <Modal
-                visible={menuVisible}
-                transparent
-                animationType="none"
-                onRequestClose={closeMenu}
-            >
-                <TouchableOpacity
-                    style={styles.menuOverlay}
-                    activeOpacity={1}
-                    onPress={() => { }} // No longer closing on overlay press
-                >
-                    <Animated.View
-                        style={[
-                            styles.menuContainer,
-                            { transform: [{ translateX: slideAnim }] }
-                        ]}
-                    >
-                        <View style={[styles.menuGradient, { backgroundColor: colors.surface }]}>
-                            {/* Close Button */}
-                            <TouchableOpacity onPress={closeMenu} style={[styles.closeButton, { backgroundColor: colors.divider }]}>
-                                <X size={24} color={colors.textPrimary} />
-                            </TouchableOpacity>
-
-                            {/* Menu Header */}
-                            <View style={[styles.menuHeader, { backgroundColor: colorScheme === 'dark' ? '#0f3329' : colors.primary }]}>
-                                <View style={styles.menuProfile}>
-                                    <View style={styles.menuAvatar}>
-                                        <Text style={styles.menuAvatarText}>👤</Text>
+                        {/* Monthly Summary Section */}
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>סיכום חודשי</Text>
+                                <TouchableOpacity>
+                                    <View style={[styles.dateBadge, { backgroundColor: colors.divider }]}>
+                                        <FileText size={16} color={colors.success} />
+                                        <Text style={[styles.dateText, { color: colors.textSecondary }]}>
+                                            {new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
+                                        </Text>
                                     </View>
-                                    <Text style={[styles.menuName, { color: colors.textOnDark }]}>{userProfileData?.fullName || 'זיו המלך'}</Text>
-                                    <Text style={[styles.menuEmail, { color: 'rgba(255,255,255,0.7)' }]}>{userProfileData?.email || 'user@finly.com'}</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <TouchableOpacity
+                                style={[styles.summaryCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
+                                activeOpacity={0.9}
+                                onPress={() => navigation.navigate('ExpensesList')}
+                            >
+                                <View style={styles.summaryHeader}>
+                                    <AccessibleAmount
+                                        amount={expenseProgress.current}
+                                        label="הוצאות החודש"
+                                        style={[styles.summaryAmount, { color: colors.textPrimary }]}
+                                        colors={colors}
+                                    />
+                                    <Text style={[styles.summarySubtext, { color: colors.textTertiary }]}>
+                                        מתוך {formatCurrency(expenseProgress.limit)}
+                                    </Text>
+                                </View>
+                                <Text style={[styles.summaryLabel, { color: colors.success }]}>
+                                    נוצלו {formatPercent(expenseProgress.percentage)} מהתקציב
+                                </Text>
+
+                                {/* Progress Bar */}
+                                <View style={[styles.progressBar, { backgroundColor: colors.divider }]}>
+                                    <View style={[styles.progressFill, { width: `${expenseProgress.percentage}%`, backgroundColor: colors.success }]} />
+                                </View>
+
+                                <Text style={[styles.summaryNote, { color: colors.textSecondary }]}>
+                                    {expenseProgress.percentage > 90
+                                        ? 'שים לב, אתה מתקרב למכסת ההוצאות החודשית שהגדרת.'
+                                        : 'ההוצאות שלך נמצאות בטווח היעדים שהגדרת לחודש זה.'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Monthly Chart Section */}
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תנועה חודשית</Text>
+                                <View style={[styles.chartTabs, { backgroundColor: colors.divider }]}>
+                                    <TouchableOpacity
+                                        style={[styles.chartTab, chartView === 'expenses' && { backgroundColor: colors.success }]}
+                                        onPress={() => setChartView('expenses')}
+                                    >
+                                        <Text style={[
+                                            chartView === 'expenses' ? styles.chartTabTextActive : styles.chartTabText,
+                                            { color: chartView === 'expenses' ? colors.background : colors.textSecondary }
+                                        ]}>
+                                            הוצאות
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.chartTab, chartView === 'income' && { backgroundColor: colors.info }]}
+                                        onPress={() => setChartView('income')}
+                                    >
+                                        <Text style={[
+                                            chartView === 'income' ? styles.chartTabTextActive : styles.chartTabText,
+                                            { color: chartView === 'income' ? colors.background : colors.textSecondary }
+                                        ]}>
+                                            הכנסות
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
                             </View>
 
-                            {/* Menu Items */}
-                            <ScrollView
-                                style={styles.menuItems}
-                                contentContainerStyle={styles.menuItemsContent}
-                                showsVerticalScrollIndicator={false}
+                            <TouchableOpacity
+                                style={[styles.chartCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
+                                activeOpacity={0.9}
+                                onPress={() => navigation.navigate('PnL')}
                             >
-                                <TouchableOpacity
-                                    style={styles.menuItem}
-                                    onPress={() => {
-                                        closeMenu();
-                                        navigation.navigate('Settings');
-                                    }}
-                                >
-                                    <Settings size={24} color={colors.info} />
-                                    <View style={{ flex: 1, paddingRight: 10 }}>
-                                        <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות עסק</Text>
-                                    </View>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.menuItem}
-                                    onPress={() => {
-                                        closeMenu();
-                                        navigation.navigate('Settings');
-                                    }}
-                                >
-                                    <User size={24} color={colors.info} />
-                                    <View style={{ flex: 1, paddingRight: 10 }}>
-                                        <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות פרופיל</Text>
-                                    </View>
-                                </TouchableOpacity>
-
-                                <View style={[styles.menuDivider, { backgroundColor: colors.divider }]} />
-
-                                <TouchableOpacity
-                                    style={styles.menuItem}
-                                    onPress={() => {
-                                        closeMenu();
-                                        navigation.navigate('Login');
-                                    }}
-                                >
-                                    <LogOut size={24} color={colors.danger} />
-                                    <View style={{ flex: 1, paddingRight: 10 }}>
-                                        <Text style={[styles.menuItemText, { color: colors.danger }]}>התנתק</Text>
-                                    </View>
-                                </TouchableOpacity>
-                            </ScrollView>
+                                <View style={styles.chart}>
+                                    {monthlyChartData.map((item, index) => (
+                                        <View key={index} style={styles.chartBar}>
+                                            <View style={styles.chartBarContainer}>
+                                                <View
+                                                    style={[
+                                                        styles.chartBarFill,
+                                                        {
+                                                            height: item.value > 0 ? `${(item.value / maxValue) * 100}%` : '5%',
+                                                            backgroundColor: index === monthlyChartData.length - 1
+                                                                ? (chartView === 'expenses' ? colors.success : colors.info)
+                                                                : (chartView === 'expenses' ? 'rgba(0,255,136,0.3)' : 'rgba(74,158,255,0.3)')
+                                                        }
+                                                    ]}
+                                                />
+                                            </View>
+                                            <Text style={[styles.chartLabel, { color: colors.textTertiary }]}>{item.month}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </TouchableOpacity>
                         </View>
-                    </Animated.View>
-                </TouchableOpacity>
-            </Modal>
+
+                        {/* Transactions Section */}
+                        <View style={styles.section}>
+                            <View style={styles.sectionHeader}>
+                                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תשבוניות אחרונות</Text>
+                                <TouchableOpacity onPress={() => navigation.navigate('AllActivity')}>
+                                    <Text style={[styles.seeAllText, { color: colors.info }]}>צפה בהכל</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Real Transaction Items from user data */}
+                            {recentTransactions.length > 0 ? (
+                                recentTransactions.map((transaction) => (
+                                    <TouchableOpacity
+                                        key={transaction.id}
+                                        style={[styles.transactionCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
+                                        onPress={() => {
+                                            if (transaction.isIncome) {
+                                                navigation.navigate('InvoiceDetails', { transactionId: transaction.id });
+                                            } else {
+                                                navigation.navigate('AddExpense', { transactionId: transaction.id });
+                                            }
+                                        }}
+                                    >
+                                        <View style={styles.transactionLeft}>
+                                            <View style={[
+                                                styles.transactionIcon,
+                                                {
+                                                    backgroundColor: transaction.isIncome
+                                                        ? 'rgba(74,158,255,0.1)'
+                                                        : transaction.status === 'overdue'
+                                                            ? 'rgba(255,154,74,0.1)'
+                                                            : 'rgba(170,170,170,0.1)'
+                                                }
+                                            ]}>
+                                                {transaction.isIncome ? (
+                                                    <ArrowDownLeft size={20} color={colors.info} />
+                                                ) : transaction.status === 'overdue' ? (
+                                                    <AlertCircle size={20} color={colors.warning} />
+                                                ) : (
+                                                    <ArrowUpRight size={20} color={colors.textTertiary} />
+                                                )}
+                                            </View>
+                                            <View>
+                                                <Text style={[styles.transactionTitle, { color: colors.textPrimary }]}>{transaction.title}</Text>
+                                                <Text style={[styles.transactionDate, { color: colors.textTertiary }]}>
+                                                    {formatNumber(transaction.amount)} |
+                                                    {transaction.status === 'paid' ? ' שולם' :
+                                                        transaction.status === 'pending' ? ' ממתין' :
+                                                            transaction.status === 'overdue' ? ' באיחור' : ' טיוטה'}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                        <AccessibleAmount
+                                            amount={transaction.amount}
+                                            label={`סכום ${transaction.isIncome ? 'הכנסה' : 'הוצאה'}`}
+                                            style={[
+                                                styles.transactionAmount,
+                                                { color: transaction.status === 'overdue' ? colors.warning : colors.textPrimary }
+                                            ]}
+                                            colors={colors}
+                                            type={transaction.isIncome ? 'income' : 'expense'}
+                                        />
+                                    </TouchableOpacity>
+                                ))
+                            ) : (
+                                <View style={styles.emptyState}>
+                                    <Text style={styles.emptyStateText}>אין תשבוניות אחרונות</Text>
+                                    <TouchableOpacity
+                                        style={styles.addButton}
+                                        onPress={() => navigation.navigate('AddExpense')}
+                                    >
+                                        <Text style={styles.addButtonText}>הוסף הוצאה</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={{ height: 100 }} />
+                    </ScrollView>
+                </View>
+            </PanGestureHandler>
+
+            {/* Side Menu Overlay - Custom Implementation instead of Modal */}
+            {menuVisible && (
+                <TouchableOpacity
+                    activeOpacity={1}
+                    style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 99 }]}
+                    onPress={closeMenu}
+                />
+            )}
+
+            <PanGestureHandler
+                onGestureEvent={onGestureEvent}
+                onHandlerStateChange={onHandlerStateChange}
+                activeOffsetX={[-10, 10]}
+            >
+                <Animated.View
+                    style={[
+                        styles.menuContainer,
+                        {
+                            transform: [{ translateX: slideAnim }],
+                            position: 'absolute',
+                            top: 0,
+                            bottom: 0,
+                            left: 0,
+                            zIndex: 100
+                        }
+                    ]}
+                >
+                    <View style={[styles.menuGradient, { backgroundColor: colors.surface }]}>
+                        {/* Close Button */}
+                        <TouchableOpacity onPress={closeMenu} style={[styles.closeButton, { backgroundColor: colors.divider }]}>
+                            <X size={24} color={colors.textPrimary} />
+                        </TouchableOpacity>
+
+                        {/* Menu Header */}
+                        <View style={[styles.menuHeader, { backgroundColor: colorScheme === 'dark' ? '#0f3329' : colors.primary }]}>
+                            <View style={styles.menuProfile}>
+                                <View style={styles.menuAvatar}>
+                                    <Text style={styles.menuAvatarText}>👤</Text>
+                                </View>
+                                <Text style={[styles.menuName, { color: colors.textOnDark }]}>{userProfileData?.fullName || 'זיו המלך'}</Text>
+                                <Text style={[styles.menuEmail, { color: 'rgba(255,255,255,0.7)' }]}>{userProfileData?.email || 'user@finly.com'}</Text>
+                            </View>
+                        </View>
+
+                        {/* Menu Items */}
+                        <ScrollView
+                            style={styles.menuItems}
+                            contentContainerStyle={styles.menuItemsContent}
+                            showsVerticalScrollIndicator={false}
+                        >
+                            <TouchableOpacity
+                                style={styles.menuItem}
+                                onPress={() => {
+                                    closeMenu();
+                                    navigation.navigate('Settings');
+                                }}
+                            >
+                                <Settings size={24} color={colors.info} />
+                                <View style={{ flex: 1, paddingRight: 10 }}>
+                                    <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות עסק</Text>
+                                </View>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.menuItem}
+                                onPress={() => {
+                                    closeMenu();
+                                    navigation.navigate('Settings');
+                                }}
+                            >
+                                <User size={24} color={colors.info} />
+                                <View style={{ flex: 1, paddingRight: 10 }}>
+                                    <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות פרופיל</Text>
+                                </View>
+                            </TouchableOpacity>
+
+                            <View style={[styles.menuDivider, { backgroundColor: colors.divider }]} />
+
+                            <TouchableOpacity
+                                style={styles.menuItem}
+                                onPress={() => {
+                                    closeMenu();
+                                    navigation.navigate('Login');
+                                }}
+                            >
+                                <LogOut size={24} color={colors.danger} />
+                                <View style={{ flex: 1, paddingRight: 10 }}>
+                                    <Text style={[styles.menuItemText, { color: colors.danger }]}>התנתק</Text>
+                                </View>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+                </Animated.View>
+            </PanGestureHandler>
         </View>
     );
 }
@@ -609,6 +699,30 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.bold,
         color: '#00ffdd',
         textAlign: 'right',
+    },
+    quickActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 24,
+        gap: 12,
+    },
+    quickAction: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 16,
+        borderRadius: 20,
+        gap: 8,
+    },
+    quickActionIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    quickActionText: {
+        fontSize: 12,
+        fontFamily: FONTS.bold,
     },
     section: {
         marginBottom: 24,
