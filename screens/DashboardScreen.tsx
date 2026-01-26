@@ -1,17 +1,17 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, Modal, useColorScheme, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, Modal, useColorScheme, StatusBar, Platform } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { Search, Menu, TrendingUp, Trash2, FileText, AlertCircle, ShoppingCart, X, Home, BarChart3, Settings, User, LogOut, ArrowUpRight, ArrowDownLeft, Info, Plus, ArrowUp, ArrowDown, Camera } from 'lucide-react-native';
+import { Search, Menu, TrendingUp, TrendingDown, Trash2, FileText, AlertCircle, ShoppingCart, X, Home, BarChart3, Settings, User, LogOut, ArrowUpRight, ArrowDownLeft, Info, Plus, ArrowUp, ArrowDown, Camera, Sparkles, Receipt, CreditCard, PieChart, Bell, ChevronLeft } from 'lucide-react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTransactions } from '../context/TransactionsContext';
 import { useUserProfile } from '../context/UserProfileContext';
-import { FONTS, getColors } from '../constants/theme';
+import { FONTS, getColors, SPACING, BORDER_RADIUS, SHADOWS, GRADIENTS } from '../constants/theme';
 import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters';
 import { AccessibleAmount } from '../components/AccessibleAmount';
 import { Tooltip } from '../components/Tooltip';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export default function DashboardScreen() {
     const navigation = useNavigation<any>();
@@ -36,6 +36,17 @@ export default function DashboardScreen() {
 
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(-width)).current;
+    const scaleAnim = useRef(new Animated.Value(0.95)).current;
+    const headerAnim = useRef(new Animated.Value(0)).current;
+
+    // Staggered card animations
+    const cardAnims = useRef([
+        new Animated.Value(0),
+        new Animated.Value(0),
+        new Animated.Value(0),
+        new Animated.Value(0),
+        new Animated.Value(0),
+    ]).current;
 
     // Calculate year-over-year growth
     const yearlyGrowth = useMemo(() => {
@@ -63,14 +74,42 @@ export default function DashboardScreen() {
 
     useFocusEffect(
         useCallback(() => {
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 600,
-                useNativeDriver: true,
-            }).start();
+            // Reset animations
+            fadeAnim.setValue(0);
+            scaleAnim.setValue(0.95);
+            headerAnim.setValue(0);
+            cardAnims.forEach(anim => anim.setValue(0));
 
-            // Re-opening the menu if it was open could be tricky, 
-            // but usually we just want to ensure layout sync
+            // Start entrance animations
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 400,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(scaleAnim, {
+                    toValue: 1,
+                    tension: 60,
+                    friction: 12,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(headerAnim, {
+                    toValue: 1,
+                    duration: 500,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+
+            // Staggered card animations
+            cardAnims.forEach((anim, index) => {
+                Animated.spring(anim, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 10,
+                    delay: index * 80,
+                    useNativeDriver: true,
+                }).start();
+            });
         }, [])
     );
 
@@ -79,8 +118,8 @@ export default function DashboardScreen() {
         Animated.spring(slideAnim, {
             toValue: 0,
             useNativeDriver: true,
-            tension: 50,
-            friction: 8,
+            tension: 65,
+            friction: 11,
         }).start();
     };
 
@@ -94,13 +133,11 @@ export default function DashboardScreen() {
 
     const onGestureEvent = (event: any) => {
         const { translationX } = event.nativeEvent;
-        // Only allow pulling from the left if menu is closed
         if (!menuVisible) {
             if (translationX > 0) {
                 slideAnim.setValue(-width + translationX);
             }
         } else {
-            // Allow pushing back to the left if menu is open
             if (translationX < 0) {
                 slideAnim.setValue(translationX);
             }
@@ -138,7 +175,6 @@ export default function DashboardScreen() {
             const monthIndex = date.getMonth();
             const year = date.getFullYear();
 
-            // Filter transactions for this month
             const monthTransactions = transactions.filter(tx => {
                 const txDate = new Date(tx.date);
                 return txDate.getMonth() === monthIndex &&
@@ -147,7 +183,6 @@ export default function DashboardScreen() {
                     tx.status === 'paid';
             });
 
-            // Sum up the amounts
             const total = monthTransactions.reduce((sum, tx) => {
                 const amount = parseFloat(tx.amount.replace(/[^\d.-]/g, '')) || 0;
                 return sum + amount;
@@ -171,6 +206,14 @@ export default function DashboardScreen() {
             .slice(0, 3);
     }, [transactions]);
 
+    const getCardStyle = (index: number) => ({
+        opacity: cardAnims[index],
+        transform: [
+            { translateY: cardAnims[index].interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) },
+            { scale: cardAnims[index].interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) },
+        ],
+    });
+
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             <PanGestureHandler
@@ -180,56 +223,91 @@ export default function DashboardScreen() {
             >
                 <View style={{ flex: 1 }}>
                     <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-                    {/* Header */}
-                    <View style={styles.header}>
+
+                    {/* Premium Header */}
+                    <Animated.View style={[styles.header, { opacity: headerAnim }]}>
                         <View style={styles.headerLeft}>
                             <TouchableOpacity
-                                style={[styles.iconButton, { backgroundColor: colors.divider }]}
+                                style={[styles.iconButton, { backgroundColor: colors.glass }]}
                                 onPress={openMenu}
+                                activeOpacity={0.7}
                             >
-                                <Menu size={24} color={colors.textPrimary} />
+                                <Menu size={22} color={colors.textPrimary} />
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.iconButton, { backgroundColor: colors.divider }]}
+                                style={[styles.iconButton, { backgroundColor: colors.glass }]}
+                                activeOpacity={0.7}
                             >
-                                <Search size={24} color={colors.textPrimary} />
+                                <Bell size={22} color={colors.textPrimary} />
                             </TouchableOpacity>
                         </View>
                         <View style={styles.headerRight}>
-                            <Text style={[styles.greeting, { color: colors.textPrimary }]}>
-                                {userProfileData?.fullName || 'זיו המלך'}
-                            </Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-                                <View style={styles.avatar}>
-                                    <Text style={styles.avatarText}>👤</Text>
-                                </View>
+                            <View style={styles.headerTextContainer}>
+                                <Text style={[styles.greeting, { color: colors.textSecondary }]}>שלום,</Text>
+                                <Text style={[styles.userName, { color: colors.textPrimary }]}>
+                                    {userProfileData?.fullName || 'משתמש'}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => navigation.navigate('Settings')} activeOpacity={0.8}>
+                                <LinearGradient
+                                    colors={GRADIENTS.primary}
+                                    style={styles.avatarGradient}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                >
+                                    <Text style={styles.avatarText}>
+                                        {(userProfileData?.fullName || 'M')[0].toUpperCase()}
+                                    </Text>
+                                </LinearGradient>
                             </TouchableOpacity>
                         </View>
-                    </View>
+                    </Animated.View>
 
                     <ScrollView
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={styles.scrollContent}
                     >
-                        {/* Main Balance Card */}
-                        <Animated.View style={[styles.balanceCard, { opacity: fadeAnim }]}>
-                            <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PnL')}>
+                        {/* Hero Balance Card */}
+                        <Animated.View style={[
+                            styles.balanceCard,
+                            getCardStyle(0),
+                            { ...SHADOWS.xlarge, shadowColor: colors.primary }
+                        ]}>
+                            <TouchableOpacity activeOpacity={0.95} onPress={() => navigation.navigate('PnL')}>
                                 <LinearGradient
-                                    colors={colorScheme === 'dark' ? ['#1a4d3e', '#0f3329', '#0a2419'] : ['#FD7979', '#FDACAC', '#FFCDC9']}
+                                    colors={colorScheme === 'dark'
+                                        ? ['#1E3A5F', '#0D1F33', '#0A1628']
+                                        : ['#FF6B6B', '#FF8E53', '#FFB347']}
                                     style={styles.balanceGradient}
                                     start={{ x: 0, y: 0 }}
                                     end={{ x: 1, y: 1 }}
                                 >
+                                    {/* Decorative elements */}
+                                    <View style={styles.balanceDecoration}>
+                                        <View style={[styles.decorCircle, styles.decorCircle1]} />
+                                        <View style={[styles.decorCircle, styles.decorCircle2]} />
+                                    </View>
+
                                     <View style={styles.balanceHeader}>
                                         <Tooltip text="השוואה בין ההכנסות בשנה הנוכחית לעומת השנה הקודמת" colors={colors}>
-                                            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+                                            <View style={styles.balanceLabelRow}>
+                                                <Sparkles size={14} color="rgba(255,255,255,0.7)" />
                                                 <Text style={styles.balanceLabel}>מיקוד שנתי</Text>
-                                                <Info size={12} color="rgba(255,255,255,0.6)" />
                                             </View>
                                         </Tooltip>
-                                        <View style={styles.percentageBadge}>
-                                            <TrendingUp size={12} color="#00ff88" />
-                                            <Text style={styles.percentageText}>
+                                        <View style={[
+                                            styles.percentageBadge,
+                                            { backgroundColor: yearlyGrowth >= 0 ? 'rgba(0,255,148,0.2)' : 'rgba(255,107,107,0.2)' }
+                                        ]}>
+                                            {yearlyGrowth >= 0 ? (
+                                                <TrendingUp size={14} color="#00FF94" />
+                                            ) : (
+                                                <TrendingDown size={14} color="#FF6B6B" />
+                                            )}
+                                            <Text style={[
+                                                styles.percentageText,
+                                                { color: yearlyGrowth >= 0 ? '#00FF94' : '#FF6B6B' }
+                                            ]}>
                                                 {formatPercent((yearlyGrowth >= 0 ? '+' : '') + yearlyGrowth)}
                                             </Text>
                                         </View>
@@ -253,11 +331,11 @@ export default function DashboardScreen() {
                                                 type="income"
                                             />
                                         </View>
+                                        <View style={styles.balanceDivider} />
                                         <View style={styles.balanceItem}>
                                             <Tooltip text="היחס בין הרווח הנקי לסך ההכנסות" colors={colors}>
-                                                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
+                                                <View style={styles.balanceLabelRow}>
                                                     <Text style={styles.balanceItemLabel}>מתח רווח</Text>
-                                                    <Info size={10} color="rgba(255,255,255,0.5)" />
                                                 </View>
                                             </Tooltip>
                                             <Text style={styles.balanceItemValue}>{formatPercent(profitMargin)}</Text>
@@ -267,109 +345,139 @@ export default function DashboardScreen() {
                             </TouchableOpacity>
                         </Animated.View>
 
-                        {/* Quick Actions */}
-                        <View style={styles.quickActions}>
-                            <TouchableOpacity
-                                style={[styles.quickAction, { backgroundColor: colors.info + '15' }]}
-                                onPress={() => navigation.navigate('CreateInvoice')}
-                            >
-                                <View style={[styles.quickActionIcon, { backgroundColor: colors.info }]}>
-                                    <ArrowDown size={20} color="#fff" />
-                                </View>
-                                <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>הכנסה</Text>
-                            </TouchableOpacity>
+                        {/* Quick Actions Grid */}
+                        <Animated.View style={[styles.quickActionsContainer, getCardStyle(1)]}>
+                            <View style={styles.quickActions}>
+                                <TouchableOpacity
+                                    style={[styles.quickAction, { backgroundColor: colors.infoLight }]}
+                                    onPress={() => navigation.navigate('CreateInvoice')}
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={[styles.quickActionIcon, { backgroundColor: colors.info }]}>
+                                        <ArrowDownLeft size={22} color="#fff" />
+                                    </View>
+                                    <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>הכנסה</Text>
+                                </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={[styles.quickAction, { backgroundColor: colors.primary + '15' }]}
-                                onPress={() => navigation.navigate('AddExpense')}
-                            >
-                                <View style={[styles.quickActionIcon, { backgroundColor: colors.primary }]}>
-                                    <Plus size={20} color="#fff" />
-                                </View>
-                                <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>הוצאה</Text>
-                            </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.quickAction, { backgroundColor: colors.dangerLight }]}
+                                    onPress={() => navigation.navigate('AddExpense')}
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={[styles.quickActionIcon, { backgroundColor: colors.danger }]}>
+                                        <ArrowUpRight size={22} color="#fff" />
+                                    </View>
+                                    <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>הוצאה</Text>
+                                </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={[styles.quickAction, { backgroundColor: colors.success + '15' }]}
-                                onPress={() => navigation.navigate('ReceiptGallery')}
-                            >
-                                <View style={[styles.quickActionIcon, { backgroundColor: colors.success }]}>
-                                    <Camera size={20} color="#fff" />
-                                </View>
-                                <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>סריקה</Text>
-                            </TouchableOpacity>
-                        </View>
+                                <TouchableOpacity
+                                    style={[styles.quickAction, { backgroundColor: colors.successLight }]}
+                                    onPress={() => navigation.navigate('ReceiptGallery')}
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={[styles.quickActionIcon, { backgroundColor: colors.success }]}>
+                                        <Camera size={22} color="#fff" />
+                                    </View>
+                                    <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>סריקה</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </Animated.View>
 
-                        {/* Monthly Summary Section */}
-                        <View style={styles.section}>
+                        {/* Monthly Summary Card */}
+                        <Animated.View style={[styles.section, getCardStyle(2)]}>
                             <View style={styles.sectionHeader}>
                                 <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>סיכום חודשי</Text>
-                                <TouchableOpacity>
-                                    <View style={[styles.dateBadge, { backgroundColor: colors.divider }]}>
-                                        <FileText size={16} color={colors.success} />
-                                        <Text style={[styles.dateText, { color: colors.textSecondary }]}>
-                                            {new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
-                                        </Text>
-                                    </View>
+                                <TouchableOpacity style={[styles.dateBadge, { backgroundColor: colors.glass }]}>
+                                    <FileText size={14} color={colors.success} />
+                                    <Text style={[styles.dateText, { color: colors.textSecondary }]}>
+                                        {new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
 
                             <TouchableOpacity
-                                style={[styles.summaryCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
-                                activeOpacity={0.9}
+                                style={[styles.summaryCard, {
+                                    backgroundColor: colors.surface,
+                                    borderColor: colors.border,
+                                    ...SHADOWS.medium
+                                }]}
+                                activeOpacity={0.95}
                                 onPress={() => navigation.navigate('ExpensesList')}
                             >
-                                <View style={styles.summaryHeader}>
-                                    <AccessibleAmount
-                                        amount={expenseProgress.current}
-                                        label="הוצאות החודש"
-                                        style={[styles.summaryAmount, { color: colors.textPrimary }]}
-                                        colors={colors}
-                                    />
-                                    <Text style={[styles.summarySubtext, { color: colors.textTertiary }]}>
-                                        מתוך {formatCurrency(expenseProgress.limit)}
+                                <View style={styles.summaryContent}>
+                                    <View style={styles.summaryHeader}>
+                                        <View style={styles.summaryAmountRow}>
+                                            <AccessibleAmount
+                                                amount={expenseProgress.current}
+                                                label="הוצאות החודש"
+                                                style={[styles.summaryAmount, { color: colors.textPrimary }]}
+                                                colors={colors}
+                                            />
+                                            <Text style={[styles.summarySubtext, { color: colors.textTertiary }]}>
+                                                / {formatCurrency(expenseProgress.limit)}
+                                            </Text>
+                                        </View>
+                                        <View style={[styles.summaryBadge, { backgroundColor: colors.successLight }]}>
+                                            <Text style={[styles.summaryBadgeText, { color: colors.success }]}>
+                                                {formatPercent(expenseProgress.percentage)}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Beautiful Progress Bar */}
+                                    <View style={styles.progressContainer}>
+                                        <View style={[styles.progressBar, { backgroundColor: colors.divider }]}>
+                                            <LinearGradient
+                                                colors={expenseProgress.percentage > 80
+                                                    ? GRADIENTS.warning
+                                                    : GRADIENTS.success}
+                                                style={[styles.progressFill, { width: `${Math.min(expenseProgress.percentage, 100)}%` }]}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 0 }}
+                                            />
+                                        </View>
+                                    </View>
+
+                                    <Text style={[styles.summaryNote, { color: colors.textTertiary }]}>
+                                        {expenseProgress.percentage > 90
+                                            ? 'קרוב למכסה - שים לב להוצאות'
+                                            : 'הוצאות בטווח היעדים'}
                                     </Text>
                                 </View>
-                                <Text style={[styles.summaryLabel, { color: colors.success }]}>
-                                    נוצלו {formatPercent(expenseProgress.percentage)} מהתקציב
-                                </Text>
-
-                                {/* Progress Bar */}
-                                <View style={[styles.progressBar, { backgroundColor: colors.divider }]}>
-                                    <View style={[styles.progressFill, { width: `${expenseProgress.percentage}%`, backgroundColor: colors.success }]} />
-                                </View>
-
-                                <Text style={[styles.summaryNote, { color: colors.textSecondary }]}>
-                                    {expenseProgress.percentage > 90
-                                        ? 'שים לב, אתה מתקרב למכסת ההוצאות החודשית שהגדרת.'
-                                        : 'ההוצאות שלך נמצאות בטווח היעדים שהגדרת לחודש זה.'}
-                                </Text>
                             </TouchableOpacity>
-                        </View>
+                        </Animated.View>
 
                         {/* Monthly Chart Section */}
-                        <View style={styles.section}>
+                        <Animated.View style={[styles.section, getCardStyle(3)]}>
                             <View style={styles.sectionHeader}>
                                 <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תנועה חודשית</Text>
-                                <View style={[styles.chartTabs, { backgroundColor: colors.divider }]}>
+                                <View style={[styles.chartTabs, { backgroundColor: colors.glass }]}>
                                     <TouchableOpacity
-                                        style={[styles.chartTab, chartView === 'expenses' && { backgroundColor: colors.success }]}
+                                        style={[
+                                            styles.chartTab,
+                                            chartView === 'expenses' && styles.chartTabActive,
+                                            chartView === 'expenses' && { backgroundColor: colors.success }
+                                        ]}
                                         onPress={() => setChartView('expenses')}
                                     >
                                         <Text style={[
-                                            chartView === 'expenses' ? styles.chartTabTextActive : styles.chartTabText,
-                                            { color: chartView === 'expenses' ? colors.background : colors.textSecondary }
+                                            styles.chartTabText,
+                                            { color: chartView === 'expenses' ? '#fff' : colors.textSecondary }
                                         ]}>
                                             הוצאות
                                         </Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
-                                        style={[styles.chartTab, chartView === 'income' && { backgroundColor: colors.info }]}
+                                        style={[
+                                            styles.chartTab,
+                                            chartView === 'income' && styles.chartTabActive,
+                                            chartView === 'income' && { backgroundColor: colors.info }
+                                        ]}
                                         onPress={() => setChartView('income')}
                                     >
                                         <Text style={[
-                                            chartView === 'income' ? styles.chartTabTextActive : styles.chartTabText,
-                                            { color: chartView === 'income' ? colors.background : colors.textSecondary }
+                                            styles.chartTabText,
+                                            { color: chartView === 'income' ? '#fff' : colors.textSecondary }
                                         ]}>
                                             הכנסות
                                         </Text>
@@ -378,24 +486,28 @@ export default function DashboardScreen() {
                             </View>
 
                             <TouchableOpacity
-                                style={[styles.chartCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
-                                activeOpacity={0.9}
+                                style={[styles.chartCard, {
+                                    backgroundColor: colors.surface,
+                                    borderColor: colors.border,
+                                    ...SHADOWS.medium
+                                }]}
+                                activeOpacity={0.95}
                                 onPress={() => navigation.navigate('PnL')}
                             >
                                 <View style={styles.chart}>
                                     {monthlyChartData.map((item, index) => (
                                         <View key={index} style={styles.chartBar}>
                                             <View style={styles.chartBarContainer}>
-                                                <View
+                                                <LinearGradient
+                                                    colors={chartView === 'expenses'
+                                                        ? (index === monthlyChartData.length - 1 ? GRADIENTS.success : ['rgba(0,255,148,0.4)', 'rgba(0,255,148,0.2)'])
+                                                        : (index === monthlyChartData.length - 1 ? GRADIENTS.secondary : ['rgba(0,212,255,0.4)', 'rgba(0,212,255,0.2)'])}
                                                     style={[
                                                         styles.chartBarFill,
-                                                        {
-                                                            height: item.value > 0 ? `${(item.value / maxValue) * 100}%` : '5%',
-                                                            backgroundColor: index === monthlyChartData.length - 1
-                                                                ? (chartView === 'expenses' ? colors.success : colors.info)
-                                                                : (chartView === 'expenses' ? 'rgba(0,255,136,0.3)' : 'rgba(74,158,255,0.3)')
-                                                        }
+                                                        { height: item.value > 0 ? `${(item.value / maxValue) * 100}%` : '5%' }
                                                     ]}
+                                                    start={{ x: 0, y: 1 }}
+                                                    end={{ x: 0, y: 0 }}
                                                 />
                                             </View>
                                             <Text style={[styles.chartLabel, { color: colors.textTertiary }]}>{item.month}</Text>
@@ -403,23 +515,29 @@ export default function DashboardScreen() {
                                     ))}
                                 </View>
                             </TouchableOpacity>
-                        </View>
+                        </Animated.View>
 
-                        {/* Transactions Section */}
-                        <View style={styles.section}>
+                        {/* Recent Transactions Section */}
+                        <Animated.View style={[styles.section, getCardStyle(4)]}>
                             <View style={styles.sectionHeader}>
-                                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תשבוניות אחרונות</Text>
+                                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>פעילות אחרונה</Text>
                                 <TouchableOpacity onPress={() => navigation.navigate('AllActivity')}>
-                                    <Text style={[styles.seeAllText, { color: colors.info }]}>צפה בהכל</Text>
+                                    <View style={styles.seeAllButton}>
+                                        <Text style={[styles.seeAllText, { color: colors.info }]}>צפה בהכל</Text>
+                                        <ChevronLeft size={16} color={colors.info} />
+                                    </View>
                                 </TouchableOpacity>
                             </View>
 
-                            {/* Real Transaction Items from user data */}
                             {recentTransactions.length > 0 ? (
-                                recentTransactions.map((transaction) => (
+                                recentTransactions.map((transaction, index) => (
                                     <TouchableOpacity
                                         key={transaction.id}
-                                        style={[styles.transactionCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
+                                        style={[styles.transactionCard, {
+                                            backgroundColor: colors.surface,
+                                            borderColor: colors.border,
+                                            ...SHADOWS.small
+                                        }]}
                                         onPress={() => {
                                             if (transaction.isIncome) {
                                                 navigation.navigate('InvoiceDetails', { transactionId: transaction.id });
@@ -427,75 +545,96 @@ export default function DashboardScreen() {
                                                 navigation.navigate('AddExpense', { transactionId: transaction.id });
                                             }
                                         }}
+                                        activeOpacity={0.8}
                                     >
                                         <View style={styles.transactionLeft}>
-                                            <View style={[
-                                                styles.transactionIcon,
-                                                {
-                                                    backgroundColor: transaction.isIncome
-                                                        ? 'rgba(74,158,255,0.1)'
-                                                        : transaction.status === 'overdue'
-                                                            ? 'rgba(255,154,74,0.1)'
-                                                            : 'rgba(170,170,170,0.1)'
-                                                }
-                                            ]}>
+                                            <LinearGradient
+                                                colors={transaction.isIncome
+                                                    ? GRADIENTS.secondary
+                                                    : transaction.status === 'overdue'
+                                                        ? GRADIENTS.warning
+                                                        : GRADIENTS.primary}
+                                                style={styles.transactionIcon}
+                                                start={{ x: 0, y: 0 }}
+                                                end={{ x: 1, y: 1 }}
+                                            >
                                                 {transaction.isIncome ? (
-                                                    <ArrowDownLeft size={20} color={colors.info} />
+                                                    <ArrowDownLeft size={18} color="#fff" />
                                                 ) : transaction.status === 'overdue' ? (
-                                                    <AlertCircle size={20} color={colors.warning} />
+                                                    <AlertCircle size={18} color="#fff" />
                                                 ) : (
-                                                    <ArrowUpRight size={20} color={colors.textTertiary} />
+                                                    <ArrowUpRight size={18} color="#fff" />
                                                 )}
-                                            </View>
-                                            <View>
-                                                <Text style={[styles.transactionTitle, { color: colors.textPrimary }]}>{transaction.title}</Text>
-                                                <Text style={[styles.transactionDate, { color: colors.textTertiary }]}>
-                                                    {formatNumber(transaction.amount)} |
-                                                    {transaction.status === 'paid' ? ' שולם' :
-                                                        transaction.status === 'pending' ? ' ממתין' :
-                                                            transaction.status === 'overdue' ? ' באיחור' : ' טיוטה'}
+                                            </LinearGradient>
+                                            <View style={styles.transactionInfo}>
+                                                <Text style={[styles.transactionTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                                                    {transaction.title}
                                                 </Text>
+                                                <View style={styles.transactionMeta}>
+                                                    <Text style={[styles.transactionDate, { color: colors.textTertiary }]}>
+                                                        {new Date(transaction.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })}
+                                                    </Text>
+                                                    <View style={[styles.statusDot, {
+                                                        backgroundColor: transaction.status === 'paid'
+                                                            ? colors.success
+                                                            : transaction.status === 'overdue'
+                                                                ? colors.warning
+                                                                : colors.textTertiary
+                                                    }]} />
+                                                    <Text style={[styles.transactionStatus, { color: colors.textTertiary }]}>
+                                                        {transaction.status === 'paid' ? 'שולם' :
+                                                            transaction.status === 'pending' ? 'ממתין' :
+                                                                transaction.status === 'overdue' ? 'באיחור' : 'טיוטה'}
+                                                    </Text>
+                                                </View>
                                             </View>
                                         </View>
-                                        <AccessibleAmount
-                                            amount={transaction.amount}
-                                            label={`סכום ${transaction.isIncome ? 'הכנסה' : 'הוצאה'}`}
-                                            style={[
-                                                styles.transactionAmount,
-                                                { color: transaction.status === 'overdue' ? colors.warning : colors.textPrimary }
-                                            ]}
-                                            colors={colors}
-                                            type={transaction.isIncome ? 'income' : 'expense'}
-                                        />
+                                        <Text style={[
+                                            styles.transactionAmount,
+                                            { color: transaction.isIncome ? colors.success : colors.textPrimary }
+                                        ]}>
+                                            {transaction.isIncome ? '+' : '-'}{formatNumber(transaction.amount)}
+                                        </Text>
                                     </TouchableOpacity>
                                 ))
                             ) : (
-                                <View style={styles.emptyState}>
-                                    <Text style={styles.emptyStateText}>אין תשבוניות אחרונות</Text>
+                                <View style={[styles.emptyState, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                                    <Receipt size={48} color={colors.textTertiary} />
+                                    <Text style={[styles.emptyStateTitle, { color: colors.textSecondary }]}>אין פעילות עדיין</Text>
+                                    <Text style={[styles.emptyStateText, { color: colors.textTertiary }]}>התחל להוסיף הוצאות והכנסות</Text>
                                     <TouchableOpacity
-                                        style={styles.addButton}
+                                        style={[styles.addButton]}
                                         onPress={() => navigation.navigate('AddExpense')}
                                     >
-                                        <Text style={styles.addButtonText}>הוסף הוצאה</Text>
+                                        <LinearGradient
+                                            colors={GRADIENTS.primary}
+                                            style={styles.addButtonGradient}
+                                            start={{ x: 0, y: 0 }}
+                                            end={{ x: 1, y: 0 }}
+                                        >
+                                            <Plus size={18} color="#fff" />
+                                            <Text style={styles.addButtonText}>הוסף הוצאה</Text>
+                                        </LinearGradient>
                                     </TouchableOpacity>
                                 </View>
                             )}
-                        </View>
+                        </Animated.View>
 
-                        <View style={{ height: 100 }} />
+                        <View style={{ height: 120 }} />
                     </ScrollView>
                 </View>
             </PanGestureHandler>
 
-            {/* Side Menu Overlay - Custom Implementation instead of Modal */}
+            {/* Side Menu Overlay */}
             {menuVisible && (
                 <TouchableOpacity
                     activeOpacity={1}
-                    style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 99 }]}
+                    style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 99 }]}
                     onPress={closeMenu}
                 />
             )}
 
+            {/* Side Menu */}
             <PanGestureHandler
                 onGestureEvent={onGestureEvent}
                 onHandlerStateChange={onHandlerStateChange}
@@ -510,75 +649,87 @@ export default function DashboardScreen() {
                             top: 0,
                             bottom: 0,
                             left: 0,
-                            zIndex: 100
+                            zIndex: 100,
+                            backgroundColor: colors.surface,
                         }
                     ]}
                 >
-                    <View style={[styles.menuGradient, { backgroundColor: colors.surface }]}>
-                        {/* Close Button */}
-                        <TouchableOpacity onPress={closeMenu} style={[styles.closeButton, { backgroundColor: colors.divider }]}>
-                            <X size={24} color={colors.textPrimary} />
+                    {/* Close Button */}
+                    <TouchableOpacity onPress={closeMenu} style={[styles.closeButton, { backgroundColor: colors.glass }]}>
+                        <X size={22} color={colors.textPrimary} />
+                    </TouchableOpacity>
+
+                    {/* Menu Header */}
+                    <LinearGradient
+                        colors={colorScheme === 'dark' ? ['#1E3A5F', '#0D1F33'] : GRADIENTS.primary}
+                        style={styles.menuHeader}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                    >
+                        <View style={styles.menuProfile}>
+                            <View style={styles.menuAvatarContainer}>
+                                <LinearGradient
+                                    colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)']}
+                                    style={styles.menuAvatar}
+                                >
+                                    <Text style={styles.menuAvatarText}>
+                                        {(userProfileData?.fullName || 'M')[0].toUpperCase()}
+                                    </Text>
+                                </LinearGradient>
+                            </View>
+                            <Text style={styles.menuName}>{userProfileData?.fullName || 'משתמש'}</Text>
+                            <Text style={styles.menuEmail}>{userProfileData?.email || 'user@finly.com'}</Text>
+                        </View>
+                    </LinearGradient>
+
+                    {/* Menu Items */}
+                    <ScrollView
+                        style={styles.menuItems}
+                        contentContainerStyle={styles.menuItemsContent}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        <TouchableOpacity
+                            style={[styles.menuItem, { backgroundColor: colors.glass }]}
+                            onPress={() => { closeMenu(); navigation.navigate('Settings'); }}
+                        >
+                            <View style={[styles.menuItemIcon, { backgroundColor: colors.infoLight }]}>
+                                <Settings size={20} color={colors.info} />
+                            </View>
+                            <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות עסק</Text>
                         </TouchableOpacity>
 
-                        {/* Menu Header */}
-                        <View style={[styles.menuHeader, { backgroundColor: colorScheme === 'dark' ? '#0f3329' : colors.primary }]}>
-                            <View style={styles.menuProfile}>
-                                <View style={styles.menuAvatar}>
-                                    <Text style={styles.menuAvatarText}>👤</Text>
-                                </View>
-                                <Text style={[styles.menuName, { color: colors.textOnDark }]}>{userProfileData?.fullName || 'זיו המלך'}</Text>
-                                <Text style={[styles.menuEmail, { color: 'rgba(255,255,255,0.7)' }]}>{userProfileData?.email || 'user@finly.com'}</Text>
-                            </View>
-                        </View>
-
-                        {/* Menu Items */}
-                        <ScrollView
-                            style={styles.menuItems}
-                            contentContainerStyle={styles.menuItemsContent}
-                            showsVerticalScrollIndicator={false}
+                        <TouchableOpacity
+                            style={[styles.menuItem, { backgroundColor: colors.glass }]}
+                            onPress={() => { closeMenu(); navigation.navigate('Settings'); }}
                         >
-                            <TouchableOpacity
-                                style={styles.menuItem}
-                                onPress={() => {
-                                    closeMenu();
-                                    navigation.navigate('Settings');
-                                }}
-                            >
-                                <Settings size={24} color={colors.info} />
-                                <View style={{ flex: 1, paddingRight: 10 }}>
-                                    <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות עסק</Text>
-                                </View>
-                            </TouchableOpacity>
+                            <View style={[styles.menuItemIcon, { backgroundColor: colors.successLight }]}>
+                                <User size={20} color={colors.success} />
+                            </View>
+                            <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>פרופיל אישי</Text>
+                        </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={styles.menuItem}
-                                onPress={() => {
-                                    closeMenu();
-                                    navigation.navigate('Settings');
-                                }}
-                            >
-                                <User size={24} color={colors.info} />
-                                <View style={{ flex: 1, paddingRight: 10 }}>
-                                    <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות פרופיל</Text>
-                                </View>
-                            </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.menuItem, { backgroundColor: colors.glass }]}
+                            onPress={() => { closeMenu(); navigation.navigate('Goals'); }}
+                        >
+                            <View style={[styles.menuItemIcon, { backgroundColor: colors.warningLight }]}>
+                                <PieChart size={20} color={colors.warning} />
+                            </View>
+                            <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>יעדים פיננסיים</Text>
+                        </TouchableOpacity>
 
-                            <View style={[styles.menuDivider, { backgroundColor: colors.divider }]} />
+                        <View style={[styles.menuDivider, { backgroundColor: colors.divider }]} />
 
-                            <TouchableOpacity
-                                style={styles.menuItem}
-                                onPress={() => {
-                                    closeMenu();
-                                    navigation.navigate('Login');
-                                }}
-                            >
-                                <LogOut size={24} color={colors.danger} />
-                                <View style={{ flex: 1, paddingRight: 10 }}>
-                                    <Text style={[styles.menuItemText, { color: colors.danger }]}>התנתק</Text>
-                                </View>
-                            </TouchableOpacity>
-                        </ScrollView>
-                    </View>
+                        <TouchableOpacity
+                            style={[styles.menuItem, { backgroundColor: colors.dangerLight }]}
+                            onPress={() => { closeMenu(); navigation.navigate('Login'); }}
+                        >
+                            <View style={[styles.menuItemIcon, { backgroundColor: colors.dangerLight }]}>
+                                <LogOut size={20} color={colors.danger} />
+                            </View>
+                            <Text style={[styles.menuItemText, { color: colors.danger }]}>התנתק</Text>
+                        </TouchableOpacity>
+                    </ScrollView>
                 </Animated.View>
             </PanGestureHandler>
         </View>
@@ -588,15 +739,14 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0a0a0f',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingTop: 50,
-        paddingBottom: 20,
+        paddingTop: Platform.OS === 'ios' ? 60 : 50,
+        paddingBottom: 16,
     },
     headerLeft: {
         flexDirection: 'row',
@@ -605,124 +755,165 @@ const styles = StyleSheet.create({
     headerRight: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 14,
+    },
+    headerTextContainer: {
+        alignItems: 'flex-end',
     },
     iconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        width: 44,
+        height: 44,
+        borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
     },
     greeting: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: '#fff',
-        textAlign: 'right',
+        fontSize: 12,
+        fontFamily: FONTS.regular,
     },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#ff9a7a',
+    userName: {
+        fontSize: 16,
+        fontFamily: FONTS.bold,
+    },
+    avatarGradient: {
+        width: 46,
+        height: 46,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
     },
     avatarText: {
         fontSize: 20,
+        fontFamily: FONTS.bold,
+        color: '#fff',
     },
     scrollContent: {
         paddingHorizontal: 20,
-        paddingBottom: 20,
+        paddingTop: 8,
     },
     balanceCard: {
         marginBottom: 24,
-        borderRadius: 24,
+        borderRadius: 28,
         overflow: 'hidden',
     },
     balanceGradient: {
         padding: 24,
+        paddingTop: 28,
+        position: 'relative',
+        overflow: 'hidden',
+    },
+    balanceDecoration: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
+    decorCircle: {
+        position: 'absolute',
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    decorCircle1: {
+        width: 150,
+        height: 150,
+        top: -50,
+        right: -30,
+    },
+    decorCircle2: {
+        width: 100,
+        height: 100,
+        bottom: -30,
+        left: -20,
     },
     balanceHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 20,
+    },
+    balanceLabelRow: {
+        flexDirection: 'row-reverse',
+        alignItems: 'center',
+        gap: 6,
     },
     balanceLabel: {
         fontSize: 13,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
-        textAlign: 'right',
+        fontFamily: FONTS.medium,
+        color: 'rgba(255,255,255,0.7)',
     },
     percentageBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(0,255,136,0.15)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
         gap: 4,
     },
     percentageText: {
-        fontSize: 12,
+        fontSize: 13,
         fontFamily: FONTS.bold,
-        color: '#00ff88',
     },
     balanceAmount: {
-        fontSize: 40,
+        fontSize: 42,
         fontFamily: FONTS.bold,
         color: '#fff',
         textAlign: 'center',
-        marginBottom: 20,
+        marginBottom: 24,
     },
     balanceFooter: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        backgroundColor: 'rgba(0,0,0,0.2)',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.15)',
         borderRadius: 16,
         padding: 16,
     },
     balanceItem: {
         flex: 1,
+        alignItems: 'center',
+    },
+    balanceDivider: {
+        width: 1,
+        height: 36,
+        backgroundColor: 'rgba(255,255,255,0.15)',
     },
     balanceItemLabel: {
         fontSize: 12,
         fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
-        marginBottom: 4,
-        textAlign: 'right',
+        color: 'rgba(255,255,255,0.6)',
+        marginBottom: 6,
     },
     balanceItemValue: {
-        fontSize: 18,
+        fontSize: 20,
         fontFamily: FONTS.bold,
-        color: '#00ffdd',
-        textAlign: 'right',
+        color: '#fff',
+    },
+    quickActionsContainer: {
+        marginBottom: 24,
     },
     quickActions: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 24,
         gap: 12,
     },
     quickAction: {
         flex: 1,
         alignItems: 'center',
-        paddingVertical: 16,
+        paddingVertical: 18,
         borderRadius: 20,
-        gap: 8,
+        gap: 10,
     },
     quickActionIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
+        width: 48,
+        height: 48,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center',
     },
     quickActionText: {
-        fontSize: 12,
-        fontFamily: FONTS.bold,
+        fontSize: 13,
+        fontFamily: FONTS.semiBold,
     },
     section: {
         marginBottom: 24,
@@ -731,18 +922,15 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
+        marginBottom: 14,
     },
     sectionTitle: {
         fontSize: 18,
         fontFamily: FONTS.bold,
-        color: '#fff',
-        textAlign: 'right',
     },
     dateBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 12,
@@ -751,95 +939,85 @@ const styles = StyleSheet.create({
     dateText: {
         fontSize: 12,
         fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.7)',
     },
     summaryCard: {
-        backgroundColor: '#151520',
         borderRadius: 20,
-        padding: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        overflow: 'hidden',
+    },
+    summaryContent: {
+        padding: 20,
     },
     summaryHeader: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    summaryAmountRow: {
+        flexDirection: 'row',
         alignItems: 'baseline',
-        justifyContent: 'flex-end',
-        marginBottom: 8,
-        gap: 8,
+        gap: 4,
     },
     summaryAmount: {
         fontSize: 28,
         fontFamily: FONTS.bold,
-        color: '#fff',
     },
     summarySubtext: {
         fontSize: 14,
         fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.4)',
     },
-    summaryLabel: {
-        fontSize: 13,
-        fontFamily: FONTS.medium,
-        color: '#00ff88',
-        marginBottom: 16,
-        textAlign: 'right',
+    summaryBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+    },
+    summaryBadgeText: {
+        fontSize: 14,
+        fontFamily: FONTS.bold,
+    },
+    progressContainer: {
+        marginBottom: 12,
     },
     progressBar: {
-        height: 6,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 3,
+        height: 8,
+        borderRadius: 4,
         overflow: 'hidden',
-        marginBottom: 12,
     },
     progressFill: {
         height: '100%',
-        backgroundColor: '#00ff88',
-        borderRadius: 3,
+        borderRadius: 4,
     },
     summaryNote: {
-        fontSize: 11,
+        fontSize: 12,
         fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.4)',
-        lineHeight: 16,
         textAlign: 'right',
     },
     chartTabs: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(255,255,255,0.05)',
         borderRadius: 12,
         padding: 4,
-        gap: 4,
     },
     chartTab: {
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
         paddingVertical: 6,
         borderRadius: 8,
     },
-    chartTabActive: {
-        backgroundColor: '#00ffdd',
-    },
+    chartTabActive: {},
     chartTabText: {
         fontSize: 12,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.6)',
-    },
-    chartTabTextActive: {
-        fontSize: 12,
-        fontFamily: FONTS.bold,
-        color: '#0a0a0f',
+        fontFamily: FONTS.semiBold,
     },
     chartCard: {
-        backgroundColor: '#151520',
         borderRadius: 20,
         padding: 20,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
     },
     chart: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-end',
-        height: 140,
+        height: 150,
     },
     chartBar: {
         flex: 1,
@@ -848,34 +1026,35 @@ const styles = StyleSheet.create({
     },
     chartBarContainer: {
         flex: 1,
-        width: '70%',
+        width: '65%',
         justifyContent: 'flex-end',
     },
     chartBarFill: {
         width: '100%',
         borderRadius: 6,
-        minHeight: 20,
+        minHeight: 8,
     },
     chartLabel: {
         fontSize: 11,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
+        fontFamily: FONTS.medium,
+    },
+    seeAllButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
     },
     seeAllText: {
         fontSize: 13,
-        fontFamily: FONTS.medium,
-        color: '#00ffdd',
+        fontFamily: FONTS.semiBold,
     },
     transactionCard: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#151520',
         borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
+        padding: 14,
+        marginBottom: 10,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
     },
     transactionLeft: {
         flexDirection: 'row',
@@ -886,143 +1065,156 @@ const styles = StyleSheet.create({
     transactionIcon: {
         width: 44,
         height: 44,
-        borderRadius: 12,
+        borderRadius: 14,
         alignItems: 'center',
         justifyContent: 'center',
     },
+    transactionInfo: {
+        flex: 1,
+    },
     transactionTitle: {
-        fontSize: 14,
-        fontFamily: FONTS.bold,
-        color: '#fff',
+        fontSize: 15,
+        fontFamily: FONTS.semiBold,
         marginBottom: 4,
         textAlign: 'right',
+    },
+    transactionMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
     },
     transactionDate: {
         fontSize: 12,
         fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
-        textAlign: 'right',
+    },
+    statusDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+    },
+    transactionStatus: {
+        fontSize: 12,
+        fontFamily: FONTS.regular,
     },
     transactionAmount: {
         fontSize: 16,
         fontFamily: FONTS.bold,
-        color: '#fff',
     },
     emptyState: {
-        backgroundColor: '#151520',
-        borderRadius: 16,
+        borderRadius: 20,
         padding: 32,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+    },
+    emptyStateTitle: {
+        fontSize: 16,
+        fontFamily: FONTS.semiBold,
+        marginTop: 16,
+        marginBottom: 4,
     },
     emptyStateText: {
         fontSize: 14,
         fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
-        marginBottom: 16,
+        marginBottom: 20,
     },
     addButton: {
-        backgroundColor: '#00ffdd',
-        paddingHorizontal: 24,
+        borderRadius: 14,
+        overflow: 'hidden',
+    },
+    addButtonGradient: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 20,
         paddingVertical: 12,
-        borderRadius: 12,
     },
     addButtonText: {
         fontSize: 14,
         fontFamily: FONTS.bold,
-        color: '#0a0a0f',
+        color: '#fff',
     },
     // Menu Styles
-    menuOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-    },
     menuContainer: {
-        width: width * 0.75,
+        width: width * 0.78,
         height: '100%',
-        backgroundColor: '#1a1a2e',
         shadowColor: '#000',
-        shadowOffset: { width: 2, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 10,
-        elevation: 10,
-    },
-    menuGradient: {
-        flex: 1,
-        backgroundColor: '#1a1a2e',
-    },
-    menuHeader: {
-        paddingTop: 80,
-        paddingHorizontal: 24,
-        paddingBottom: 30,
-        backgroundColor: '#0f3329',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.1)',
+        shadowOffset: { width: 4, height: 0 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        elevation: 20,
     },
     closeButton: {
         position: 'absolute',
-        top: 15,
-        left: 20,
+        top: Platform.OS === 'ios' ? 56 : 16,
+        left: 16,
         zIndex: 10,
-        padding: 8,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 8,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    menuHeader: {
+        paddingTop: Platform.OS === 'ios' ? 80 : 60,
+        paddingHorizontal: 24,
+        paddingBottom: 28,
     },
     menuProfile: {
         alignItems: 'center',
     },
+    menuAvatarContainer: {
+        marginBottom: 16,
+    },
     menuAvatar: {
         width: 80,
         height: 80,
-        borderRadius: 40,
-        backgroundColor: '#ff9a7a',
+        borderRadius: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 12,
-        borderWidth: 3,
-        borderColor: '#00ffdd',
     },
     menuAvatarText: {
-        fontSize: 36,
+        fontSize: 32,
+        fontFamily: FONTS.bold,
+        color: '#fff',
     },
     menuName: {
         fontSize: 20,
-        fontWeight: 'bold',
-        color: '#ffffff',
+        fontFamily: FONTS.bold,
+        color: '#fff',
         marginBottom: 4,
     },
     menuEmail: {
         fontSize: 14,
+        fontFamily: FONTS.regular,
         color: 'rgba(255,255,255,0.7)',
     },
     menuItems: {
         flex: 1,
     },
     menuItemsContent: {
-        padding: 24,
-        paddingBottom: 40,
+        padding: 20,
+        gap: 10,
     },
     menuItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 15,
+        padding: 14,
+        borderRadius: 14,
+        gap: 14,
+    },
+    menuItemIcon: {
+        width: 40,
+        height: 40,
         borderRadius: 12,
-        marginBottom: 10,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        height: 55,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     menuItemText: {
-        fontSize: 18,
-        color: '#FFFFFF',
-        fontWeight: 'bold',
-        marginLeft: 15,
-        textAlignVertical: 'center',
+        fontSize: 16,
+        fontFamily: FONTS.semiBold,
     },
     menuDivider: {
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        marginVertical: 12,
+        marginVertical: 10,
     },
 });

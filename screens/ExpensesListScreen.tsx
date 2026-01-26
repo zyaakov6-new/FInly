@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     View,
     Text,
@@ -11,48 +11,65 @@ import {
     Alert,
     Modal,
     Image,
-    RefreshControl
+    RefreshControl,
+    Animated,
+    useColorScheme
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowRight, Search, Filter, SlidersHorizontal, ChevronDown, Trash2, FolderInput, Share as ShareIcon, X, Check, ArrowDown, ArrowUp, ImageIcon, Edit, Download } from 'lucide-react-native';
+import { ArrowRight, Search, Filter, SlidersHorizontal, ChevronDown, Trash2, FolderInput, Share as ShareIcon, X, Check, ArrowDown, ArrowUp, ImageIcon, Edit, Download, Calendar, Tag } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTransactions } from '../context/TransactionsContext';
-import { COLORS, FONTS } from '../constants/theme';
+import { getColors, FONTS, SHADOWS, GRADIENTS } from '../constants/theme';
 import { exportToCSV } from '../utils/exportData';
 import { hapticFeedback } from '../utils/haptics';
 import { EmptyState } from '../components/EmptyState';
 
 const { width } = Dimensions.get('window');
 
-// Types for Filters
 type SortOption = 'date-newest' | 'date-oldest' | 'amount-highest' | 'amount-lowest';
 
 export default function ExpensesListScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation();
+    const colorScheme = useColorScheme();
+    const colors = getColors(colorScheme);
     const { transactions, categories, deleteTransaction } = useTransactions();
+
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(20)).current;
 
     // State
     const [searchQuery, setSearchQuery] = useState('');
     const [isFilterExpanded, setIsFilterExpanded] = useState(false);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [sortOption, setSortOption] = useState<SortOption>('date-newest');
-    const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
 
-    // Batch Ops State
-    // const [selectionMode, setSelectionMode] = useState(false);
-    // const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+            }),
+            Animated.spring(slideAnim, {
+                toValue: 0,
+                tension: 50,
+                friction: 10,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, []);
 
-    // --- Helpers ---
     const parseAmount = (str?: string) => {
         if (!str) return 0;
         return parseFloat(str.replace(/[^0-9.-]+/g, '')) || 0;
     };
 
-    // Export handler
     const handleExport = async () => {
         try {
             hapticFeedback.light();
@@ -76,19 +93,15 @@ export default function ExpensesListScreen() {
         }
     };
 
-    // Pull to refresh handler
     const onRefresh = async () => {
         setRefreshing(true);
-        // Simulate refresh - in real app, would fetch from server
         await new Promise(resolve => setTimeout(resolve, 1000));
         setRefreshing(false);
     };
 
-    // --- Filtering & Sorting Logic ---
     const processedData = useMemo(() => {
         let data = transactions.filter(t => t.type === 'expense');
 
-        // 1. Search
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             data = data.filter(t =>
@@ -99,12 +112,10 @@ export default function ExpensesListScreen() {
             );
         }
 
-        // 2. Filter by Category
         if (selectedCategories.length > 0) {
             data = data.filter(t => t.category && selectedCategories.includes(t.category));
         }
 
-        // 3. Sort
         data.sort((a, b) => {
             const dateA = new Date(a.date).getTime();
             const dateB = new Date(b.date).getTime();
@@ -120,7 +131,6 @@ export default function ExpensesListScreen() {
             }
         });
 
-        // 4. Group by Date
         const grouped: { title: string, data: typeof data }[] = [];
         data.forEach(item => {
             const dateLabel = new Date(item.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -137,56 +147,86 @@ export default function ExpensesListScreen() {
 
     const totalFilteredAmount = processedData.raw.reduce((sum, item) => sum + parseAmount(item.amount), 0);
 
-    // --- Render Items ---
-    const renderItem = ({ item }: { item: any }) => (
-        <View style={styles.itemContainer}>
-            <TouchableOpacity style={styles.itemContent}>
+    const renderItem = ({ item, index }: { item: any, index: number }) => (
+        <Animated.View
+            style={[
+                styles.itemContainer,
+                {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                    ...SHADOWS.small,
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }],
+                }
+            ]}
+        >
+            <TouchableOpacity
+                style={styles.itemContent}
+                onPress={() => navigation.navigate('AddExpense' as never, { expense: item } as never)}
+                activeOpacity={0.8}
+            >
                 <View style={styles.itemRow}>
-                    <View style={styles.itemIconData}>
-                        <Text style={styles.itemCategory}>{item.category || 'כללי'}</Text>
-                        <Text style={styles.itemDate}>{new Date(item.date).toLocaleDateString('he-IL')}</Text>
-                    </View>
-                    <View style={styles.itemAmountData}>
-                        <Text style={styles.itemAmount}>₪{parseAmount(item.amount).toLocaleString()}</Text>
-                        {item.supplier && <Text style={styles.itemSupplier}>{item.supplier}</Text>}
-                    </View>
-                    {item.receiptImageUri && (
-                        <TouchableOpacity
-                            onPress={() => setSelectedReceipt(item.receiptImageUri)}
-                            style={{ marginRight: 8 }}
+                    <View style={styles.itemLeft}>
+                        <LinearGradient
+                            colors={GRADIENTS.primary}
+                            style={styles.itemIcon}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
                         >
-                            <ImageIcon size={20} color={COLORS.primary} />
-                        </TouchableOpacity>
-                    )}
+                            <Tag size={18} color="#fff" />
+                        </LinearGradient>
+                        <View style={styles.itemInfo}>
+                            <Text style={[styles.itemCategory, { color: colors.textPrimary }]}>
+                                {item.category || 'כללי'}
+                            </Text>
+                            <View style={styles.itemMeta}>
+                                <Calendar size={12} color={colors.textTertiary} />
+                                <Text style={[styles.itemDate, { color: colors.textTertiary }]}>
+                                    {new Date(item.date).toLocaleDateString('he-IL')}
+                                </Text>
+                                {item.supplier && (
+                                    <Text style={[styles.itemSupplier, { color: colors.textTertiary }]}>
+                                        {' | '}{item.supplier}
+                                    </Text>
+                                )}
+                            </View>
+                        </View>
+                    </View>
+                    <View style={styles.itemRight}>
+                        <Text style={[styles.itemAmount, { color: colors.danger }]}>
+                            -₪{parseAmount(item.amount).toLocaleString()}
+                        </Text>
+                        {item.receiptImageUri && (
+                            <TouchableOpacity
+                                onPress={() => setSelectedReceipt(item.receiptImageUri)}
+                                style={[styles.receiptBadge, { backgroundColor: colors.infoLight }]}
+                            >
+                                <ImageIcon size={14} color={colors.info} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
-                {item.clientName && (
-                    <Text style={styles.itemProject}>פרויקט: {item.clientName}</Text>
-                )}
             </TouchableOpacity>
-            <View style={styles.itemActions}>
+            <View style={[styles.itemActions, { borderTopColor: colors.border }]}>
                 <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[styles.actionButton, { backgroundColor: colors.infoLight }]}
                     onPress={() => {
                         hapticFeedback.light();
-                        // Navigate to edit screen with expense data
                         navigation.navigate('AddExpense' as never, { expense: item } as never);
                     }}
                 >
-                    <Edit size={18} color={COLORS.primary} />
+                    <Edit size={16} color={colors.info} />
+                    <Text style={[styles.actionText, { color: colors.info }]}>עריכה</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={styles.actionButton}
+                    style={[styles.actionButton, { backgroundColor: colors.dangerLight }]}
                     onPress={() => {
                         hapticFeedback.warning();
                         Alert.alert(
                             'מחיקת הוצאה',
                             'האם למחוק הוצאה זו?',
                             [
-                                {
-                                    text: 'ביטול',
-                                    style: 'cancel',
-                                    onPress: () => hapticFeedback.light()
-                                },
+                                { text: 'ביטול', style: 'cancel' },
                                 {
                                     text: 'מחק',
                                     style: 'destructive',
@@ -199,10 +239,11 @@ export default function ExpensesListScreen() {
                         );
                     }}
                 >
-                    <Trash2 size={18} color={COLORS.danger} />
+                    <Trash2 size={16} color={colors.danger} />
+                    <Text style={[styles.actionText, { color: colors.danger }]}>מחיקה</Text>
                 </TouchableOpacity>
             </View>
-        </View>
+        </Animated.View>
     );
 
     const renderReceiptModal = () => (
@@ -218,11 +259,14 @@ export default function ExpensesListScreen() {
                     activeOpacity={1}
                     onPress={() => setSelectedReceipt(null)}
                 />
-                <View style={styles.receiptModalContent}>
-                    <View style={styles.receiptModalHeader}>
-                        <Text style={styles.receiptModalTitle}>קבלה</Text>
-                        <TouchableOpacity onPress={() => setSelectedReceipt(null)}>
-                            <X color={COLORS.textPrimary} size={24} />
+                <View style={[styles.receiptModalContent, { backgroundColor: colors.surface }]}>
+                    <View style={[styles.receiptModalHeader, { borderBottomColor: colors.border }]}>
+                        <Text style={[styles.receiptModalTitle, { color: colors.textPrimary }]}>קבלה</Text>
+                        <TouchableOpacity
+                            onPress={() => setSelectedReceipt(null)}
+                            style={[styles.modalCloseButton, { backgroundColor: colors.glass }]}
+                        >
+                            <X color={colors.textPrimary} size={20} />
                         </TouchableOpacity>
                     </View>
                     {selectedReceipt && (
@@ -238,100 +282,123 @@ export default function ExpensesListScreen() {
     );
 
     return (
-        <View style={styles.container}>
-            <StatusBar style="light" backgroundColor={COLORS.background} />
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
 
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowRight color={COLORS.primary} size={24} />
+            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={[styles.backButton, { backgroundColor: colors.glass }]}
+                >
+                    <ArrowRight color={colors.textPrimary} size={22} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>הוצאות</Text>
-                <View style={{ width: 24 }} />
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>הוצאות</Text>
+                <TouchableOpacity
+                    onPress={handleExport}
+                    style={[styles.exportButton, { backgroundColor: colors.glass }]}
+                >
+                    <Download color={colors.info} size={20} />
+                </TouchableOpacity>
             </View>
 
             {/* Search & Filters */}
-            <View style={styles.filterSection}>
+            <Animated.View style={[styles.filterSection, { opacity: fadeAnim }]}>
                 {/* Search Bar */}
-                <View style={styles.searchBar}>
-                    <Search color={COLORS.textSecondary} size={20} style={{ marginLeft: 8 }} />
+                <View style={[styles.searchBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Search color={colors.textTertiary} size={20} />
                     <TextInput
-                        style={styles.searchInput}
+                        style={[styles.searchInput, { color: colors.textPrimary }]}
                         placeholder="חפש הוצאה..."
-                        placeholderTextColor={COLORS.textSecondary}
+                        placeholderTextColor={colors.textTertiary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         textAlign="right"
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => setSearchQuery('')}>
-                            <X color={COLORS.textSecondary} size={18} />
+                            <X color={colors.textTertiary} size={18} />
                         </TouchableOpacity>
                     )}
                 </View>
 
-                {/* Filter Toggle Row */}
+                {/* Filter Controls */}
                 <View style={styles.filterControls}>
                     <TouchableOpacity
-                        style={styles.filterToggleBtn}
+                        style={[styles.filterButton, { backgroundColor: colors.glass }]}
                         onPress={() => setIsFilterExpanded(!isFilterExpanded)}
                     >
-                        <Filter size={16} color={COLORS.textSecondary} />
-                        <Text style={styles.filterBtnText}>סינון</Text>
-                        <ChevronDown size={14} color={COLORS.textSecondary} style={{ transform: [{ rotate: isFilterExpanded ? '180deg' : '0deg' }] }} />
+                        <Filter size={16} color={colors.textSecondary} />
+                        <Text style={[styles.filterButtonText, { color: colors.textSecondary }]}>סינון</Text>
+                        <ChevronDown
+                            size={14}
+                            color={colors.textSecondary}
+                            style={{ transform: [{ rotate: isFilterExpanded ? '180deg' : '0deg' }] }}
+                        />
                     </TouchableOpacity>
 
-                    {/* Sort Dropdown Trigger (Simplified for now) */}
                     <TouchableOpacity
-                        style={styles.filterToggleBtn}
+                        style={[styles.filterButton, { backgroundColor: colors.glass }]}
                         onPress={() => {
-                            // Cycle sort for MVP or open modal
                             const nextSort = sortOption === 'date-newest' ? 'date-oldest' :
                                 sortOption === 'date-oldest' ? 'amount-highest' :
                                     sortOption === 'amount-highest' ? 'amount-lowest' : 'date-newest';
                             setSortOption(nextSort);
                         }}
                     >
-                        <ArrowUp size={16} color={COLORS.textSecondary} />
-                        <Text style={styles.filterBtnText}>
-                            {sortOption === 'date-newest' ? 'תאריך (הכי חדש)' :
-                                sortOption === 'date-oldest' ? 'תאריך (הכי ישן)' :
-                                    sortOption === 'amount-highest' ? 'סכום (הכי גבוה)' : 'סכום (הכי נמוך)'}
+                        {sortOption.includes('newest') || sortOption.includes('highest') ? (
+                            <ArrowDown size={16} color={colors.textSecondary} />
+                        ) : (
+                            <ArrowUp size={16} color={colors.textSecondary} />
+                        )}
+                        <Text style={[styles.filterButtonText, { color: colors.textSecondary }]}>
+                            {sortOption === 'date-newest' ? 'חדש לישן' :
+                                sortOption === 'date-oldest' ? 'ישן לחדש' :
+                                    sortOption === 'amount-highest' ? 'גבוה לנמוך' : 'נמוך לגבוה'}
                         </Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* Expandable Filters */}
                 {isFilterExpanded && (
-                    <View style={styles.expandedFilters}>
-                        <Text style={styles.filterLabel}>לפי קטגוריה:</Text>
+                    <View style={[styles.expandedFilters, { borderTopColor: colors.border }]}>
+                        <Text style={[styles.filterLabel, { color: colors.textSecondary }]}>קטגוריות:</Text>
                         <View style={styles.catsRow}>
                             {categories.map(cat => {
                                 const isSel = selectedCategories.includes(cat);
                                 return (
                                     <TouchableOpacity
                                         key={cat}
-                                        style={[styles.catChip, isSel && styles.catChipSelected]}
+                                        style={[
+                                            styles.catChip,
+                                            { backgroundColor: colors.surface, borderColor: colors.border },
+                                            isSel && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` }
+                                        ]}
                                         onPress={() => {
                                             if (isSel) setSelectedCategories(prev => prev.filter(c => c !== cat));
                                             else setSelectedCategories(prev => [...prev, cat]);
                                         }}
                                     >
-                                        <Text style={[styles.catChipText, isSel && styles.catChipTextSelected]}>{cat}</Text>
+                                        <Text style={[
+                                            styles.catChipText,
+                                            { color: isSel ? colors.primary : colors.textSecondary }
+                                        ]}>
+                                            {cat}
+                                        </Text>
                                     </TouchableOpacity>
                                 );
                             })}
                         </View>
                     </View>
                 )}
-            </View>
+            </Animated.View>
 
             {/* List */}
             {processedData.grouped.length === 0 ? (
                 <EmptyState
-                    icon="📊"
+                    icon="receipt"
                     title="אין הוצאות עדיין"
-                    message="לחץ על כפתור + בתפריט התחתון\nכדי להוסיף הוצאה ראשונה"
+                    message="לחץ על + בתפריט התחתון כדי להוסיף הוצאה"
                 />
             ) : (
                 <SectionList
@@ -339,28 +406,37 @@ export default function ExpensesListScreen() {
                     keyExtractor={item => item.id}
                     renderItem={renderItem}
                     renderSectionHeader={({ section: { title } }) => (
-                        <Text style={styles.sectionHeader}>{title}</Text>
+                        <View style={[styles.sectionHeaderContainer, { backgroundColor: colors.background }]}>
+                            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>{title}</Text>
+                        </View>
                     )}
-                    contentContainerStyle={{ paddingBottom: 100 }}
+                    contentContainerStyle={{ paddingBottom: 180, paddingHorizontal: 20 }}
                     stickySectionHeadersEnabled={true}
+                    showsVerticalScrollIndicator={false}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            tintColor={COLORS.primary}
-                            colors={[COLORS.primary]}
+                            tintColor={colors.primary}
+                            colors={[colors.primary]}
                         />
                     }
                 />
             )}
 
             {/* Footer Totals */}
-            <View style={styles.stickyFooter}>
-                <View style={styles.footerRow}>
-                    <Text style={styles.footerLabel}>סה״כ הוצאות מסוננות:</Text>
-                    <Text style={styles.footerAmount}>₪{totalFilteredAmount.toLocaleString()}</Text>
+            <View style={[styles.stickyFooter, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+                <View style={styles.footerContent}>
+                    <View style={styles.footerRow}>
+                        <Text style={[styles.footerLabel, { color: colors.textSecondary }]}>סה״כ הוצאות:</Text>
+                        <Text style={[styles.footerAmount, { color: colors.danger }]}>
+                            ₪{totalFilteredAmount.toLocaleString()}
+                        </Text>
+                    </View>
+                    <Text style={[styles.footerCount, { color: colors.textTertiary }]}>
+                        {processedData.raw.length} פריטים
+                    </Text>
                 </View>
-                <Text style={styles.footerCount}>מספר פריטים: {processedData.raw.length}</Text>
             </View>
 
             {renderReceiptModal()}
@@ -371,75 +447,77 @@ export default function ExpensesListScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingBottom: 20,
-        backgroundColor: COLORS.background,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        paddingBottom: 16,
     },
-    backButton: { padding: 4 },
-    exportButton: { padding: 4 },
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    exportButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     headerTitle: {
         fontSize: 20,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.medium,
+        fontFamily: FONTS.bold,
     },
-
-    // Filters
     filterSection: {
-        padding: 16,
-        backgroundColor: COLORS.background,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        paddingHorizontal: 20,
+        paddingBottom: 16,
     },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        height: 44,
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        height: 52,
         marginBottom: 12,
+        borderWidth: 1,
+        gap: 10,
     },
     searchInput: {
         flex: 1,
-        color: COLORS.textPrimary,
-        fontSize: 14,
+        fontSize: 15,
         fontFamily: FONTS.regular,
-        marginHorizontal: 8,
-        textAlign: 'right'
     },
     filterControls: {
         flexDirection: 'row',
-        gap: 12,
+        gap: 10,
     },
-    filterToggleBtn: {
+    filterButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 12,
         gap: 6,
     },
-    filterBtnText: {
-        color: COLORS.textSecondary,
-        fontSize: 14,
+    filterButtonText: {
+        fontSize: 13,
         fontFamily: FONTS.medium,
     },
     expandedFilters: {
-        marginTop: 12,
-        paddingTop: 12,
+        marginTop: 16,
+        paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: COLORS.border,
     },
     filterLabel: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        marginBottom: 8,
-        textAlign: 'left'
+        fontSize: 13,
+        fontFamily: FONTS.medium,
+        marginBottom: 10,
+        textAlign: 'right',
     },
     catsRow: {
         flexDirection: 'row',
@@ -447,106 +525,117 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     catChip: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        backgroundColor: COLORS.surface,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    catChipSelected: {
-        borderColor: COLORS.primary,
-        backgroundColor: 'rgba(0, 212, 170, 0.1)',
     },
     catChipText: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-    },
-    catChipTextSelected: {
-        color: COLORS.primary,
-    },
-
-    // List
-    sectionHeader: {
-        paddingVertical: 8,
-        paddingHorizontal: 20,
-        backgroundColor: COLORS.background, // Sticky needs opaque bg
-        color: COLORS.textSecondary,
-        fontSize: 14,
+        fontSize: 13,
         fontFamily: FONTS.medium,
-        textAlign: 'left'
+    },
+    sectionHeaderContainer: {
+        paddingVertical: 10,
+        paddingHorizontal: 4,
+    },
+    sectionHeader: {
+        fontSize: 14,
+        fontFamily: FONTS.semiBold,
+        textAlign: 'right',
     },
     itemContainer: {
-        marginHorizontal: 16,
-        marginVertical: 6,
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
+        marginBottom: 12,
+        borderRadius: 18,
+        overflow: 'hidden',
         borderWidth: 1,
-        borderColor: COLORS.border, // Subtle border
     },
     itemContent: {
         padding: 16,
-    },
-    itemActions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 12,
-        paddingHorizontal: 16,
-        paddingBottom: 12,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-        paddingTop: 12,
-    },
-    actionButton: {
-        padding: 8,
     },
     itemRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    itemIconData: {
-        gap: 4,
+    itemLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        flex: 1,
+    },
+    itemIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    itemInfo: {
+        flex: 1,
     },
     itemCategory: {
-        color: COLORS.textPrimary,
         fontSize: 16,
-        fontFamily: FONTS.medium,
-        textAlign: 'left'
+        fontFamily: FONTS.semiBold,
+        marginBottom: 4,
+        textAlign: 'right',
     },
-    itemDate: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        textAlign: 'left'
-    },
-    itemAmountData: {
-        alignItems: 'flex-end',
+    itemMeta: {
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 4,
     },
-    itemAmount: {
-        color: COLORS.danger,
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+    itemDate: {
+        fontSize: 12,
+        fontFamily: FONTS.regular,
     },
     itemSupplier: {
-        color: COLORS.textSecondary,
         fontSize: 12,
+        fontFamily: FONTS.regular,
     },
-    itemProject: {
-        marginTop: 8,
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        textAlign: 'left'
+    itemRight: {
+        alignItems: 'flex-end',
+        gap: 6,
     },
-
-    // Footer
-    stickyFooter: {
-        padding: 16,
-        paddingBottom: 30, // Safe area
-        backgroundColor: COLORS.surface,
+    itemAmount: {
+        fontSize: 18,
+        fontFamily: FONTS.bold,
+    },
+    receiptBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    itemActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 10,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
         borderTopWidth: 1,
-        borderTopColor: COLORS.border,
     },
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 10,
+        gap: 6,
+    },
+    actionText: {
+        fontSize: 13,
+        fontFamily: FONTS.medium,
+    },
+    stickyFooter: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        paddingTop: 16,
+        paddingBottom: Platform.OS === 'ios' ? 100 : 90,
+        paddingHorizontal: 20,
+        borderTopWidth: 1,
+    },
+    footerContent: {},
     footerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -554,24 +643,21 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     footerLabel: {
-        color: COLORS.textSecondary,
         fontSize: 14,
+        fontFamily: FONTS.medium,
     },
     footerAmount: {
-        color: COLORS.danger,
-        fontSize: 18,
+        fontSize: 22,
         fontFamily: FONTS.bold,
     },
     footerCount: {
-        color: COLORS.textSecondary,
         fontSize: 12,
-        textAlign: 'left'
+        fontFamily: FONTS.regular,
+        textAlign: 'right',
     },
-
-    // Receipt Modal
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        backgroundColor: 'rgba(0, 0, 0, 0.85)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -581,25 +667,29 @@ const styles = StyleSheet.create({
     receiptModalContent: {
         width: width * 0.9,
         maxHeight: '80%',
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
+        borderRadius: 24,
         overflow: 'hidden',
     },
     receiptModalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
+        padding: 18,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
     receiptModalTitle: {
         fontSize: 18,
         fontFamily: FONTS.bold,
-        color: COLORS.textPrimary,
+    },
+    modalCloseButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     receiptImage: {
         width: '100%',
         height: 400,
-    }
+    },
 });
