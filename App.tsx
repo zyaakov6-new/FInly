@@ -1,15 +1,14 @@
 import 'react-native-gesture-handler';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { I18nManager, View, ActivityIndicator, useColorScheme } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, Rubik_400Regular, Rubik_500Medium, Rubik_600SemiBold, Rubik_700Bold } from '@expo-google-fonts/rubik';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import LoginScreen from './screens/LoginScreen';
-import DashboardScreen from './screens/DashboardScreen';
 import SignupScreen from './screens/SignupScreen';
 import SignupStep2Screen from './screens/SignupStep2Screen';
 import SignupStep3Screen from './screens/SignupStep3Screen';
@@ -21,7 +20,6 @@ import AllActivityScreen from './screens/AllActivityScreen';
 import AddExpenseScreen from './screens/AddExpenseScreen';
 import PnLScreen from './screens/PnLScreen';
 import ExpensesListScreen from './screens/ExpensesListScreen';
-import InvoicesListScreen from './screens/InvoicesListScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import GoalsScreen from './screens/GoalsScreen';
 import ClientsScreen from './screens/ClientsScreen';
@@ -31,10 +29,10 @@ import ReceiptGalleryScreen from './screens/ReceiptGalleryScreen';
 import MainTabs from './navigation/MainTabs';
 import { TransactionsProvider } from './context/TransactionsContext';
 import { UserProfileProvider } from './context/UserProfileContext';
-import { getColors, FONTS } from './constants/theme';
+import { getColors } from './constants/theme';
 import ErrorBoundary from './components/ErrorBoundary';
 
-// Force RTL
+// Force RTL for Hebrew
 try {
     if (!I18nManager.isRTL) {
         I18nManager.allowRTL(true);
@@ -46,39 +44,39 @@ try {
 
 const Stack = createStackNavigator();
 
-// Premium App Themes
-const LightAppTheme = {
+// Clean, iOS-native themes
+const LightTheme = {
     ...DefaultTheme,
     dark: false,
     colors: {
         ...DefaultTheme.colors,
-        primary: '#FF6B6B',
-        background: '#FFF8F0',
+        primary: '#007AFF',
+        background: '#F2F2F7',
         card: '#FFFFFF',
-        text: '#1A1A2E',
-        border: '#F0E6DD',
-        notification: '#FF6B6B',
+        text: '#000000',
+        border: 'rgba(60, 60, 67, 0.1)',
+        notification: '#FF3B30',
     },
 };
 
-const DarkAppTheme = {
+const DarkThemeCustom = {
     ...DarkTheme,
     dark: true,
     colors: {
         ...DarkTheme.colors,
-        primary: '#FF6B6B',
-        background: '#0D0D14',
-        card: '#16161F',
+        primary: '#0A84FF',
+        background: '#000000',
+        card: '#1C1C1E',
         text: '#FFFFFF',
-        border: 'rgba(255, 255, 255, 0.08)',
-        notification: '#FF6B6B',
+        border: 'rgba(84, 84, 88, 0.65)',
+        notification: '#FF453A',
     },
 };
 
 export default function App() {
     const colorScheme = useColorScheme();
     const colors = getColors(colorScheme);
-    const theme = colorScheme === 'light' ? LightAppTheme : DarkAppTheme;
+    const theme = colorScheme === 'light' ? LightTheme : DarkThemeCustom;
 
     const [fontsLoaded, fontError] = useFonts({
         'Rubik-Regular': Rubik_400Regular,
@@ -114,18 +112,9 @@ export default function App() {
                                     screenOptions={{
                                         headerShown: false,
                                         cardStyle: { backgroundColor: colors.background },
-                                        cardStyleInterpolator: ({ current, layouts }) => ({
-                                            cardStyle: {
-                                                transform: [
-                                                    {
-                                                        translateX: current.progress.interpolate({
-                                                            inputRange: [0, 1],
-                                                            outputRange: [-layouts.screen.width, 0],
-                                                        }),
-                                                    },
-                                                ],
-                                            },
-                                        }),
+                                        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+                                        gestureEnabled: true,
+                                        gestureDirection: 'horizontal',
                                     }}
                                 >
                                     <Stack.Screen name="Login" component={LoginScreen} />
@@ -144,18 +133,9 @@ export default function App() {
                                         component={AddExpenseScreen}
                                         options={{
                                             presentation: 'modal',
-                                            cardStyleInterpolator: ({ current, layouts }) => ({
-                                                cardStyle: {
-                                                    transform: [
-                                                        {
-                                                            translateY: current.progress.interpolate({
-                                                                inputRange: [0, 1],
-                                                                outputRange: [layouts.screen.height, 0],
-                                                            }),
-                                                        },
-                                                    ],
-                                                },
-                                            }),
+                                            cardStyleInterpolator: CardStyleInterpolators.forModalPresentationIOS,
+                                            gestureEnabled: true,
+                                            gestureDirection: 'vertical',
                                         }}
                                     />
                                     <Stack.Screen name="Goals" component={GoalsScreen} />
@@ -166,18 +146,7 @@ export default function App() {
                                         component={ExpenseTemplatesScreen}
                                         options={{
                                             presentation: 'modal',
-                                            cardStyleInterpolator: ({ current, layouts }) => ({
-                                                cardStyle: {
-                                                    transform: [
-                                                        {
-                                                            translateY: current.progress.interpolate({
-                                                                inputRange: [0, 1],
-                                                                outputRange: [layouts.screen.height, 0],
-                                                            }),
-                                                        },
-                                                    ],
-                                                },
-                                            }),
+                                            cardStyleInterpolator: CardStyleInterpolators.forModalPresentationIOS,
                                         }}
                                     />
                                     <Stack.Screen name="ReceiptGallery" component={ReceiptGalleryScreen} />

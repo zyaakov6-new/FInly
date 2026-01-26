@@ -1,130 +1,98 @@
-// Premium Theme System for Finly
-// Beautiful, modern design with glass morphism and premium gradients
+// Clean, Apple-inspired Design System for Finly
+// Minimalist, professional, and elegant
 
 export const COLORS = {
     light: {
-        // Brand - Vibrant & Premium
-        primary: '#FF6B6B',
-        primaryDark: '#E85555',
-        primaryLight: '#FF8585',
-        secondary: '#4ECDC4',
-        secondaryDark: '#3DB8B0',
-        accent: '#FFE66D',
-        accentDark: '#F5D93A',
+        // Primary - Clean Blue (Apple-like)
+        primary: '#007AFF',
+        primaryLight: '#4DA3FF',
+        primaryMuted: 'rgba(0, 122, 255, 0.1)',
 
-        // Status - Clear & Vibrant
-        danger: '#FF5252',
-        dangerLight: 'rgba(255, 82, 82, 0.15)',
-        success: '#00D68F',
-        successLight: 'rgba(0, 214, 143, 0.15)',
-        warning: '#FFAA00',
-        warningLight: 'rgba(255, 170, 0, 0.15)',
-        info: '#0095FF',
-        infoLight: 'rgba(0, 149, 255, 0.15)',
+        // Semantic Colors
+        success: '#34C759',
+        successMuted: 'rgba(52, 199, 89, 0.1)',
+        warning: '#FF9500',
+        warningMuted: 'rgba(255, 149, 0, 0.1)',
+        danger: '#FF3B30',
+        dangerMuted: 'rgba(255, 59, 48, 0.1)',
 
-        // Backgrounds - Warm & Inviting
-        background: '#FFF8F0',
+        // Backgrounds
+        background: '#F2F2F7',
         surface: '#FFFFFF',
-        surfaceLight: '#FFFBF7',
-        surfaceElevated: '#FFFFFF',
-        card: '#FFFFFF',
+        surfaceSecondary: '#F9F9F9',
+        elevated: '#FFFFFF',
 
-        // Text - High Contrast
-        textPrimary: '#1A1A2E',
-        textSecondary: '#4A4A6A',
-        textTertiary: '#8B8BA8',
-        textOnDark: '#FFFFFF',
-        textOnPrimary: '#FFFFFF',
+        // Text
+        textPrimary: '#000000',
+        textSecondary: '#3C3C43',
+        textTertiary: '#8E8E93',
+        textQuaternary: '#C7C7CC',
 
         // UI Elements
-        border: '#F0E6DD',
-        borderLight: '#F5EDE5',
-        divider: 'rgba(26, 26, 46, 0.06)',
-        overlay: 'rgba(26, 26, 46, 0.4)',
+        border: 'rgba(60, 60, 67, 0.1)',
+        separator: 'rgba(60, 60, 67, 0.12)',
+        fill: 'rgba(120, 120, 128, 0.2)',
+        overlay: 'rgba(0, 0, 0, 0.4)',
+
+        // System
         white: '#FFFFFF',
         black: '#000000',
-        transparent: 'transparent',
+        clear: 'transparent',
 
-        // Gradients
-        gradientPrimary: ['#FF6B6B', '#FF8E53'],
-        gradientSecondary: ['#4ECDC4', '#44B3AA'],
-        gradientSuccess: ['#00D68F', '#00B377'],
-        gradientDark: ['#1A1A2E', '#2D2D44'],
-        gradientCard: ['#FFFFFF', '#FFF8F0'],
-        gradientGlass: ['rgba(255,255,255,0.9)', 'rgba(255,255,255,0.7)'],
-
-        // Shadows
-        shadowColor: '#1A1A2E',
-        shadowLight: 'rgba(26, 26, 46, 0.08)',
-        shadowMedium: 'rgba(26, 26, 46, 0.12)',
-        shadowHeavy: 'rgba(26, 26, 46, 0.2)',
-
-        // Glass Effect
-        glass: 'rgba(255, 255, 255, 0.85)',
-        glassBorder: 'rgba(255, 255, 255, 0.3)',
-        glassHighlight: 'rgba(255, 255, 255, 0.5)',
+        // Tints
+        tintBlue: '#007AFF',
+        tintGreen: '#34C759',
+        tintOrange: '#FF9500',
+        tintRed: '#FF3B30',
+        tintPurple: '#AF52DE',
+        tintPink: '#FF2D55',
+        tintTeal: '#5AC8FA',
     },
     dark: {
-        // Brand - Neon & Vibrant
-        primary: '#FF6B6B',
-        primaryDark: '#E85555',
-        primaryLight: '#FF8585',
-        secondary: '#4ECDC4',
-        secondaryDark: '#3DB8B0',
-        accent: '#FFE66D',
-        accentDark: '#F5D93A',
+        // Primary
+        primary: '#0A84FF',
+        primaryLight: '#409CFF',
+        primaryMuted: 'rgba(10, 132, 255, 0.15)',
 
-        // Status - Neon Vibrance
-        danger: '#FF6B6B',
-        dangerLight: 'rgba(255, 107, 107, 0.15)',
-        success: '#00FF94',
-        successLight: 'rgba(0, 255, 148, 0.15)',
-        warning: '#FFB800',
-        warningLight: 'rgba(255, 184, 0, 0.15)',
-        info: '#00D4FF',
-        infoLight: 'rgba(0, 212, 255, 0.15)',
+        // Semantic Colors
+        success: '#30D158',
+        successMuted: 'rgba(48, 209, 88, 0.15)',
+        warning: '#FF9F0A',
+        warningMuted: 'rgba(255, 159, 10, 0.15)',
+        danger: '#FF453A',
+        dangerMuted: 'rgba(255, 69, 58, 0.15)',
 
-        // Backgrounds - Deep & Rich
-        background: '#0D0D14',
-        surface: '#16161F',
-        surfaceLight: '#1C1C28',
-        surfaceElevated: '#22222F',
-        card: '#1C1C28',
+        // Backgrounds
+        background: '#000000',
+        surface: '#1C1C1E',
+        surfaceSecondary: '#2C2C2E',
+        elevated: '#2C2C2E',
 
-        // Text - Clear Hierarchy
+        // Text
         textPrimary: '#FFFFFF',
-        textSecondary: '#A0A0B8',
-        textTertiary: '#6B6B80',
-        textOnDark: '#FFFFFF',
-        textOnPrimary: '#FFFFFF',
+        textSecondary: '#EBEBF5',
+        textTertiary: '#8E8E93',
+        textQuaternary: '#636366',
 
         // UI Elements
-        border: 'rgba(255, 255, 255, 0.08)',
-        borderLight: 'rgba(255, 255, 255, 0.04)',
-        divider: 'rgba(255, 255, 255, 0.06)',
+        border: 'rgba(84, 84, 88, 0.65)',
+        separator: 'rgba(84, 84, 88, 0.6)',
+        fill: 'rgba(120, 120, 128, 0.32)',
         overlay: 'rgba(0, 0, 0, 0.6)',
+
+        // System
         white: '#FFFFFF',
         black: '#000000',
-        transparent: 'transparent',
+        clear: 'transparent',
 
-        // Gradients - Vibrant & Dynamic
-        gradientPrimary: ['#FF6B6B', '#FF8E53'],
-        gradientSecondary: ['#4ECDC4', '#00D4FF'],
-        gradientSuccess: ['#00FF94', '#00D68F'],
-        gradientDark: ['#1C1C28', '#0D0D14'],
-        gradientCard: ['#1C1C28', '#16161F'],
-        gradientGlass: ['rgba(28, 28, 40, 0.9)', 'rgba(22, 22, 31, 0.8)'],
-
-        // Shadows
-        shadowColor: '#000000',
-        shadowLight: 'rgba(0, 0, 0, 0.3)',
-        shadowMedium: 'rgba(0, 0, 0, 0.5)',
-        shadowHeavy: 'rgba(0, 0, 0, 0.7)',
-
-        // Glass Effect - Frosted Dark
-        glass: 'rgba(28, 28, 40, 0.75)',
-        glassBorder: 'rgba(255, 255, 255, 0.08)',
-        glassHighlight: 'rgba(255, 255, 255, 0.05)',
+        // Tints
+        tintBlue: '#0A84FF',
+        tintGreen: '#30D158',
+        tintOrange: '#FF9F0A',
+        tintRed: '#FF453A',
+        tintPurple: '#BF5AF2',
+        tintPink: '#FF375F',
+        tintTeal: '#64D2FF',
     }
 };
 
@@ -132,17 +100,20 @@ export const getColors = (scheme: 'light' | 'dark' | null | undefined) => {
     return COLORS[scheme === 'light' ? 'light' : 'dark'];
 };
 
+// Apple-like spacing scale
 export const SPACING = {
-    micro: 4,
-    tiny: 6,
-    small: 8,
-    medium: 16,
-    large: 24,
-    xlarge: 32,
-    xxlarge: 48,
-    xxxlarge: 64,
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 20,
+    '2xl': 24,
+    '3xl': 32,
+    '4xl': 40,
+    '5xl': 48,
 };
 
+// SF Pro-inspired typography
 export const FONTS = {
     bold: 'Rubik-Bold',
     semiBold: 'Rubik-SemiBold',
@@ -150,109 +121,132 @@ export const FONTS = {
     regular: 'Rubik-Regular',
 };
 
-export const FONT_SIZES = {
-    tiny: 10,
-    small: 12,
-    body: 14,
-    medium: 16,
-    large: 18,
-    xlarge: 20,
-    xxlarge: 24,
-    display: 32,
-    hero: 40,
-    giant: 48,
+// Typography scale (Apple HIG inspired)
+export const TYPOGRAPHY = {
+    largeTitle: {
+        fontSize: 34,
+        lineHeight: 41,
+        fontFamily: 'Rubik-Bold',
+        letterSpacing: 0.37,
+    },
+    title1: {
+        fontSize: 28,
+        lineHeight: 34,
+        fontFamily: 'Rubik-Bold',
+        letterSpacing: 0.36,
+    },
+    title2: {
+        fontSize: 22,
+        lineHeight: 28,
+        fontFamily: 'Rubik-Bold',
+        letterSpacing: 0.35,
+    },
+    title3: {
+        fontSize: 20,
+        lineHeight: 25,
+        fontFamily: 'Rubik-SemiBold',
+        letterSpacing: 0.38,
+    },
+    headline: {
+        fontSize: 17,
+        lineHeight: 22,
+        fontFamily: 'Rubik-SemiBold',
+        letterSpacing: -0.41,
+    },
+    body: {
+        fontSize: 17,
+        lineHeight: 22,
+        fontFamily: 'Rubik-Regular',
+        letterSpacing: -0.41,
+    },
+    callout: {
+        fontSize: 16,
+        lineHeight: 21,
+        fontFamily: 'Rubik-Regular',
+        letterSpacing: -0.32,
+    },
+    subhead: {
+        fontSize: 15,
+        lineHeight: 20,
+        fontFamily: 'Rubik-Regular',
+        letterSpacing: -0.24,
+    },
+    footnote: {
+        fontSize: 13,
+        lineHeight: 18,
+        fontFamily: 'Rubik-Regular',
+        letterSpacing: -0.08,
+    },
+    caption1: {
+        fontSize: 12,
+        lineHeight: 16,
+        fontFamily: 'Rubik-Regular',
+        letterSpacing: 0,
+    },
+    caption2: {
+        fontSize: 11,
+        lineHeight: 13,
+        fontFamily: 'Rubik-Regular',
+        letterSpacing: 0.07,
+    },
 };
 
-export const BORDER_RADIUS = {
-    small: 8,
-    medium: 12,
-    large: 16,
-    xlarge: 20,
-    xxlarge: 24,
+// Clean border radius
+export const RADIUS = {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 16,
+    xl: 20,
+    '2xl': 24,
     full: 9999,
 };
 
+// Subtle, elegant shadows
 export const SHADOWS = {
-    small: {
+    sm: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+        elevation: 1,
+    },
+    md: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 4,
+        shadowOpacity: 0.06,
+        shadowRadius: 6,
         elevation: 2,
     },
-    medium: {
+    lg: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
         elevation: 4,
     },
-    large: {
+    xl: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.16,
-        shadowRadius: 16,
-        elevation: 8,
-    },
-    xlarge: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.1,
         shadowRadius: 24,
-        elevation: 12,
-    },
-    glow: (color: string) => ({
-        shadowColor: color,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 12,
         elevation: 8,
-    }),
-    inner: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 0,
     },
 };
 
-// Animation presets
-export const ANIMATIONS = {
+// Animation timing (Apple-like spring)
+export const ANIMATION = {
     spring: {
-        tension: 60,
-        friction: 10,
-    },
-    springBouncy: {
-        tension: 80,
-        friction: 8,
+        damping: 20,
+        stiffness: 300,
     },
     springGentle: {
-        tension: 40,
-        friction: 12,
+        damping: 25,
+        stiffness: 200,
     },
-    timing: {
-        fast: 150,
-        normal: 250,
-        slow: 400,
+    duration: {
+        fast: 200,
+        normal: 300,
+        slow: 450,
     },
-};
-
-// Common gradients for LinearGradient
-export const GRADIENTS = {
-    primary: ['#FF6B6B', '#FF8E53'] as const,
-    secondary: ['#4ECDC4', '#00D4FF'] as const,
-    success: ['#00FF94', '#00D68F'] as const,
-    warning: ['#FFB800', '#FF8E53'] as const,
-    danger: ['#FF6B6B', '#FF5252'] as const,
-    dark: ['#1C1C28', '#0D0D14'] as const,
-    darkReverse: ['#0D0D14', '#1C1C28'] as const,
-    accent: ['#FFE66D', '#FF8E53'] as const,
-    premium: ['#667EEA', '#764BA2'] as const,
-    ocean: ['#2193B0', '#6DD5ED'] as const,
-    sunset: ['#F56217', '#F9A825'] as const,
-    forest: ['#134E5E', '#71B280'] as const,
-    midnight: ['#232526', '#414345'] as const,
-    coral: ['#FF6B6B', '#FFCDC9'] as const,
-    teal: ['#4ECDC4', '#44B3AA'] as const,
 };

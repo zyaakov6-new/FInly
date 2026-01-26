@@ -1,32 +1,32 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Platform, StyleSheet, useColorScheme, Animated, TouchableOpacity, Text } from 'react-native';
-import { Home, BarChart3, ShoppingCart, User, Plus } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import { View, Platform, StyleSheet, useColorScheme, TouchableOpacity, Text } from 'react-native';
+import { Home, BarChart3, Receipt, User, Plus } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import DashboardScreen from '../screens/DashboardScreen';
 import PnLScreen from '../screens/PnLScreen';
 import ExpensesListScreen from '../screens/ExpensesListScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import { FONTS, getColors, SHADOWS, GRADIENTS } from '../constants/theme';
-import { useNavigation } from '@react-navigation/native';
+import { FONTS, getColors, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../constants/theme';
 
 const Tab = createBottomTabNavigator();
 
 const CustomTabBar = ({ state, descriptors, navigation }: any) => {
     const colorScheme = useColorScheme();
     const colors = getColors(colorScheme);
+    const insets = useSafeAreaInsets();
     const mainNav = useNavigation<any>();
 
     return (
-        <View style={styles.tabBarContainer}>
-            {/* Main Tab Bar */}
+        <View style={[
+            styles.tabBarWrapper,
+            { paddingBottom: insets.bottom > 0 ? insets.bottom : SPACING.lg }
+        ]}>
             <View style={[
                 styles.tabBar,
-                {
-                    backgroundColor: colorScheme === 'dark' ? 'rgba(22, 22, 31, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                    borderColor: colors.border,
-                }
+                { backgroundColor: colors.surface },
+                SHADOWS.lg
             ]}>
                 {state.routes.map((route: any, index: number) => {
                     const { options } = descriptors[route.key];
@@ -45,91 +45,83 @@ const CustomTabBar = ({ state, descriptors, navigation }: any) => {
                         }
                     };
 
-                    const onLongPress = () => {
-                        navigation.emit({
-                            type: 'tabLongPress',
-                            target: route.key,
-                        });
-                    };
-
-                    // Get icon based on route
                     const getIcon = () => {
                         const iconColor = isFocused ? colors.primary : colors.textTertiary;
                         const iconSize = 24;
 
                         switch (route.name) {
                             case 'Dashboard':
-                                return <Home size={iconSize} color={iconColor} />;
+                                return <Home size={iconSize} color={iconColor} strokeWidth={isFocused ? 2 : 1.5} />;
                             case 'Expenses':
-                                return <ShoppingCart size={iconSize} color={iconColor} />;
+                                return <Receipt size={iconSize} color={iconColor} strokeWidth={isFocused ? 2 : 1.5} />;
                             case 'Insights':
-                                return <BarChart3 size={iconSize} color={iconColor} />;
+                                return <BarChart3 size={iconSize} color={iconColor} strokeWidth={isFocused ? 2 : 1.5} />;
                             case 'Profile':
-                                return <User size={iconSize} color={iconColor} />;
+                                return <User size={iconSize} color={iconColor} strokeWidth={isFocused ? 2 : 1.5} />;
                             default:
                                 return null;
                         }
                     };
+
+                    // Add FAB in the middle
+                    if (index === 2) {
+                        return (
+                            <React.Fragment key="fab-container">
+                                {/* FAB */}
+                                <TouchableOpacity
+                                    style={[styles.fab, { backgroundColor: colors.primary }, SHADOWS.md]}
+                                    onPress={() => mainNav.navigate('AddExpense')}
+                                    activeOpacity={0.8}
+                                >
+                                    <Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
+                                </TouchableOpacity>
+
+                                {/* Regular Tab */}
+                                <TouchableOpacity
+                                    key={route.key}
+                                    accessibilityRole="button"
+                                    accessibilityState={isFocused ? { selected: true } : {}}
+                                    onPress={onPress}
+                                    style={styles.tabItem}
+                                    activeOpacity={0.7}
+                                >
+                                    {getIcon()}
+                                    <Text style={[
+                                        styles.tabLabel,
+                                        { color: isFocused ? colors.primary : colors.textTertiary }
+                                    ]}>
+                                        {label}
+                                    </Text>
+                                </TouchableOpacity>
+                            </React.Fragment>
+                        );
+                    }
 
                     return (
                         <TouchableOpacity
                             key={route.key}
                             accessibilityRole="button"
                             accessibilityState={isFocused ? { selected: true } : {}}
-                            accessibilityLabel={options.tabBarAccessibilityLabel}
                             onPress={onPress}
-                            onLongPress={onLongPress}
                             style={styles.tabItem}
                             activeOpacity={0.7}
                         >
-                            <View style={styles.tabItemContent}>
-                                {isFocused && (
-                                    <View style={[styles.activeIndicator, { backgroundColor: colors.primary }]} />
-                                )}
-                                <View style={[
-                                    styles.iconContainer,
-                                    isFocused && { backgroundColor: `${colors.primary}15` }
-                                ]}>
-                                    {getIcon()}
-                                </View>
-                                <Text style={[
-                                    styles.tabLabel,
-                                    {
-                                        color: isFocused ? colors.primary : colors.textTertiary,
-                                        fontFamily: isFocused ? FONTS.semiBold : FONTS.medium,
-                                    }
-                                ]}>
-                                    {label}
-                                </Text>
-                            </View>
+                            {getIcon()}
+                            <Text style={[
+                                styles.tabLabel,
+                                { color: isFocused ? colors.primary : colors.textTertiary }
+                            ]}>
+                                {label}
+                            </Text>
                         </TouchableOpacity>
                     );
                 })}
             </View>
-
-            {/* Floating Action Button */}
-            <TouchableOpacity
-                style={styles.fabContainer}
-                onPress={() => mainNav.navigate('AddExpense')}
-                activeOpacity={0.9}
-            >
-                <LinearGradient
-                    colors={GRADIENTS.primary}
-                    style={styles.fab}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                >
-                    <Plus size={28} color="#fff" strokeWidth={2.5} />
-                </LinearGradient>
-            </TouchableOpacity>
         </View>
     );
 };
 
 export default function MainTabs() {
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
-
     return (
         <Tab.Navigator
             tabBar={(props) => <CustomTabBar {...props} />}
@@ -140,97 +132,59 @@ export default function MainTabs() {
             <Tab.Screen
                 name="Dashboard"
                 component={DashboardScreen}
-                options={{
-                    tabBarLabel: 'ראשי',
-                }}
+                options={{ tabBarLabel: 'ראשי' }}
             />
             <Tab.Screen
                 name="Expenses"
                 component={ExpensesListScreen}
-                options={{
-                    tabBarLabel: 'הוצאות',
-                }}
+                options={{ tabBarLabel: 'הוצאות' }}
             />
             <Tab.Screen
                 name="Insights"
                 component={PnLScreen}
-                options={{
-                    tabBarLabel: 'תובנות',
-                }}
+                options={{ tabBarLabel: 'תובנות' }}
             />
             <Tab.Screen
                 name="Profile"
                 component={SettingsScreen}
-                options={{
-                    tabBarLabel: 'פרופיל',
-                }}
+                options={{ tabBarLabel: 'הגדרות' }}
             />
         </Tab.Navigator>
     );
 }
 
 const styles = StyleSheet.create({
-    tabBarContainer: {
+    tabBarWrapper: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        alignItems: 'center',
-        paddingBottom: Platform.OS === 'ios' ? 24 : 16,
+        paddingHorizontal: SPACING.lg,
     },
     tabBar: {
         flexDirection: 'row',
-        marginHorizontal: 20,
-        borderRadius: 28,
-        paddingVertical: 8,
-        paddingHorizontal: 8,
-        borderWidth: 1,
-        ...SHADOWS.large,
+        borderRadius: RADIUS.xl,
+        paddingVertical: SPACING.sm,
+        paddingHorizontal: SPACING.sm,
     },
     tabItem: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    tabItemContent: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 6,
-        position: 'relative',
-    },
-    activeIndicator: {
-        position: 'absolute',
-        top: -6,
-        width: 24,
-        height: 3,
-        borderRadius: 2,
-    },
-    iconContainer: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 2,
+        paddingVertical: SPACING.sm,
     },
     tabLabel: {
-        fontSize: 11,
-        marginTop: 2,
-    },
-    fabContainer: {
-        position: 'absolute',
-        top: -28,
-        alignSelf: 'center',
-        ...SHADOWS.xlarge,
-        shadowColor: '#FF6B6B',
+        ...TYPOGRAPHY.caption2,
+        fontFamily: FONTS.medium,
+        marginTop: SPACING.xs,
     },
     fab: {
-        width: 60,
-        height: 60,
-        borderRadius: 20,
+        width: 48,
+        height: 48,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 4,
-        borderColor: 'rgba(255,255,255,0.2)',
+        marginHorizontal: SPACING.xs,
+        marginTop: -SPACING.lg,
     },
 });
