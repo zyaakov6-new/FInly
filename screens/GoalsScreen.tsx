@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     StyleSheet,
     Text,
@@ -7,15 +7,49 @@ import {
     TouchableOpacity,
     TextInput,
     Modal,
-    Platform
+    Animated,
+    Easing,
+    useColorScheme,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Target, TrendingUp, DollarSign, Briefcase, Edit2, X } from 'lucide-react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+    ChevronRight,
+    Target,
+    TrendingUp,
+    Wallet,
+    Briefcase,
+    Trophy,
+    Flame,
+    Star,
+    Edit3,
+    X,
+    Check,
+    Sparkles,
+} from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
-import { COLORS, FONTS } from '../constants/theme';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
+
+type GoalType = 'income' | 'expense' | 'margin' | 'projects';
+
+interface GoalData {
+    id: GoalType;
+    title: string;
+    subtitle: string;
+    current: number;
+    target: number;
+    percentage: number;
+    unit: string;
+    isInverse?: boolean;
+}
 
 export default function GoalsScreen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
+    const colorScheme = useColorScheme();
+    const colors = getColors(colorScheme);
+
     const {
         goals,
         updateGoals,
@@ -26,23 +60,106 @@ export default function GoalsScreen() {
     } = useTransactions();
 
     const [editModalVisible, setEditModalVisible] = useState(false);
-    const [editingGoal, setEditingGoal] = useState<string | null>(null);
+    const [editingGoal, setEditingGoal] = useState<GoalType | null>(null);
     const [editValue, setEditValue] = useState('');
 
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(30)).current;
+
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 400,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, []);
+
+    // Progress data
     const incomeProgress = getMonthlyIncomeProgress();
     const expenseProgress = getMonthlyExpenseProgress();
     const profitMarginProgress = getProfitMarginProgress();
     const projectProgress = getProjectCountProgress();
 
-    const handleEditGoal = (goalType: string, currentValue: number) => {
+    const goalsData: GoalData[] = useMemo(() => [
+        {
+            id: 'income',
+            title: 'יעד הכנסות',
+            subtitle: 'חודשי',
+            current: incomeProgress.current,
+            target: incomeProgress.target,
+            percentage: incomeProgress.percentage,
+            unit: '₪',
+        },
+        {
+            id: 'expense',
+            title: 'תקציב הוצאות',
+            subtitle: 'חודשי',
+            current: expenseProgress.current,
+            target: expenseProgress.limit,
+            percentage: expenseProgress.percentage,
+            unit: '₪',
+            isInverse: true,
+        },
+        {
+            id: 'margin',
+            title: 'שולי רווח',
+            subtitle: 'יעד אחוז',
+            current: profitMarginProgress.current,
+            target: profitMarginProgress.target,
+            percentage: (profitMarginProgress.current / profitMarginProgress.target) * 100,
+            unit: '%',
+        },
+        {
+            id: 'projects',
+            title: 'פרויקטים',
+            subtitle: 'יעד חודשי',
+            current: projectProgress.current,
+            target: projectProgress.target,
+            percentage: projectProgress.percentage,
+            unit: '',
+        },
+    ], [incomeProgress, expenseProgress, profitMarginProgress, projectProgress]);
+
+    // Calculate overall progress
+    const overallProgress = useMemo(() => {
+        const validGoals = goalsData.filter(g => g.target > 0);
+        if (validGoals.length === 0) return 0;
+        const sum = validGoals.reduce((acc, g) => {
+            const pct = g.isInverse ? Math.max(0, 100 - g.percentage) : Math.min(g.percentage, 100);
+            return acc + pct;
+        }, 0);
+        return sum / validGoals.length;
+    }, [goalsData]);
+
+    // Motivational messages
+    const getMotivationalMessage = () => {
+        if (overallProgress >= 100) return { text: 'מדהים! עברת את כל היעדים', emoji: '🏆' };
+        if (overallProgress >= 80) return { text: 'עוד קצת ומגיעים ליעד!', emoji: '🔥' };
+        if (overallProgress >= 50) return { text: 'בדרך הנכונה, המשך כך!', emoji: '⭐' };
+        if (overallProgress >= 25) return { text: 'התחלה טובה, אל תוותר!', emoji: '✨' };
+        return { text: 'הגדר יעדים והתחל את המסע', emoji: '🎯' };
+    };
+
+    const motivation = getMotivationalMessage();
+
+    const handleEditGoal = (goalType: GoalType, currentTarget: number) => {
         setEditingGoal(goalType);
-        setEditValue(currentValue.toString());
+        setEditValue(currentTarget.toString());
         setEditModalVisible(true);
     };
 
     const handleSaveGoal = () => {
         const value = parseFloat(editValue);
-        if (!isNaN(value) && value >= 0) {
+        if (!isNaN(value) && value >= 0 && editingGoal) {
             switch (editingGoal) {
                 case 'income':
                     updateGoals({ monthlyIncomeTarget: value });
@@ -61,64 +178,125 @@ export default function GoalsScreen() {
         setEditModalVisible(false);
     };
 
-    const GoalCard = ({
-        title,
-        icon: Icon,
-        current,
-        target,
-        percentage,
-        goalType,
-        color
-    }: any) => {
+    const getGoalStatus = (goal: GoalData) => {
+        if (goal.isInverse) {
+            if (goal.percentage >= 100) return { color: colors.danger, label: 'חריגה' };
+            if (goal.percentage >= 80) return { color: colors.warning, label: 'קרוב לגבול' };
+            return { color: colors.success, label: 'בטווח' };
+        }
+        if (goal.percentage >= 100) return { color: colors.success, label: 'הושג!' };
+        if (goal.percentage >= 70) return { color: colors.primary, label: 'קרוב' };
+        if (goal.percentage >= 30) return { color: colors.warning, label: 'בדרך' };
+        return { color: colors.textTertiary, label: 'התחלה' };
+    };
+
+    // Goal Card Component
+    const GoalCard = ({ goal, index }: { goal: GoalData; index: number }) => {
+        const status = getGoalStatus(goal);
+        const progressAnim = useRef(new Animated.Value(0)).current;
+
+        useEffect(() => {
+            Animated.timing(progressAnim, {
+                toValue: Math.min(goal.percentage, 100),
+                duration: 800,
+                delay: index * 100,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: false,
+            }).start();
+        }, [goal.percentage]);
+
+        const progressWidth = progressAnim.interpolate({
+            inputRange: [0, 100],
+            outputRange: ['0%', '100%'],
+        });
+
         return (
-            <View style={styles.goalCard}>
+            <Animated.View
+                style={[
+                    styles.goalCard,
+                    { backgroundColor: colors.surface },
+                    SHADOWS.sm,
+                    {
+                        opacity: fadeAnim,
+                        transform: [{ translateY: slideAnim }],
+                    }
+                ]}
+            >
                 <View style={styles.goalCardHeader}>
                     <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => handleEditGoal(goalType, target)}
+                        style={[styles.editButton, { backgroundColor: colors.surfaceSecondary }]}
+                        onPress={() => handleEditGoal(goal.id, goal.target)}
                     >
-                        <Edit2 size={22} color="rgba(255,255,255,0.4)" />
+                        <Edit3 size={16} color={colors.textTertiary} />
                     </TouchableOpacity>
-
-                    <View style={styles.goalInfoContainer}>
-                        <Text style={styles.goalCardTitle}>{title}</Text>
-                        <View style={[styles.cardIconBox, { backgroundColor: `${color}15` }]}>
-                            <Icon size={22} color={color} />
-                        </View>
+                    <View style={styles.goalTitleSection}>
+                        <Text style={[styles.goalTitle, { color: colors.textPrimary }]}>
+                            {goal.title}
+                        </Text>
+                        <Text style={[styles.goalSubtitle, { color: colors.textTertiary }]}>
+                            {goal.subtitle}
+                        </Text>
                     </View>
                 </View>
 
-                <View style={styles.goalProgressSection}>
-                    <View style={styles.goalValueRow}>
-                        <Text style={styles.goalValueTarget}>/ {target.toLocaleString()}</Text>
-                        <Text style={styles.goalValueCurrent}>{current.toLocaleString()}</Text>
+                <View style={styles.goalValueSection}>
+                    <View style={styles.goalValues}>
+                        <Text style={[styles.goalCurrent, { color: colors.textPrimary }]}>
+                            {goal.unit === '₪' ? '₪' : ''}{goal.current.toLocaleString()}{goal.unit === '%' ? '%' : ''}
+                        </Text>
+                        <Text style={[styles.goalTarget, { color: colors.textTertiary }]}>
+                            מתוך {goal.unit === '₪' ? '₪' : ''}{goal.target.toLocaleString()}{goal.unit === '%' ? '%' : ''}
+                        </Text>
                     </View>
-
-                    <View style={styles.goalProgressBar}>
-                        <View
-                            style={[
-                                styles.goalProgressFill,
-                                { width: `${Math.min(percentage, 100)}%`, backgroundColor: color }
-                            ]}
-                        />
+                    <View style={[styles.statusBadge, { backgroundColor: `${status.color}15` }]}>
+                        <View style={[styles.statusDot, { backgroundColor: status.color }]} />
+                        <Text style={[styles.statusText, { color: status.color }]}>
+                            {status.label}
+                        </Text>
                     </View>
-
-                    <Text style={[styles.goalPercentageText, { color: color }]}>
-                        {percentage.toFixed(1)}% מהיעד
-                    </Text>
                 </View>
-            </View>
+
+                <View style={[styles.progressBar, { backgroundColor: colors.surfaceSecondary }]}>
+                    <Animated.View
+                        style={[
+                            styles.progressFill,
+                            {
+                                width: progressWidth,
+                                backgroundColor: status.color,
+                            }
+                        ]}
+                    />
+                </View>
+
+                <Text style={[styles.progressText, { color: colors.textTertiary }]}>
+                    {goal.isInverse
+                        ? goal.percentage >= 100
+                            ? `חריגה של ₪${(goal.current - goal.target).toLocaleString()}`
+                            : `נותרו ₪${(goal.target - goal.current).toLocaleString()}`
+                        : goal.percentage >= 100
+                            ? 'היעד הושג!'
+                            : `חסרים עוד ${goal.unit === '₪' ? '₪' : ''}${(goal.target - goal.current).toLocaleString()}${goal.unit === '%' ? '%' : ''}`
+                    }
+                </Text>
+            </Animated.View>
         );
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+
             {/* Header */}
-            <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 60 : 40 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-                    <ArrowLeft size={24} color="#FFFFFF" />
+            <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
+                >
+                    <ChevronRight size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>היעדים שלי</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+                    היעדים שלי
+                </Text>
                 <View style={{ width: 44 }} />
             </View>
 
@@ -126,66 +304,108 @@ export default function GoalsScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
-                {/* Intro Card - Refined to match image */}
-                <View style={styles.introSection}>
-                    <View style={styles.targetIconCircle}>
-                        <Target size={32} color="#8a5cf5" />
+                {/* Hero Section */}
+                <Animated.View
+                    style={[
+                        styles.heroSection,
+                        { backgroundColor: colors.surface },
+                        SHADOWS.md,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{ translateY: slideAnim }],
+                        }
+                    ]}
+                >
+                    <View style={styles.heroTop}>
+                        <View style={styles.heroText}>
+                            <Text style={[styles.heroEmoji]}>{motivation.emoji}</Text>
+                            <Text style={[styles.heroTitle, { color: colors.textPrimary }]}>
+                                {motivation.text}
+                            </Text>
+                            <Text style={[styles.heroSubtitle, { color: colors.textTertiary }]}>
+                                {new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
+                            </Text>
+                        </View>
+                        <View style={styles.heroProgress}>
+                            <View style={[styles.progressCircle, { borderColor: colors.surfaceSecondary }]}>
+                                <View style={[
+                                    styles.progressCircleInner,
+                                    { backgroundColor: colors.surface }
+                                ]}>
+                                    <Text style={[styles.circlePercentage, { color: colors.primary }]}>
+                                        {Math.round(overallProgress)}%
+                                    </Text>
+                                    <Text style={[styles.circleLabel, { color: colors.textTertiary }]}>
+                                        הושג
+                                    </Text>
+                                </View>
+                            </View>
+                        </View>
                     </View>
-                    <Text style={styles.introText}>
-                        הגדר יעדים חודשיים ועקוב אחר ההתקדמות שלך לקראת הצלחה פיננסית
+
+                    <View style={[styles.heroDivider, { backgroundColor: colors.border }]} />
+
+                    <View style={styles.heroStats}>
+                        <View style={styles.heroStat}>
+                            <Text style={[styles.heroStatValue, { color: colors.success }]}>
+                                {goalsData.filter(g => g.percentage >= 100 && !g.isInverse).length}
+                            </Text>
+                            <Text style={[styles.heroStatLabel, { color: colors.textTertiary }]}>
+                                הושגו
+                            </Text>
+                        </View>
+                        <View style={[styles.heroStatDivider, { backgroundColor: colors.border }]} />
+                        <View style={styles.heroStat}>
+                            <Text style={[styles.heroStatValue, { color: colors.primary }]}>
+                                {goalsData.filter(g => g.percentage > 0 && g.percentage < 100).length}
+                            </Text>
+                            <Text style={[styles.heroStatLabel, { color: colors.textTertiary }]}>
+                                בתהליך
+                            </Text>
+                        </View>
+                        <View style={[styles.heroStatDivider, { backgroundColor: colors.border }]} />
+                        <View style={styles.heroStat}>
+                            <Text style={[styles.heroStatValue, { color: colors.textPrimary }]}>
+                                {goalsData.length}
+                            </Text>
+                            <Text style={[styles.heroStatLabel, { color: colors.textTertiary }]}>
+                                סה״כ יעדים
+                            </Text>
+                        </View>
+                    </View>
+                </Animated.View>
+
+                {/* Section Title */}
+                <View style={styles.sectionHeader}>
+                    <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                        היעדים שלך
+                    </Text>
+                    <Text style={[styles.sectionSubtitle, { color: colors.textTertiary }]}>
+                        לחץ על עפרון לעריכה
                     </Text>
                 </View>
 
-                {/* Monthly Income Goal - Pink/Coral */}
-                <GoalCard
-                    title="יעד הכנסות חודשי"
-                    icon={TrendingUp}
-                    current={incomeProgress.current}
-                    target={incomeProgress.target}
-                    percentage={incomeProgress.percentage}
-                    unit="₪"
-                    goalType="income"
-                    color="#ff4785"
-                />
+                {/* Goal Cards */}
+                {goalsData.map((goal, index) => (
+                    <GoalCard key={goal.id} goal={goal} index={index} />
+                ))}
 
-                {/* Monthly Expense Budget - Green */}
-                <GoalCard
-                    title="תקציב הוצאות חודשי"
-                    icon={DollarSign}
-                    current={expenseProgress.current}
-                    target={expenseProgress.limit}
-                    percentage={expenseProgress.percentage}
-                    unit="₪"
-                    goalType="expense"
-                    isExpense={true}
-                    color="#00d4aa"
-                />
+                {/* Tips Section */}
+                <View style={[styles.tipsCard, { backgroundColor: colors.primaryMuted }]}>
+                    <View style={styles.tipsIcon}>
+                        <Sparkles size={20} color={colors.primary} />
+                    </View>
+                    <View style={styles.tipsContent}>
+                        <Text style={[styles.tipsTitle, { color: colors.primary }]}>
+                            טיפ להצלחה
+                        </Text>
+                        <Text style={[styles.tipsText, { color: colors.textSecondary }]}>
+                            הגדר יעדים ריאליים והתאם אותם מדי חודש לפי הביצועים שלך. יעדים ברי-השגה מגבירים מוטיבציה!
+                        </Text>
+                    </View>
+                </View>
 
-                {/* Profit Margin Goal - Blue */}
-                <GoalCard
-                    title="יעד שולי רווח"
-                    icon={TrendingUp}
-                    current={profitMarginProgress.current}
-                    target={profitMarginProgress.target}
-                    percentage={(profitMarginProgress.current / profitMarginProgress.target) * 100}
-                    unit="%"
-                    goalType="margin"
-                    color="#3b82f6"
-                />
-
-                {/* Project Count Goal - Red/Coral */}
-                <GoalCard
-                    title="יעד פרויקטים"
-                    icon={Briefcase}
-                    current={projectProgress.current}
-                    target={projectProgress.target}
-                    percentage={projectProgress.percentage}
-                    unit=""
-                    goalType="projects"
-                    color="#ff6b6b"
-                />
-
-                <View style={{ height: 100 }} />
+                <View style={{ height: 120 }} />
             </ScrollView>
 
             {/* Edit Modal */}
@@ -195,37 +415,58 @@ export default function GoalsScreen() {
                 animationType="fade"
                 onRequestClose={() => setEditModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+                    <View style={[styles.modalContent, { backgroundColor: colors.surface }, SHADOWS.xl]}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>עריכת יעד</Text>
-                            <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                                <X size={24} color={COLORS.textPrimary} />
+                            <TouchableOpacity
+                                onPress={() => setEditModalVisible(false)}
+                                style={[styles.modalCloseButton, { backgroundColor: colors.surfaceSecondary }]}
+                            >
+                                <X size={20} color={colors.textSecondary} />
                             </TouchableOpacity>
+                            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
+                                עריכת יעד
+                            </Text>
+                            <View style={{ width: 36 }} />
                         </View>
 
+                        <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
+                            הזן ערך חדש
+                        </Text>
                         <TextInput
-                            style={styles.modalInput}
+                            style={[
+                                styles.modalInput,
+                                {
+                                    backgroundColor: colors.surfaceSecondary,
+                                    borderColor: colors.border,
+                                    color: colors.textPrimary,
+                                }
+                            ]}
                             value={editValue}
                             onChangeText={setEditValue}
                             keyboardType="numeric"
-                            placeholder="הכנס ערך חדש"
-                            placeholderTextColor={COLORS.textTertiary}
-                            textAlign="right"
+                            placeholder="0"
+                            placeholderTextColor={colors.textQuaternary}
+                            textAlign="center"
                         />
 
                         <View style={styles.modalButtons}>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.cancelButton]}
+                                style={[styles.modalButton, { backgroundColor: colors.surfaceSecondary }]}
                                 onPress={() => setEditModalVisible(false)}
                             >
-                                <Text style={styles.cancelButtonText}>ביטול</Text>
+                                <Text style={[styles.modalButtonText, { color: colors.textPrimary }]}>
+                                    ביטול
+                                </Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.saveButton]}
+                                style={[styles.modalButton, { backgroundColor: colors.primary }]}
                                 onPress={handleSaveGoal}
                             >
-                                <Text style={styles.saveButtonText}>שמור</Text>
+                                <Check size={18} color="#FFFFFF" style={{ marginLeft: SPACING.xs }} />
+                                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
+                                    שמור
+                                </Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -238,195 +479,273 @@ export default function GoalsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#050505',
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingBottom: 20,
-        backgroundColor: '#050505',
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: SPACING.lg,
     },
     headerButton: {
         width: 44,
         height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: RADIUS.md,
         alignItems: 'center',
         justifyContent: 'center',
     },
     headerTitle: {
-        fontSize: 20,
-        color: '#FFFFFF',
-        fontFamily: FONTS.bold,
-        flex: 1,
-        textAlign: 'center',
+        ...TYPOGRAPHY.h3,
     },
     scrollContent: {
-        paddingHorizontal: 20,
+        paddingHorizontal: LAYOUT.screenPadding,
     },
-    introSection: {
-        backgroundColor: 'rgba(255,255,255,0.03)',
-        borderRadius: 32,
-        padding: 30,
+
+    // Hero Section
+    heroSection: {
+        borderRadius: RADIUS.xl,
+        padding: SPACING['2xl'],
+        marginBottom: SPACING.xl,
+    },
+    heroTop: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 30,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
     },
-    targetIconCircle: {
+    heroText: {
+        flex: 1,
+        marginLeft: SPACING.lg,
+    },
+    heroEmoji: {
+        fontSize: 32,
+        marginBottom: SPACING.sm,
+    },
+    heroTitle: {
+        ...TYPOGRAPHY.h3,
+        marginBottom: SPACING.xs,
+    },
+    heroSubtitle: {
+        ...TYPOGRAPHY.bodySmall,
+    },
+    heroProgress: {
+        alignItems: 'center',
+    },
+    progressCircle: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        borderWidth: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    progressCircleInner: {
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: 'rgba(138, 92, 245, 0.1)',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(138, 92, 245, 0.2)',
     },
-    introText: {
-        fontSize: 16,
-        color: 'rgba(255,255,255,0.6)',
-        textAlign: 'center',
-        fontFamily: FONTS.regular,
-        lineHeight: 24,
+    circlePercentage: {
+        ...TYPOGRAPHY.h2,
+    },
+    circleLabel: {
+        ...TYPOGRAPHY.captionSmall,
+    },
+    heroDivider: {
+        height: 1,
+        marginVertical: SPACING.xl,
+    },
+    heroStats: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+    },
+    heroStat: {
+        alignItems: 'center',
+    },
+    heroStatValue: {
+        ...TYPOGRAPHY.h3,
+        marginBottom: SPACING.xs,
+    },
+    heroStatLabel: {
+        ...TYPOGRAPHY.caption,
+    },
+    heroStatDivider: {
+        width: 1,
+        height: 40,
     },
 
-    // Goal Card Styles
+    // Section Header
+    sectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: SPACING.lg,
+    },
+    sectionTitle: {
+        ...TYPOGRAPHY.h4,
+    },
+    sectionSubtitle: {
+        ...TYPOGRAPHY.caption,
+    },
+
+    // Goal Card
     goalCard: {
-        backgroundColor: 'rgba(255,255,255,0.04)',
-        borderRadius: 32,
-        padding: 24,
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+        marginBottom: SPACING.md,
     },
     goalCardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 30,
+        alignItems: 'flex-start',
+        marginBottom: SPACING.lg,
     },
     editButton: {
-        padding: 8,
-    },
-    goalInfoContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 15,
-    },
-    goalCardTitle: {
-        fontSize: 19,
-        color: '#FFFFFF',
-        fontFamily: FONTS.bold,
-    },
-    cardIconBox: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
+        width: 36,
+        height: 36,
+        borderRadius: RADIUS.sm,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    goalProgressSection: {
-        gap: 15,
+    goalTitleSection: {
+        alignItems: 'flex-end',
     },
-    goalValueRow: {
+    goalTitle: {
+        ...TYPOGRAPHY.h4,
+        marginBottom: 2,
+    },
+    goalSubtitle: {
+        ...TYPOGRAPHY.caption,
+    },
+    goalValueSection: {
         flexDirection: 'row',
-        justifyContent: 'flex-end',
-        alignItems: 'baseline',
-        gap: 8,
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        marginBottom: SPACING.md,
     },
-    goalValueCurrent: {
-        fontSize: 32,
-        color: '#FFFFFF',
-        fontFamily: FONTS.bold,
+    goalValues: {
+        alignItems: 'flex-start',
     },
-    goalValueTarget: {
-        fontSize: 16,
-        color: 'rgba(255,255,255,0.4)',
+    goalCurrent: {
+        ...TYPOGRAPHY.h2,
+        marginBottom: 2,
+    },
+    goalTarget: {
+        ...TYPOGRAPHY.bodySmall,
+    },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
+        borderRadius: RADIUS.full,
+    },
+    statusDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        marginLeft: SPACING.xs,
+    },
+    statusText: {
+        ...TYPOGRAPHY.caption,
         fontFamily: FONTS.medium,
     },
-    goalProgressBar: {
+    progressBar: {
         height: 8,
-        backgroundColor: 'rgba(255,255,255,0.05)',
         borderRadius: 4,
         overflow: 'hidden',
+        marginBottom: SPACING.sm,
     },
-    goalProgressFill: {
+    progressFill: {
         height: '100%',
         borderRadius: 4,
     },
-    goalPercentageText: {
-        fontSize: 14,
-        fontFamily: FONTS.bold,
+    progressText: {
+        ...TYPOGRAPHY.caption,
         textAlign: 'left',
     },
 
-    // Modal Styles
+    // Tips Card
+    tipsCard: {
+        flexDirection: 'row',
+        borderRadius: RADIUS.lg,
+        padding: SPACING.lg,
+        marginTop: SPACING.lg,
+    },
+    tipsIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.sm,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: SPACING.md,
+    },
+    tipsContent: {
+        flex: 1,
+    },
+    tipsTitle: {
+        ...TYPOGRAPHY.label,
+        marginBottom: SPACING.xs,
+    },
+    tipsText: {
+        ...TYPOGRAPHY.bodySmall,
+        lineHeight: 20,
+    },
+
+    // Modal
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
+        padding: SPACING['2xl'],
     },
     modalContent: {
-        backgroundColor: '#151515',
-        borderRadius: 24,
-        padding: 24,
         width: '100%',
-        maxWidth: 400,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        maxWidth: 320,
+        borderRadius: RADIUS.xl,
+        padding: SPACING['2xl'],
     },
     modalHeader: {
-        flexDirection: 'row-reverse',
+        flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 24,
+        marginBottom: SPACING.xl,
+    },
+    modalCloseButton: {
+        width: 36,
+        height: 36,
+        borderRadius: RADIUS.sm,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     modalTitle: {
-        fontSize: 18,
-        color: '#FFFFFF',
-        fontFamily: FONTS.bold,
+        ...TYPOGRAPHY.h4,
+    },
+    modalLabel: {
+        ...TYPOGRAPHY.caption,
+        textAlign: 'center',
+        marginBottom: SPACING.sm,
     },
     modalInput: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderRadius: 16,
-        padding: 18,
-        fontSize: 20,
-        color: '#FFFFFF',
-        fontFamily: FONTS.medium,
+        height: 64,
+        borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        marginBottom: 24,
+        ...TYPOGRAPHY.h2,
+        marginBottom: SPACING.xl,
     },
     modalButtons: {
         flexDirection: 'row',
-        gap: 12,
+        gap: SPACING.md,
     },
     modalButton: {
         flex: 1,
-        padding: 16,
-        borderRadius: 16,
+        height: 48,
+        borderRadius: RADIUS.md,
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    cancelButton: {
-        backgroundColor: 'rgba(255,255,255,0.05)',
-    },
-    saveButton: {
-        backgroundColor: '#8a5cf5',
-    },
-    cancelButtonText: {
-        color: 'rgba(255,255,255,0.6)',
-        fontSize: 16,
-        fontFamily: FONTS.medium,
-    },
-    saveButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+    modalButtonText: {
+        ...TYPOGRAPHY.label,
     },
 });
