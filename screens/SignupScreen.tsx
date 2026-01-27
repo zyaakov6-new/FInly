@@ -8,20 +8,20 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    useColorScheme,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mail, User, ChevronRight } from 'lucide-react-native';
+import { useTheme } from '../context/ThemeContext';
 import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 import { useUserProfile } from '../context/UserProfileContext';
 
 export default function SignupScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { updateUserProfile } = useUserProfile();
 
     const [fullName, setFullName] = useState('');
@@ -37,7 +37,7 @@ export default function SignupScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

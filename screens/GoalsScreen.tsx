@@ -9,7 +9,6 @@ import {
     Modal,
     Animated,
     Easing,
-    useColorScheme,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -23,6 +22,7 @@ import {
     Info,
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
+import { useTheme } from '../context/ThemeContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 type GoalType = 'income' | 'expense' | 'margin' | 'projects';
@@ -41,8 +41,8 @@ interface GoalData {
 export default function GoalsScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
 
     const {
         goals,
@@ -278,7 +278,7 @@ export default function GoalsScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>

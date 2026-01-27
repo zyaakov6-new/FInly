@@ -8,7 +8,6 @@ import {
     TextInput,
     Modal,
     Animated,
-    useColorScheme,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,13 +15,14 @@ import { StatusBar } from 'expo-status-bar';
 import { ChevronRight, Plus, Search, User, Building2, Trash2, X, ChevronLeft, Check } from 'lucide-react-native';
 import { useTransactions, Client } from '../context/TransactionsContext';
 import { useNotification } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 export default function ClientsScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { showDeleteConfirm, showWarning } = useNotification();
 
     const { clients, addClient, updateClient, deleteClient, getClientTransactions } = useTransactions();
@@ -147,7 +147,7 @@ export default function ClientsScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>

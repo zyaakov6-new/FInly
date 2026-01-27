@@ -12,7 +12,6 @@ import {
     KeyboardAvoidingView,
     ActivityIndicator,
     Modal,
-    useColorScheme,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
@@ -22,6 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTransactions } from '../context/TransactionsContext';
 import { useNotification } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
 import { SuccessModal } from '../components/SuccessModal';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 import { scanReceipt } from '../services/GoogleVisionService';
@@ -31,8 +31,8 @@ import { uploadReceiptToCloud } from '../utils/receiptStorage';
 export default function AddExpenseScreen({ route }: any) {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { addTransaction, updateTransaction, categories, transactions } = useTransactions();
     const { showWarning, showError } = useNotification();
 
@@ -221,7 +221,7 @@ export default function AddExpenseScreen({ route }: any) {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
             <SuccessModal
                 visible={showSuccess}
                 title="ההוצאה נשמרה!"

@@ -5,7 +5,6 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -21,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
 import { useNotification } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
 import { PieChart as PieChartKit } from 'react-native-chart-kit';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -31,8 +31,8 @@ type TimePeriod = 'week' | 'month' | 'year' | 'all';
 export default function PnLScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { transactions, userProfile, businessSettings } = useTransactions();
     const { showError } = useNotification();
 
@@ -158,16 +158,11 @@ export default function PnLScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-                <TouchableOpacity
-                    onPress={() => navigation.goBack()}
-                    style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
-                >
-                    <ChevronRight size={24} color={colors.textSecondary} />
-                </TouchableOpacity>
+                <View style={{ width: 44 }} />
                 <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
                     דוחות
                 </Text>

@@ -11,7 +11,6 @@ import {
     FlatList,
     KeyboardAvoidingView,
     Platform,
-    useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -149,12 +148,7 @@ export default function SettingsScreen() {
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-                <TouchableOpacity
-                    onPress={() => navigation.goBack()}
-                    style={[styles.backButton, { backgroundColor: colors.surfaceSecondary }]}
-                >
-                    <ChevronRight size={24} color={colors.textSecondary} />
-                </TouchableOpacity>
+                <View style={{ width: 44 }} />
                 <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>הגדרות</Text>
                 <View style={{ width: 44 }} />
             </View>

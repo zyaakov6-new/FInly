@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     SectionList,
     ScrollView,
-    useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -21,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useTransactions, Transaction } from '../context/TransactionsContext';
+import { useTheme } from '../context/ThemeContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 type StatusTab = 'all' | 'pending' | 'paid' | 'overdue';
@@ -28,8 +28,8 @@ type StatusTab = 'all' | 'pending' | 'paid' | 'overdue';
 export default function InvoicesListScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { transactions } = useTransactions();
 
     // State
@@ -140,7 +140,7 @@ export default function InvoicesListScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>

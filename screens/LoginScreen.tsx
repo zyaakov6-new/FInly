@@ -8,19 +8,19 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    useColorScheme,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { useTheme } from '../context/ThemeContext';
 import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
     const insets = useSafeAreaInsets();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -33,7 +33,7 @@ export default function LoginScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

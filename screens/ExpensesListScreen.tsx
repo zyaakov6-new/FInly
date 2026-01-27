@@ -10,7 +10,6 @@ import {
     Modal,
     Image,
     RefreshControl,
-    useColorScheme
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +17,7 @@ import { ChevronRight, Search, X, ImageIcon, Download, ArrowUpRight } from 'luci
 import { StatusBar } from 'expo-status-bar';
 import { useTransactions } from '../context/TransactionsContext';
 import { useNotification } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 import { exportToCSV } from '../utils/exportData';
 import { hapticFeedback } from '../utils/haptics';
@@ -26,8 +26,8 @@ import { EmptyState } from '../components/EmptyState';
 export default function ExpensesListScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { transactions } = useTransactions();
     const { showSuccess, showError, showInfo } = useNotification();
 
@@ -132,23 +132,18 @@ export default function ExpensesListScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
-                <TouchableOpacity
-                    onPress={() => navigation.goBack()}
-                    style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
-                >
-                    <ChevronRight size={24} color={colors.textSecondary} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>הוצאות</Text>
                 <TouchableOpacity
                     onPress={handleExport}
                     style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
                 >
                     <Download size={20} color={colors.primary} />
                 </TouchableOpacity>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>הוצאות</Text>
+                <View style={{ width: 44 }} />
             </View>
 
             {/* Search */}
