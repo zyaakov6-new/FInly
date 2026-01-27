@@ -5,7 +5,6 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Alert,
     useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +20,7 @@ import {
     Share2,
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
+import { useNotification } from '../context/NotificationContext';
 import { PieChart as PieChartKit } from 'react-native-chart-kit';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -34,6 +34,7 @@ export default function PnLScreen() {
     const colorScheme = useColorScheme();
     const colors = getColors(colorScheme);
     const { transactions, userProfile, businessSettings } = useTransactions();
+    const { showError } = useNotification();
 
     const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>('month');
 
@@ -151,7 +152,7 @@ export default function PnLScreen() {
             const { uri } = await Print.printToFileAsync({ html });
             await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf' });
         } catch (error) {
-            Alert.alert('שגיאה', 'נכשל ביצירת קובץ PDF');
+            showError('שגיאה', 'נכשל ביצירת קובץ PDF');
         }
     };
 

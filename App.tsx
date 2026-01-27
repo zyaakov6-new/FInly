@@ -29,6 +29,7 @@ import ReceiptGalleryScreen from './screens/ReceiptGalleryScreen';
 import MainTabs from './navigation/MainTabs';
 import { TransactionsProvider } from './context/TransactionsContext';
 import { UserProfileProvider } from './context/UserProfileContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { getColors } from './constants/theme';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -105,7 +106,8 @@ export default function App() {
                 <GestureHandlerRootView style={{ flex: 1 }}>
                     <UserProfileProvider>
                         <TransactionsProvider>
-                            <NavigationContainer theme={theme}>
+                            <NotificationProvider>
+                                <NavigationContainer theme={theme}>
                                 <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
                                 <Stack.Navigator
                                     initialRouteName="Login"
@@ -153,7 +155,8 @@ export default function App() {
                                     <Stack.Screen name="Settings" component={SettingsScreen} />
                                     <Stack.Screen name="PnL" component={PnLScreen} />
                                 </Stack.Navigator>
-                            </NavigationContainer>
+                                </NavigationContainer>
+                            </NotificationProvider>
                         </TransactionsProvider>
                     </UserProfileProvider>
                 </GestureHandlerRootView>

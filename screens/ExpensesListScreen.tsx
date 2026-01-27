@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     SectionList,
     Platform,
-    Alert,
     Modal,
     Image,
     RefreshControl,
@@ -18,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { ChevronRight, Search, X, ImageIcon, Download, ArrowUpRight } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useTransactions } from '../context/TransactionsContext';
+import { useNotification } from '../context/NotificationContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 import { exportToCSV } from '../utils/exportData';
 import { hapticFeedback } from '../utils/haptics';
@@ -29,6 +29,7 @@ export default function ExpensesListScreen() {
     const colorScheme = useColorScheme();
     const colors = getColors(colorScheme);
     const { transactions } = useTransactions();
+    const { showSuccess, showError, showInfo } = useNotification();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
@@ -49,13 +50,13 @@ export default function ExpensesListScreen() {
                     date: t.date instanceof Date ? t.date.toISOString() : t.date
                 }));
             if (expensesOnly.length === 0) {
-                Alert.alert('אין נתונים', 'אין הוצאות לייצוא');
+                showInfo('אין נתונים', 'אין הוצאות לייצוא');
                 return;
             }
             await exportToCSV(expensesOnly, 'finly_expenses.csv');
-            Alert.alert('הצלחה', `יוצאו ${expensesOnly.length} הוצאות`);
+            showSuccess('ייצוא הושלם', `יוצאו ${expensesOnly.length} הוצאות בהצלחה`);
         } catch (error) {
-            Alert.alert('שגיאה', 'שגיאה בייצוא הנתונים');
+            showError('שגיאה', 'שגיאה בייצוא הנתונים');
         }
     };
 

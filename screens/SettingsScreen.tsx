@@ -6,7 +6,6 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
-    Alert,
     Image,
     Modal,
     FlatList,
@@ -43,6 +42,7 @@ import {
     Lock
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
+import { useNotification } from '../context/NotificationContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 const SECTIONS = [
@@ -76,6 +76,7 @@ export default function SettingsScreen() {
     const navigation = useNavigation<any>();
     const colorScheme = useColorScheme();
     const colors = getColors(colorScheme);
+    const { showDeleteConfirm, showSuccess } = useNotification();
 
     const {
         userProfile,
@@ -108,13 +109,10 @@ export default function SettingsScreen() {
     };
 
     const handleCategoryDelete = (category: string) => {
-        Alert.alert(
+        showDeleteConfirm(
             'מחיקת קטגוריה',
             `האם למחוק את הקטגוריה "${category}"?`,
-            [
-                { text: 'ביטול', style: 'cancel' },
-                { text: 'מחק', style: 'destructive', onPress: () => deleteCategory(category) }
-            ]
+            () => deleteCategory(category)
         );
     };
 
@@ -126,13 +124,10 @@ export default function SettingsScreen() {
     };
 
     const handleDeleteAccount = () => {
-        Alert.alert(
+        showDeleteConfirm(
             'מחיקת חשבון',
             'זוהי פעולה בלתי הפיכה. האם אתה בטוח שברצונך למחוק את החשבון וכל הנתונים?',
-            [
-                { text: 'ביטול', style: 'cancel' },
-                { text: 'מחק הכל', style: 'destructive', onPress: () => Alert.alert('החשבון נמחק') }
-            ]
+            () => showSuccess('החשבון נמחק', 'כל הנתונים נמחקו בהצלחה')
         );
     };
 

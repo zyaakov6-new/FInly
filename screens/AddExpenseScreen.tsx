@@ -8,7 +8,6 @@ import {
     TextInput,
     Switch,
     Image,
-    Alert,
     Platform,
     KeyboardAvoidingView,
     ActivityIndicator,
@@ -22,6 +21,7 @@ import { ChevronRight, Camera, Image as ImageIcon, Calendar, ChevronDown, Check,
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTransactions } from '../context/TransactionsContext';
+import { useNotification } from '../context/NotificationContext';
 import { SuccessModal } from '../components/SuccessModal';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 import { scanReceipt } from '../services/GoogleVisionService';
@@ -34,6 +34,7 @@ export default function AddExpenseScreen({ route }: any) {
     const colorScheme = useColorScheme();
     const colors = getColors(colorScheme);
     const { addTransaction, updateTransaction, categories, transactions } = useTransactions();
+    const { showWarning, showError } = useNotification();
 
     const editingExpense = route?.params?.expense;
     const isEditMode = !!editingExpense;
@@ -58,7 +59,7 @@ export default function AddExpenseScreen({ route }: any) {
         try {
             const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
             if (!permissionResult.granted) {
-                Alert.alert("דרושה הרשאה", "אפליקציה זו זקוקה לגישה למצלמה.");
+                showWarning('דרושה הרשאה', 'אפליקציה זו זקוקה לגישה למצלמה');
                 return;
             }
 
@@ -72,14 +73,14 @@ export default function AddExpenseScreen({ route }: any) {
                 setReceiptUri(result.assets[0].uri);
             }
         } catch (error) {
-            Alert.alert('שגיאה', 'שגיאה בפתיחת המצלמה');
+            showError('שגיאה', 'שגיאה בפתיחת המצלמה');
         }
     };
 
     const handleGallery = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permissionResult.granted) {
-            Alert.alert("דרושה הרשאה", "אפליקציה זו זקוקה לגישה לגלריה.");
+            showWarning('דרושה הרשאה', 'אפליקציה זו זקוקה לגישה לגלריה');
             return;
         }
 
@@ -97,7 +98,7 @@ export default function AddExpenseScreen({ route }: any) {
     const handleMagicScan = async () => {
         const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
         if (!permissionResult.granted) {
-            Alert.alert("דרושה הרשאה", "אפליקציה זו זקוקה לגישה למצלמה.");
+            showWarning('דרושה הרשאה', 'אפליקציה זו זקוקה לגישה למצלמה');
             return;
         }
 
@@ -162,7 +163,7 @@ export default function AddExpenseScreen({ route }: any) {
 
     const handleSave = async (createAnother: boolean = false) => {
         if (!validateForm()) {
-            Alert.alert('שדות חסרים', 'אנא מלא סכום וקטגוריה');
+            showWarning('שדות חסרים', 'אנא מלא סכום וקטגוריה');
             return;
         }
 
