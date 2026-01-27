@@ -20,7 +20,6 @@ import {
     PieChart,
     Settings,
     ChevronLeft,
-    Target,
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
 import { useUserProfile } from '../context/UserProfileContext';
@@ -189,7 +188,7 @@ export default function DashboardScreen() {
                         onPress={() => navigation.navigate('Goals')}
                     >
                         <View style={[styles.quickActionIcon, { backgroundColor: colors.primaryMuted }]}>
-                            <Target size={20} color={colors.primary} />
+                            <TrendingUp size={20} color={colors.primary} />
                         </View>
                         <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>
                             יעדים

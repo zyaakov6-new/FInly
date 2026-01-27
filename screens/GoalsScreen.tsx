@@ -16,17 +16,11 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
     ChevronRight,
-    Target,
     TrendingUp,
-    Wallet,
-    Briefcase,
-    Trophy,
-    Flame,
-    Star,
     Edit3,
     X,
     Check,
-    Sparkles,
+    Info,
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
@@ -393,7 +387,7 @@ export default function GoalsScreen() {
                 {/* Tips Section */}
                 <View style={[styles.tipsCard, { backgroundColor: colors.primaryMuted }]}>
                     <View style={styles.tipsIcon}>
-                        <Sparkles size={20} color={colors.primary} />
+                        <Info size={20} color={colors.primary} />
                     </View>
                     <View style={styles.tipsContent}>
                         <Text style={[styles.tipsTitle, { color: colors.primary }]}>
