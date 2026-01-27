@@ -108,12 +108,17 @@ export default function DashboardScreen() {
                     <Text style={[styles.balanceLabel, { color: colors.textTertiary }]}>
                         יתרה נוכחית
                     </Text>
-                    <Text style={[styles.balanceAmount, { color: colors.textPrimary }]}>
-                        ₪{netProfit.toLocaleString()}
-                    </Text>
+                    <TouchableOpacity onPress={() => navigation.navigate('PnL')}>
+                        <Text style={[styles.balanceAmount, { color: colors.textPrimary }]}>
+                            ₪{netProfit.toLocaleString()}
+                        </Text>
+                    </TouchableOpacity>
 
                     <View style={styles.balanceStats}>
-                        <View style={styles.balanceStat}>
+                        <TouchableOpacity
+                            style={styles.balanceStat}
+                            onPress={() => navigation.navigate('InvoicesList')}
+                        >
                             <View style={[styles.statIcon, { backgroundColor: colors.successMuted }]}>
                                 <ArrowDownLeft size={16} color={colors.success} />
                             </View>
@@ -125,11 +130,15 @@ export default function DashboardScreen() {
                                     ₪{totalRevenue.toLocaleString()}
                                 </Text>
                             </View>
-                        </View>
+                            <ChevronLeft size={16} color={colors.textTertiary} style={{ marginRight: 'auto' }} />
+                        </TouchableOpacity>
 
                         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
 
-                        <View style={styles.balanceStat}>
+                        <TouchableOpacity
+                            style={styles.balanceStat}
+                            onPress={() => navigation.navigate('Expenses')}
+                        >
                             <View style={[styles.statIcon, { backgroundColor: colors.dangerMuted }]}>
                                 <ArrowUpRight size={16} color={colors.danger} />
                             </View>
@@ -141,7 +150,8 @@ export default function DashboardScreen() {
                                     ₪{totalExpenses.toLocaleString()}
                                 </Text>
                             </View>
-                        </View>
+                            <ChevronLeft size={16} color={colors.textTertiary} style={{ marginRight: 'auto' }} />
+                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -197,14 +207,21 @@ export default function DashboardScreen() {
                 </View>
 
                 {/* Budget Progress */}
-                <View style={[styles.section, { backgroundColor: colors.surface }, SHADOWS.sm]}>
+                <TouchableOpacity
+                    style={[styles.section, { backgroundColor: colors.surface }, SHADOWS.sm]}
+                    onPress={() => navigation.navigate('Goals')}
+                    activeOpacity={0.7}
+                >
                     <View style={styles.sectionHeader}>
                         <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
                             תקציב חודשי
                         </Text>
-                        <Text style={[styles.sectionSubtitle, { color: colors.textTertiary }]}>
-                            {new Date().toLocaleDateString('he-IL', { month: 'long' })}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={[styles.sectionSubtitle, { color: colors.textTertiary }]}>
+                                {new Date().toLocaleDateString('he-IL', { month: 'long' })}
+                            </Text>
+                            <ChevronLeft size={14} color={colors.textTertiary} />
+                        </View>
                     </View>
 
                     <View style={styles.budgetRow}>
@@ -233,7 +250,7 @@ export default function DashboardScreen() {
                             ? `נותרו ₪${(expenseProgress.limit - expenseProgress.current).toLocaleString()}`
                             : 'חריגה מהתקציב'}
                     </Text>
-                </View>
+                </TouchableOpacity>
 
                 {/* Recent Activity */}
                 <View style={[styles.section, { backgroundColor: colors.surface }, SHADOWS.sm]}>
