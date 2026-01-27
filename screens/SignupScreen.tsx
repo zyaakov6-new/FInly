@@ -8,136 +8,163 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Dimensions,
+    useColorScheme,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { Mail, User, Building, TrendingUp, Briefcase, ArrowLeft } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { FONTS } from '../constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Mail, User, ChevronRight } from 'lucide-react-native';
+import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 import { useUserProfile } from '../context/UserProfileContext';
-
-const { width } = Dimensions.get('window');
-
-const CATEGORIES = [
-    { id: 'design', label: 'עיצוב/ת', icon: '🎨' },
-    { id: 'dev', label: 'מפתח/ת', icon: '💻' },
-    { id: 'marketing', label: 'שיווק/ת', icon: '📊' },
-    { id: 'consulting', label: 'יועץ/ת', icon: '💼' },
-];
 
 export default function SignupScreen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
+    const colorScheme = useColorScheme();
+    const colors = getColors(colorScheme);
     const { updateUserProfile } = useUserProfile();
+
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [focusedField, setFocusedField] = useState<string | null>(null);
 
     const handleContinue = async () => {
-        // Save user data to profile
         await updateUserProfile({ fullName, email });
-        // Navigate to step 2
-        navigation.navigate('SignupStep2' as never);
+        navigation.navigate('SignupStep2');
     };
 
-    return (
-        <View style={styles.container}>
-            <StatusBar style="light" />
+    const isValid = fullName.trim().length > 0 && email.trim().length > 0;
 
-            {/* Dark Green Gradient Background */}
-            <LinearGradient
-                colors={['#0a3d2e', '#1a5c47', '#0a3d2e']}
-                style={styles.gradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            />
+    return (
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.keyboardView}
             >
                 <ScrollView
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }
+                    ]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Step Progress Indicator - Scrolls with content */}
+                    {/* Progress */}
                     <View style={styles.progressContainer}>
-                        <View style={styles.progressSteps}>
-                            <View style={[styles.progressStep, styles.progressStepActive]} />
-                            <View style={styles.progressStep} />
-                            <View style={styles.progressStep} />
-                            <View style={styles.progressStep} />
-                        </View>
+                        <View style={[styles.progressStep, { backgroundColor: colors.primary }]} />
+                        <View style={[styles.progressStep, { backgroundColor: colors.border }]} />
+                        <View style={[styles.progressStep, { backgroundColor: colors.border }]} />
+                        <View style={[styles.progressStep, { backgroundColor: colors.border }]} />
                     </View>
 
                     {/* Back Button */}
                     <TouchableOpacity
-                        style={styles.backButton}
+                        style={[styles.backButton, { backgroundColor: colors.surfaceSecondary }]}
                         onPress={() => navigation.goBack()}
                     >
-                        <ArrowLeft size={24} color="rgba(255,255,255,0.8)" style={{ transform: [{ rotate: '180deg' }] }} />
+                        <ChevronRight size={24} color={colors.textSecondary} />
                     </TouchableOpacity>
 
-                    {/* Title */}
-                    <Text style={styles.title}>בנה את העתיד</Text>
-                    <Text style={styles.title}>הפיננסי שלך</Text>
-                    <Text></Text>
-
-                    {/* Who Are You */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>מי אתה?</Text>
-                        <View style={styles.inputWrapper}>
-                            <User size={20} color="rgba(255,255,255,0.5)" style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="לדוגמה: ישראל ישראלי"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                value={fullName}
-                                onChangeText={setFullName}
-                            />
-                        </View>
+                    {/* Header */}
+                    <View style={styles.headerSection}>
+                        <Text style={[styles.title, { color: colors.textPrimary }]}>
+                            יצירת חשבון
+                        </Text>
+                        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                            הזן את הפרטים שלך כדי להתחיל
+                        </Text>
                     </View>
 
-                    {/* Email */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>אימייל</Text>
-                        <View style={styles.inputWrapper}>
-                            <Mail size={20} color="rgba(255,255,255,0.5)" style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="name@nexus.com"
-                                placeholderTextColor="rgba(255,255,255,0.3)"
-                                value={email}
-                                onChangeText={setEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                            />
+                    {/* Form */}
+                    <View style={styles.form}>
+                        {/* Full Name */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                                שם מלא
+                            </Text>
+                            <View style={[
+                                styles.inputContainer,
+                                {
+                                    backgroundColor: colors.surfaceSecondary,
+                                    borderColor: focusedField === 'name' ? colors.primary : colors.border
+                                }
+                            ]}>
+                                <User
+                                    size={20}
+                                    color={focusedField === 'name' ? colors.primary : colors.textTertiary}
+                                />
+                                <TextInput
+                                    style={[styles.input, { color: colors.textPrimary }]}
+                                    placeholder="ישראל ישראלי"
+                                    placeholderTextColor={colors.textQuaternary}
+                                    value={fullName}
+                                    onChangeText={setFullName}
+                                    onFocus={() => setFocusedField('name')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                            </View>
                         </View>
-                    </View>
 
-                    {/* Continue Button */}
-                    <TouchableOpacity
-                        style={styles.continueButton}
-                        onPress={handleContinue}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={['#00ff88', '#00cc6f']}
-                            style={styles.continueButtonGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
+                        {/* Email */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                                אימייל
+                            </Text>
+                            <View style={[
+                                styles.inputContainer,
+                                {
+                                    backgroundColor: colors.surfaceSecondary,
+                                    borderColor: focusedField === 'email' ? colors.primary : colors.border
+                                }
+                            ]}>
+                                <Mail
+                                    size={20}
+                                    color={focusedField === 'email' ? colors.primary : colors.textTertiary}
+                                />
+                                <TextInput
+                                    style={[styles.input, { color: colors.textPrimary }]}
+                                    placeholder="your@email.com"
+                                    placeholderTextColor={colors.textQuaternary}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    onFocus={() => setFocusedField('email')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                            </View>
+                        </View>
+
+                        {/* Continue Button */}
+                        <TouchableOpacity
+                            style={[
+                                styles.continueButton,
+                                { backgroundColor: isValid ? colors.primary : colors.fillSecondary }
+                            ]}
+                            onPress={handleContinue}
+                            activeOpacity={0.8}
+                            disabled={!isValid}
                         >
-                            <Text style={styles.continueButtonText}>המשך</Text>
-                            <ArrowLeft size={20} color="#0a3d2e" style={styles.arrowIcon} />
-                        </LinearGradient>
-                    </TouchableOpacity>
+                            <Text style={[
+                                styles.continueButtonText,
+                                { color: isValid ? '#FFFFFF' : colors.textTertiary }
+                            ]}>
+                                המשך
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
 
                     {/* Login Link */}
-                    <View style={styles.loginContainer}>
-                        <Text style={styles.loginText}>כבר יש לך חשבון? </Text>
+                    <View style={styles.loginSection}>
+                        <Text style={[styles.loginText, { color: colors.textTertiary }]}>
+                            כבר יש לך חשבון?{' '}
+                        </Text>
                         <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                            <Text style={styles.loginLink}>התחברות</Text>
+                            <Text style={[styles.loginLink, { color: colors.primary }]}>
+                                התחבר
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
@@ -149,181 +176,90 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0a3d2e',
-    },
-    gradient: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-    },
-    progressContainer: {
-        marginBottom: 32,
-    },
-    progressSteps: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    progressStep: {
-        flex: 1,
-        height: 4,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderRadius: 2,
-    },
-    progressStepActive: {
-        backgroundColor: '#00ff88',
     },
     keyboardView: {
         flex: 1,
     },
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingTop: 60,
-        paddingBottom: 40,
+        paddingHorizontal: LAYOUT.screenPadding,
+    },
+    progressContainer: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+        marginBottom: SPACING['2xl'],
+    },
+    progressStep: {
+        flex: 1,
+        height: 4,
+        borderRadius: 2,
     },
     backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
         alignSelf: 'flex-start',
-        padding: 8,
-        marginBottom: 20,
+        marginBottom: SPACING['2xl'],
+    },
+    headerSection: {
+        marginBottom: SPACING['3xl'],
     },
     title: {
-        fontSize: 36,
-        fontFamily: FONTS.bold,
-        color: '#ffffff',
-        textAlign: 'left',
-        lineHeight: 44,
+        ...TYPOGRAPHY.h1,
+        textAlign: 'right',
+        marginBottom: SPACING.sm,
     },
     subtitle: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
-        textAlign: 'left',
-        marginTop: 12,
-        marginBottom: 40,
-        lineHeight: 20,
+        ...TYPOGRAPHY.body,
+        textAlign: 'right',
     },
-    section: {
-        marginBottom: 28,
+    form: {
+        flex: 1,
     },
-    sectionTitle: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.8)',
-        marginBottom: 12,
-        textAlign: 'left',
+    inputGroup: {
+        marginBottom: SPACING.xl,
     },
-    inputWrapper: {
+    inputLabel: {
+        ...TYPOGRAPHY.label,
+        marginBottom: SPACING.sm,
+        textAlign: 'right',
+    },
+    inputContainer: {
         flexDirection: 'row-reverse',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
+        height: LAYOUT.inputHeight,
+        borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        paddingHorizontal: 16,
-        height: 56,
-    },
-    inputIcon: {
-        marginLeft: 12,
+        paddingHorizontal: SPACING.lg,
+        gap: SPACING.md,
     },
     input: {
         flex: 1,
-        fontSize: 16,
-        fontFamily: FONTS.regular,
-        color: '#ffffff',
-        textAlign: 'left',
-    },
-    categoryGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-    },
-    categoryButton: {
-        width: (width - 60) / 2,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        padding: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 100,
-        position: 'relative',
-    },
-    categoryButtonActive: {
-        backgroundColor: 'rgba(0,255,136,0.15)',
-        borderColor: '#00ff88',
-        borderWidth: 2,
-    },
-    categoryEmoji: {
-        fontSize: 32,
-        marginBottom: 8,
-    },
-    categoryLabel: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.7)',
-        textAlign: 'center',
-    },
-    categoryLabelActive: {
-        color: '#00ff88',
-    },
-    categoryCheck: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: '#00ff88',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    categoryCheckText: {
-        fontSize: 14,
-        color: '#0a3d2e',
-        fontFamily: FONTS.bold,
+        ...TYPOGRAPHY.body,
+        textAlign: 'right',
     },
     continueButton: {
-        marginTop: 40,
-        marginBottom: 24,
-        borderRadius: 16,
-        overflow: 'hidden',
-        shadowColor: '#00ff88',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 8,
-    },
-    continueButtonGradient: {
-        paddingVertical: 18,
-        flexDirection: 'row',
+        height: LAYOUT.buttonHeight,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
         justifyContent: 'center',
+        marginTop: SPACING['2xl'],
     },
     continueButtonText: {
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-        color: '#0a3d2e',
-        marginRight: 8,
+        ...TYPOGRAPHY.h4,
     },
-    arrowIcon: {
-        transform: [{ rotate: '0deg' }],
-    },
-    loginContainer: {
+    loginSection: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
+        marginTop: SPACING['3xl'],
     },
     loginText: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
+        ...TYPOGRAPHY.body,
     },
     loginLink: {
-        fontSize: 14,
-        fontFamily: FONTS.bold,
-        color: '#00ff88',
+        ...TYPOGRAPHY.label,
     },
 });

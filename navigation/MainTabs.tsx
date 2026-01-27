@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, Platform, StyleSheet, useColorScheme, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, useColorScheme, TouchableOpacity, Text } from 'react-native';
 import { Home, BarChart3, Receipt, User, Plus } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -8,7 +8,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import PnLScreen from '../screens/PnLScreen';
 import ExpensesListScreen from '../screens/ExpensesListScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import { FONTS, getColors, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../constants/theme';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../constants/theme';
 
 const Tab = createBottomTabNavigator();
 
@@ -20,14 +20,10 @@ const CustomTabBar = ({ state, descriptors, navigation }: any) => {
 
     return (
         <View style={[
-            styles.tabBarWrapper,
+            styles.tabBarContainer,
             { paddingBottom: insets.bottom > 0 ? insets.bottom : SPACING.lg }
         ]}>
-            <View style={[
-                styles.tabBar,
-                { backgroundColor: colors.surface },
-                SHADOWS.lg
-            ]}>
+            <View style={[styles.tabBar, { backgroundColor: colors.surface }, SHADOWS.lg]}>
                 {state.routes.map((route: any, index: number) => {
                     const { options } = descriptors[route.key];
                     const label = options.tabBarLabel ?? options.title ?? route.name;
@@ -47,36 +43,37 @@ const CustomTabBar = ({ state, descriptors, navigation }: any) => {
 
                     const getIcon = () => {
                         const iconColor = isFocused ? colors.primary : colors.textTertiary;
-                        const iconSize = 24;
+                        const iconSize = 22;
+                        const strokeWidth = isFocused ? 2 : 1.5;
 
                         switch (route.name) {
                             case 'Dashboard':
-                                return <Home size={iconSize} color={iconColor} strokeWidth={isFocused ? 2 : 1.5} />;
+                                return <Home size={iconSize} color={iconColor} strokeWidth={strokeWidth} />;
                             case 'Expenses':
-                                return <Receipt size={iconSize} color={iconColor} strokeWidth={isFocused ? 2 : 1.5} />;
+                                return <Receipt size={iconSize} color={iconColor} strokeWidth={strokeWidth} />;
                             case 'Insights':
-                                return <BarChart3 size={iconSize} color={iconColor} strokeWidth={isFocused ? 2 : 1.5} />;
+                                return <BarChart3 size={iconSize} color={iconColor} strokeWidth={strokeWidth} />;
                             case 'Profile':
-                                return <User size={iconSize} color={iconColor} strokeWidth={isFocused ? 2 : 1.5} />;
+                                return <User size={iconSize} color={iconColor} strokeWidth={strokeWidth} />;
                             default:
                                 return null;
                         }
                     };
 
-                    // Add FAB in the middle
+                    // Insert FAB before the third tab (index 2)
                     if (index === 2) {
                         return (
-                            <React.Fragment key="fab-container">
+                            <React.Fragment key="fab-and-tab">
                                 {/* FAB */}
                                 <TouchableOpacity
-                                    style={[styles.fab, { backgroundColor: colors.primary }, SHADOWS.md]}
+                                    style={[styles.fab, { backgroundColor: colors.primary }]}
                                     onPress={() => mainNav.navigate('AddExpense')}
                                     activeOpacity={0.8}
                                 >
                                     <Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
                                 </TouchableOpacity>
 
-                                {/* Regular Tab */}
+                                {/* Tab */}
                                 <TouchableOpacity
                                     key={route.key}
                                     accessibilityRole="button"
@@ -154,7 +151,7 @@ export default function MainTabs() {
 }
 
 const styles = StyleSheet.create({
-    tabBarWrapper: {
+    tabBarContainer: {
         position: 'absolute',
         bottom: 0,
         left: 0,
@@ -174,7 +171,7 @@ const styles = StyleSheet.create({
         paddingVertical: SPACING.sm,
     },
     tabLabel: {
-        ...TYPOGRAPHY.caption2,
+        ...TYPOGRAPHY.captionSmall,
         fontFamily: FONTS.medium,
         marginTop: SPACING.xs,
     },

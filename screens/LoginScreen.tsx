@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     StyleSheet,
     Text,
@@ -8,14 +8,13 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Animated,
     useColorScheme,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mail, Lock, Eye, EyeOff, ChevronLeft } from 'lucide-react-native';
-import { FONTS, getColors, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../constants/theme';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
@@ -26,26 +25,7 @@ export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [focusedInput, setFocusedInput] = useState<'email' | 'password' | null>(null);
-
-    // Subtle fade animation
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-    const slideAnim = useRef(new Animated.Value(20)).current;
-
-    useEffect(() => {
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 400,
-                useNativeDriver: true,
-            }),
-            Animated.timing(slideAnim, {
-                toValue: 0,
-                duration: 400,
-                useNativeDriver: true,
-            }),
-        ]).start();
-    }, []);
+    const [focusedField, setFocusedField] = useState<string | null>(null);
 
     const handleLogin = () => {
         navigation.replace('Main');
@@ -60,130 +40,153 @@ export default function LoginScreen() {
                 style={styles.keyboardView}
             >
                 <ScrollView
-                    contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 60 }]}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 }
+                    ]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-                        {/* Logo */}
-                        <View style={styles.logoContainer}>
-                            <View style={[styles.logo, { backgroundColor: colors.primary }]}>
-                                <Text style={styles.logoText}>F</Text>
-                            </View>
-                            <Text style={[styles.appName, { color: colors.textPrimary }]}>Finly</Text>
+                    {/* Logo */}
+                    <View style={styles.logoSection}>
+                        <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
+                            <Text style={styles.logoText}>F</Text>
                         </View>
+                        <Text style={[styles.appName, { color: colors.textPrimary }]}>Finly</Text>
+                        <Text style={[styles.tagline, { color: colors.textTertiary }]}>
+                            ניהול פיננסי חכם
+                        </Text>
+                    </View>
 
-                        {/* Title */}
-                        <View style={styles.titleContainer}>
-                            <Text style={[styles.title, { color: colors.textPrimary }]}>התחברות</Text>
-                            <Text style={[styles.subtitle, { color: colors.textTertiary }]}>
-                                הזן את פרטי החשבון שלך
+                    {/* Welcome Text */}
+                    <View style={styles.welcomeSection}>
+                        <Text style={[styles.welcomeTitle, { color: colors.textPrimary }]}>
+                            ברוך הבא
+                        </Text>
+                        <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
+                            היכנס לחשבון שלך כדי להמשיך
+                        </Text>
+                    </View>
+
+                    {/* Form */}
+                    <View style={styles.form}>
+                        {/* Email */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                                אימייל
                             </Text>
+                            <View style={[
+                                styles.inputContainer,
+                                {
+                                    backgroundColor: colors.surfaceSecondary,
+                                    borderColor: focusedField === 'email' ? colors.primary : colors.border
+                                }
+                            ]}>
+                                <Mail
+                                    size={20}
+                                    color={focusedField === 'email' ? colors.primary : colors.textTertiary}
+                                />
+                                <TextInput
+                                    style={[styles.input, { color: colors.textPrimary }]}
+                                    placeholder="your@email.com"
+                                    placeholderTextColor={colors.textQuaternary}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    keyboardType="email-address"
+                                    autoCapitalize="none"
+                                    onFocus={() => setFocusedField('email')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                            </View>
                         </View>
 
-                        {/* Form */}
-                        <View style={styles.form}>
-                            {/* Email Field */}
-                            <View style={styles.fieldContainer}>
-                                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>אימייל</Text>
-                                <View style={[
-                                    styles.inputContainer,
-                                    { backgroundColor: colors.surface, borderColor: colors.border },
-                                    focusedInput === 'email' && { borderColor: colors.primary },
-                                    SHADOWS.sm
-                                ]}>
-                                    <Mail size={20} color={focusedInput === 'email' ? colors.primary : colors.textTertiary} />
-                                    <TextInput
-                                        style={[styles.input, { color: colors.textPrimary }]}
-                                        placeholder="name@example.com"
-                                        placeholderTextColor={colors.textQuaternary}
-                                        value={email}
-                                        onChangeText={setEmail}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
-                                        onFocus={() => setFocusedInput('email')}
-                                        onBlur={() => setFocusedInput(null)}
-                                    />
-                                </View>
-                            </View>
-
-                            {/* Password Field */}
-                            <View style={styles.fieldContainer}>
-                                <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>סיסמה</Text>
-                                <View style={[
-                                    styles.inputContainer,
-                                    { backgroundColor: colors.surface, borderColor: colors.border },
-                                    focusedInput === 'password' && { borderColor: colors.primary },
-                                    SHADOWS.sm
-                                ]}>
-                                    <Lock size={20} color={focusedInput === 'password' ? colors.primary : colors.textTertiary} />
-                                    <TextInput
-                                        style={[styles.input, { color: colors.textPrimary }]}
-                                        placeholder="הזן סיסמה"
-                                        placeholderTextColor={colors.textQuaternary}
-                                        value={password}
-                                        onChangeText={setPassword}
-                                        secureTextEntry={!showPassword}
-                                        onFocus={() => setFocusedInput('password')}
-                                        onBlur={() => setFocusedInput(null)}
-                                    />
-                                    <TouchableOpacity
-                                        onPress={() => setShowPassword(!showPassword)}
-                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                    >
-                                        {showPassword ? (
-                                            <Eye size={20} color={colors.textTertiary} />
-                                        ) : (
-                                            <EyeOff size={20} color={colors.textTertiary} />
-                                        )}
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {/* Forgot Password */}
-                            <TouchableOpacity style={styles.forgotPassword}>
-                                <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>
-                                    שכחת סיסמה?
-                                </Text>
-                            </TouchableOpacity>
-
-                            {/* Login Button */}
-                            <TouchableOpacity
-                                style={[styles.loginButton, { backgroundColor: colors.primary }]}
-                                onPress={handleLogin}
-                                activeOpacity={0.8}
-                            >
-                                <Text style={styles.loginButtonText}>התחבר</Text>
-                            </TouchableOpacity>
-
-                            {/* Divider */}
-                            <View style={styles.divider}>
-                                <View style={[styles.dividerLine, { backgroundColor: colors.separator }]} />
-                                <Text style={[styles.dividerText, { color: colors.textTertiary }]}>או</Text>
-                                <View style={[styles.dividerLine, { backgroundColor: colors.separator }]} />
-                            </View>
-
-                            {/* Apple Sign In Style Button */}
-                            <TouchableOpacity
-                                style={[styles.altButton, { backgroundColor: colors.surface, borderColor: colors.border }, SHADOWS.sm]}
-                                activeOpacity={0.8}
-                            >
-                                <Text style={[styles.altButtonText, { color: colors.textPrimary }]}>
-                                    המשך עם Face ID
-                                </Text>
-                            </TouchableOpacity>
-
-                            {/* Sign Up */}
-                            <View style={styles.signupContainer}>
-                                <Text style={[styles.signupText, { color: colors.textTertiary }]}>
-                                    אין לך חשבון?{' '}
-                                </Text>
-                                <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                                    <Text style={[styles.signupLink, { color: colors.primary }]}>הרשם עכשיו</Text>
+                        {/* Password */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                                סיסמה
+                            </Text>
+                            <View style={[
+                                styles.inputContainer,
+                                {
+                                    backgroundColor: colors.surfaceSecondary,
+                                    borderColor: focusedField === 'password' ? colors.primary : colors.border
+                                }
+                            ]}>
+                                <Lock
+                                    size={20}
+                                    color={focusedField === 'password' ? colors.primary : colors.textTertiary}
+                                />
+                                <TextInput
+                                    style={[styles.input, { color: colors.textPrimary }]}
+                                    placeholder="הזן סיסמה"
+                                    placeholderTextColor={colors.textQuaternary}
+                                    value={password}
+                                    onChangeText={setPassword}
+                                    secureTextEntry={!showPassword}
+                                    onFocus={() => setFocusedField('password')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                                <TouchableOpacity
+                                    onPress={() => setShowPassword(!showPassword)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                    {showPassword ? (
+                                        <Eye size={20} color={colors.textTertiary} />
+                                    ) : (
+                                        <EyeOff size={20} color={colors.textTertiary} />
+                                    )}
                                 </TouchableOpacity>
                             </View>
                         </View>
-                    </Animated.View>
+
+                        {/* Forgot Password */}
+                        <TouchableOpacity style={styles.forgotPassword}>
+                            <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>
+                                שכחת סיסמה?
+                            </Text>
+                        </TouchableOpacity>
+
+                        {/* Login Button */}
+                        <TouchableOpacity
+                            style={[styles.loginButton, { backgroundColor: colors.primary }]}
+                            onPress={handleLogin}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={styles.loginButtonText}>התחבר</Text>
+                        </TouchableOpacity>
+
+                        {/* Divider */}
+                        <View style={styles.divider}>
+                            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                            <Text style={[styles.dividerText, { color: colors.textTertiary }]}>או</Text>
+                            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                        </View>
+
+                        {/* Biometric Button */}
+                        <TouchableOpacity
+                            style={[
+                                styles.biometricButton,
+                                { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
+                            ]}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[styles.biometricButtonText, { color: colors.textPrimary }]}>
+                                המשך עם Face ID
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Sign Up Link */}
+                    <View style={styles.signupSection}>
+                        <Text style={[styles.signupText, { color: colors.textTertiary }]}>
+                            אין לך חשבון?{' '}
+                        </Text>
+                        <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
+                            <Text style={[styles.signupLink, { color: colors.primary }]}>
+                                הרשם עכשיו
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -199,58 +202,62 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: SPACING['2xl'],
-        paddingBottom: SPACING['4xl'],
+        paddingHorizontal: LAYOUT.screenPadding,
     },
-    logoContainer: {
+    logoSection: {
         alignItems: 'center',
         marginBottom: SPACING['4xl'],
     },
-    logo: {
-        width: 72,
-        height: 72,
-        borderRadius: RADIUS.xl,
+    logoContainer: {
+        width: 64,
+        height: 64,
+        borderRadius: RADIUS.lg,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: SPACING.lg,
     },
     logoText: {
-        fontSize: 32,
+        fontSize: 28,
         fontFamily: FONTS.bold,
         color: '#FFFFFF',
     },
     appName: {
-        ...TYPOGRAPHY.title1,
+        ...TYPOGRAPHY.h2,
+        marginBottom: SPACING.xs,
     },
-    titleContainer: {
+    tagline: {
+        ...TYPOGRAPHY.body,
+    },
+    welcomeSection: {
         marginBottom: SPACING['3xl'],
     },
-    title: {
-        ...TYPOGRAPHY.largeTitle,
-        marginBottom: SPACING.sm,
+    welcomeTitle: {
+        ...TYPOGRAPHY.h1,
         textAlign: 'right',
+        marginBottom: SPACING.sm,
     },
-    subtitle: {
+    welcomeSubtitle: {
         ...TYPOGRAPHY.body,
         textAlign: 'right',
     },
-    form: {},
-    fieldContainer: {
+    form: {
+        marginBottom: SPACING['3xl'],
+    },
+    inputGroup: {
         marginBottom: SPACING.xl,
     },
-    fieldLabel: {
-        ...TYPOGRAPHY.subhead,
-        fontFamily: FONTS.medium,
+    inputLabel: {
+        ...TYPOGRAPHY.label,
         marginBottom: SPACING.sm,
         textAlign: 'right',
     },
     inputContainer: {
         flexDirection: 'row-reverse',
         alignItems: 'center',
+        height: LAYOUT.inputHeight,
         borderRadius: RADIUS.md,
         borderWidth: 1,
         paddingHorizontal: SPACING.lg,
-        height: 52,
         gap: SPACING.md,
     },
     input: {
@@ -263,18 +270,17 @@ const styles = StyleSheet.create({
         marginBottom: SPACING['2xl'],
     },
     forgotPasswordText: {
-        ...TYPOGRAPHY.subhead,
-        fontFamily: FONTS.medium,
+        ...TYPOGRAPHY.label,
     },
     loginButton: {
-        height: 52,
+        height: LAYOUT.buttonHeight,
         borderRadius: RADIUS.md,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: SPACING.xl,
     },
     loginButtonText: {
-        ...TYPOGRAPHY.headline,
+        ...TYPOGRAPHY.h4,
         color: '#FFFFFF',
     },
     divider: {
@@ -284,33 +290,31 @@ const styles = StyleSheet.create({
     },
     dividerLine: {
         flex: 1,
-        height: StyleSheet.hairlineWidth,
+        height: 1,
     },
     dividerText: {
-        ...TYPOGRAPHY.caption1,
+        ...TYPOGRAPHY.caption,
         marginHorizontal: SPACING.lg,
     },
-    altButton: {
-        height: 52,
+    biometricButton: {
+        height: LAYOUT.buttonHeight,
         borderRadius: RADIUS.md,
         borderWidth: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: SPACING['2xl'],
     },
-    altButtonText: {
-        ...TYPOGRAPHY.headline,
+    biometricButtonText: {
+        ...TYPOGRAPHY.h4,
     },
-    signupContainer: {
+    signupSection: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
     },
     signupText: {
-        ...TYPOGRAPHY.subhead,
+        ...TYPOGRAPHY.body,
     },
     signupLink: {
-        ...TYPOGRAPHY.subhead,
-        fontFamily: FONTS.semiBold,
+        ...TYPOGRAPHY.label,
     },
 });
