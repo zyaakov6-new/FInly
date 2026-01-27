@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
     ChevronRight,
     Calendar,
@@ -25,18 +26,23 @@ import {
     Package,
     RotateCw,
     CheckCircle,
-    FileText
+    FileText,
+    Plus,
+    User
 } from 'lucide-react-native';
 import { useTransactions, TransactionStatus, Client } from '../context/TransactionsContext';
-import { COLORS, FONTS } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 import { SuccessModal } from '../components/SuccessModal';
-import { Plus, User } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 type ServiceType = 'hourly' | 'project' | 'package' | 'retainer';
 
 export default function CreateInvoiceScreen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { addTransaction, categories, addCategory, getPriceHistoryByCategory, clients, addClient } = useTransactions();
 
     // --- State ---
@@ -56,7 +62,7 @@ export default function CreateInvoiceScreen() {
     const [isNewClient, setIsNewClient] = useState(false);
 
     const [quantity, setQuantity] = useState('');
-    const [unit, setUnit] = useState('שעות'); // Default label
+    const [unit, setUnit] = useState('שעות');
     const [rate, setRate] = useState('');
     const [totalAmount, setTotalAmount] = useState('');
     const [serviceCost, setServiceCost] = useState('');
@@ -67,7 +73,7 @@ export default function CreateInvoiceScreen() {
     const [serviceDate, setServiceDate] = useState(new Date().toLocaleDateString('he-IL'));
     const [invoiceDate, setInvoiceDate] = useState(new Date().toLocaleDateString('he-IL'));
 
-    const [paymentStatus, setPaymentStatus] = useState<TransactionStatus>('pending'); // Default pending
+    const [paymentStatus, setPaymentStatus] = useState<TransactionStatus>('pending');
     const [notes, setNotes] = useState('');
     const [attachment, setAttachment] = useState<string | null>(null);
 
@@ -82,19 +88,15 @@ export default function CreateInvoiceScreen() {
         : 0;
 
     // --- Effects ---
-
     useEffect(() => {
-        // Update Unit Label based on Service Type
         if (serviceType === 'hourly') setUnit('שעות');
         if (serviceType === 'package') setUnit('יחידות');
-        if (serviceType === 'project') setUnit(''); // Hidden often
+        if (serviceType === 'project') setUnit('');
         if (serviceType === 'retainer') setUnit('חודשים');
-
         setIsTotalLocked(false);
     }, [serviceType]);
 
     useEffect(() => {
-        // Auto Calculate Total
         if (!isTotalLocked && quantity && rate) {
             const q = parseFloat(quantity);
             const r = parseFloat(rate);
@@ -104,11 +106,10 @@ export default function CreateInvoiceScreen() {
         }
     }, [quantity, rate, isTotalLocked]);
 
-
     // --- Handlers ---
     const handleSave = (createAnother = false) => {
         if (!serviceName || !totalAmount) {
-            alert('אנא מלא שם שירות וסכום'); // Could use a customtoast here too
+            alert('אנא מלא שם שירות וסכום');
             return;
         }
 
@@ -132,7 +133,7 @@ export default function CreateInvoiceScreen() {
         addTransaction({
             id: Date.now().toString(),
             type: 'invoice',
-            title: serviceName, // Simplified title
+            title: serviceName,
             amount: `₪ ${parseFloat(totalAmount).toLocaleString()}`,
             date: new Date(),
             category: finalCategory,
@@ -181,24 +182,31 @@ export default function CreateInvoiceScreen() {
     };
 
     // --- Components ---
-
     const ServiceTypeCard = ({ type, label, icon: Icon }: any) => {
         const isSelected = serviceType === type;
         return (
             <TouchableOpacity
-                style={[styles.serviceTypeCard, isSelected && styles.serviceTypeCardActive]}
+                style={[
+                    styles.serviceTypeCard,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                    isSelected && { borderColor: colors.primary, backgroundColor: colors.primaryMuted }
+                ]}
                 onPress={() => setServiceType(type)}
             >
-                <Icon size={24} color={isSelected ? COLORS.primary : COLORS.textSecondary} />
-                <Text style={[styles.serviceTypeLabel, isSelected && styles.serviceTypeLabelActive]}>{label}</Text>
-                {isSelected && <View style={styles.activeDot} />}
+                <Icon size={24} color={isSelected ? colors.primary : colors.textSecondary} />
+                <Text style={[
+                    styles.serviceTypeLabel,
+                    { color: colors.textSecondary },
+                    isSelected && { color: colors.primary }
+                ]}>{label}</Text>
+                {isSelected && <View style={[styles.activeDot, { backgroundColor: colors.primary }]} />}
             </TouchableOpacity>
         );
     };
 
     return (
-        <View style={styles.container}>
-            <StatusBar style="light" backgroundColor={COLORS.background} />
+        <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
             <SuccessModal
                 visible={showSuccess}
                 title="החשבונית נוצרה!"
@@ -208,11 +216,11 @@ export default function CreateInvoiceScreen() {
             />
 
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ChevronRight size={28} color={COLORS.textPrimary} />
+                    <ChevronRight size={28} color={colors.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>צור חשבונית</Text>
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>צור חשבונית</Text>
                 <View style={{ width: 28 }} />
             </View>
 
@@ -223,7 +231,7 @@ export default function CreateInvoiceScreen() {
                 <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
                     {/* SECTION 1: SERVICE TYPE SELECTOR */}
-                    <Text style={styles.sectionTitle}>בחר סוג שירות</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>בחר סוג שירות</Text>
                     <View style={styles.serviceTypesGrid}>
                         <ServiceTypeCard type="hourly" label="שעתי" icon={Clock} />
                         <ServiceTypeCard type="project" label="פרויקט" icon={Folder} />
@@ -232,15 +240,15 @@ export default function CreateInvoiceScreen() {
                     </View>
 
                     {/* SECTION 2: MAIN DETAILS */}
-                    <View style={styles.cardContainer}>
+                    <View style={[styles.cardContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
 
                         {/* Service Name */}
                         <View style={styles.inputContainer}>
-                            <Text style={styles.label}>שם השירות / הפרויקט</Text>
+                            <Text style={[styles.label, { color: colors.textSecondary }]}>שם השירות / הפרויקט</Text>
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.textPrimary }]}
                                 placeholder="לדוגמה: עיצוב דף נחיתה"
-                                placeholderTextColor={COLORS.textSecondary}
+                                placeholderTextColor={colors.textTertiary}
                                 value={serviceName}
                                 onChangeText={setServiceName}
                                 textAlign="right"
@@ -249,13 +257,13 @@ export default function CreateInvoiceScreen() {
 
                         {/* Client Name */}
                         <View style={[styles.inputContainer, { zIndex: 3000 }]}>
-                            <Text style={styles.label}>לקוח</Text>
+                            <Text style={[styles.label, { color: colors.textSecondary }]}>לקוח</Text>
                             {isNewClient ? (
                                 <View style={styles.customCatRow}>
                                     <TextInput
-                                        style={[styles.input, { flex: 1 }]}
+                                        style={[styles.input, { flex: 1, backgroundColor: colors.background, borderColor: colors.border, color: colors.textPrimary }]}
                                         placeholder="שם הלקוח החדש"
-                                        placeholderTextColor={COLORS.textSecondary}
+                                        placeholderTextColor={colors.textTertiary}
                                         value={clientName}
                                         onChangeText={setClientName}
                                         textAlign="right"
@@ -266,47 +274,46 @@ export default function CreateInvoiceScreen() {
                                             setClientName('');
                                             setSelectedClientId(clients.length > 0 ? clients[0].id : null);
                                         }}
-                                        style={styles.closeIcon}
+                                        style={[styles.closeIcon, { backgroundColor: colors.background, borderColor: colors.border }]}
                                     >
-                                        <X size={20} color={COLORS.textSecondary} />
+                                        <X size={20} color={colors.textSecondary} />
                                     </TouchableOpacity>
                                 </View>
                             ) : (
                                 <>
                                     <TouchableOpacity
-                                        style={styles.dropdownTrigger}
+                                        style={[styles.dropdownTrigger, { backgroundColor: colors.background, borderColor: colors.border }]}
                                         onPress={() => setShowClientDropdown(!showClientDropdown)}
                                     >
-                                        <Text style={styles.dropdownValue}>
+                                        <Text style={[styles.dropdownValue, { color: colors.textPrimary }]}>
                                             {selectedClientId
                                                 ? clients.find(c => c.id === selectedClientId)?.name || 'בחר לקוח'
                                                 : 'בחר לקוח'
                                             }
                                         </Text>
-                                        <ChevronDown size={18} color={COLORS.textSecondary} />
+                                        <ChevronDown size={18} color={colors.textSecondary} />
                                     </TouchableOpacity>
                                     {showClientDropdown && (
-                                        <View style={[styles.dropdownList, { maxHeight: 250 }]}>
-                                            <ScrollView nestedScrollEnabled>
-                                                {/* New Client Option */}
+                                        <View style={[styles.dropdownList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                                            <ScrollView nestedScrollEnabled style={{ maxHeight: 250 }}>
                                                 <TouchableOpacity
-                                                    style={[styles.dropdownItem, { backgroundColor: `${COLORS.primary}10` }]}
+                                                    style={[styles.dropdownItem, { backgroundColor: colors.primaryMuted, borderBottomColor: colors.border }]}
                                                     onPress={() => {
                                                         setIsNewClient(true);
                                                         setSelectedClientId(null);
                                                         setShowClientDropdown(false);
                                                     }}
                                                 >
-                                                    <Plus size={16} color={COLORS.primary} />
-                                                    <Text style={[styles.dropdownItemText, { color: COLORS.primary }]}>לקוח חדש</Text>
+                                                    <Plus size={16} color={colors.primary} />
+                                                    <Text style={[styles.dropdownItemText, { color: colors.primary }]}>לקוח חדש</Text>
                                                 </TouchableOpacity>
-                                                {/* Existing Clients */}
                                                 {clients.map(client => (
                                                     <TouchableOpacity
                                                         key={client.id}
                                                         style={[
                                                             styles.dropdownItem,
-                                                            selectedClientId === client.id && styles.dropdownItemActive
+                                                            { borderBottomColor: colors.border },
+                                                            selectedClientId === client.id && { backgroundColor: colors.primaryMuted }
                                                         ]}
                                                         onPress={() => {
                                                             setSelectedClientId(client.id);
@@ -314,17 +321,17 @@ export default function CreateInvoiceScreen() {
                                                             setShowClientDropdown(false);
                                                         }}
                                                     >
-                                                        <User size={16} color={COLORS.textSecondary} />
+                                                        <User size={16} color={colors.textSecondary} />
                                                         <View>
-                                                            <Text style={styles.dropdownItemText}>{client.name}</Text>
+                                                            <Text style={[styles.dropdownItemText, { color: colors.textPrimary }]}>{client.name}</Text>
                                                             {client.company && (
-                                                                <Text style={styles.dropdownItemSubtext}>{client.company}</Text>
+                                                                <Text style={[styles.dropdownItemSubtext, { color: colors.textTertiary }]}>{client.company}</Text>
                                                             )}
                                                         </View>
                                                     </TouchableOpacity>
                                                 ))}
                                                 {clients.length === 0 && (
-                                                    <Text style={styles.noClientsText}>אין לקוחות עדיין</Text>
+                                                    <Text style={[styles.noClientsText, { color: colors.textTertiary }]}>אין לקוחות עדיין</Text>
                                                 )}
                                             </ScrollView>
                                         </View>
@@ -335,38 +342,45 @@ export default function CreateInvoiceScreen() {
 
                         {/* Category Dropdown */}
                         <View style={{ zIndex: 2000 }}>
-                            <Text style={styles.label}>קטגוריה</Text>
+                            <Text style={[styles.label, { color: colors.textSecondary }]}>קטגוריה</Text>
                             {isCustomCategory ? (
                                 <View style={styles.customCatRow}>
                                     <TextInput
-                                        style={[styles.input, { flex: 1 }]}
+                                        style={[styles.input, { flex: 1, backgroundColor: colors.background, borderColor: colors.border, color: colors.textPrimary }]}
                                         placeholder="הזן קטגוריה חדשה"
-                                        placeholderTextColor={COLORS.textSecondary}
+                                        placeholderTextColor={colors.textTertiary}
                                         value={customCategoryText}
                                         onChangeText={setCustomCategoryText}
                                         textAlign="right"
                                     />
-                                    <TouchableOpacity onPress={() => { setIsCustomCategory(false); setCategory(categories[0]); }} style={styles.closeIcon}>
-                                        <X size={20} color={COLORS.textSecondary} />
+                                    <TouchableOpacity
+                                        onPress={() => { setIsCustomCategory(false); setCategory(categories[0]); }}
+                                        style={[styles.closeIcon, { backgroundColor: colors.background, borderColor: colors.border }]}
+                                    >
+                                        <X size={20} color={colors.textSecondary} />
                                     </TouchableOpacity>
                                 </View>
                             ) : (
                                 <TouchableOpacity
-                                    style={styles.dropdownTrigger}
+                                    style={[styles.dropdownTrigger, { backgroundColor: colors.background, borderColor: colors.border }]}
                                     onPress={() => setShowCatDropdown(!showCatDropdown)}
                                 >
-                                    <Text style={styles.dropdownValue}>{category}</Text>
-                                    <ChevronDown size={20} color={COLORS.textSecondary} />
+                                    <Text style={[styles.dropdownValue, { color: colors.textPrimary }]}>{category}</Text>
+                                    <ChevronDown size={20} color={colors.textSecondary} />
                                 </TouchableOpacity>
                             )}
 
                             {showCatDropdown && (
-                                <View style={styles.dropdownList}>
+                                <View style={[styles.dropdownList, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                                     <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
                                         {categories.map((cat, idx) => (
-                                            <TouchableOpacity key={idx} style={styles.dropdownItem} onPress={() => handleCategorySelect(cat)}>
-                                                <Text style={styles.dropdownItemText}>{cat}</Text>
-                                                {category === cat && <CheckCircle size={14} color={COLORS.primary} />}
+                                            <TouchableOpacity
+                                                key={idx}
+                                                style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                                onPress={() => handleCategorySelect(cat)}
+                                            >
+                                                <Text style={[styles.dropdownItemText, { color: colors.textPrimary }]}>{cat}</Text>
+                                                {category === cat && <CheckCircle size={14} color={colors.primary} />}
                                             </TouchableOpacity>
                                         ))}
                                     </ScrollView>
@@ -376,33 +390,30 @@ export default function CreateInvoiceScreen() {
                     </View>
 
                     {/* SECTION 3: PRICING LOGIC */}
-                    <View style={styles.cardContainer}>
+                    <View style={[styles.cardContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
 
-                        {/* Dynamic Fields based on Service Type */}
                         {(serviceType !== 'project') && (
                             <View style={styles.row}>
-                                {/* Quantity */}
                                 <View style={{ flex: 1, marginLeft: 12 }}>
-                                    <Text style={styles.label}>{unit || 'כמות'}</Text>
+                                    <Text style={[styles.label, { color: colors.textSecondary }]}>{unit || 'כמות'}</Text>
                                     <TextInput
-                                        style={styles.input}
+                                        style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.textPrimary }]}
                                         placeholder="0"
-                                        placeholderTextColor={COLORS.textSecondary}
+                                        placeholderTextColor={colors.textTertiary}
                                         keyboardType="numeric"
                                         value={quantity}
                                         onChangeText={setQuantity}
                                         textAlign="center"
                                     />
                                 </View>
-                                {/* Rate */}
                                 <View style={{ flex: 1.5 }}>
-                                    <Text style={styles.label}>מחיר ל{unit ? unit.slice(0, -1) : 'יחידה'}</Text>
-                                    <View style={styles.moneyInput}>
-                                        <Text style={styles.currencySymbol}>₪</Text>
+                                    <Text style={[styles.label, { color: colors.textSecondary }]}>מחיר ל{unit ? unit.slice(0, -1) : 'יחידה'}</Text>
+                                    <View style={[styles.moneyInput, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                                        <Text style={[styles.currencySymbol, { color: colors.textSecondary }]}>₪</Text>
                                         <TextInput
-                                            style={styles.moneyTextInput}
+                                            style={[styles.moneyTextInput, { color: colors.textPrimary }]}
                                             placeholder="0.00"
-                                            placeholderTextColor={COLORS.textSecondary}
+                                            placeholderTextColor={colors.textTertiary}
                                             keyboardType="numeric"
                                             value={rate}
                                             onChangeText={setRate}
@@ -413,16 +424,15 @@ export default function CreateInvoiceScreen() {
                             </View>
                         )}
 
-                        {/* Service Cost (My Cost) - Only for Service-based */}
                         {(serviceType === 'project' || serviceType === 'hourly' || serviceType === 'retainer') && (
                             <View style={[styles.inputContainer, { marginTop: 12 }]}>
-                                <Text style={styles.label}>עלות השירות (הוצאה שלי)</Text>
-                                <View style={styles.moneyInput}>
-                                    <Text style={styles.currencySymbol}>₪</Text>
+                                <Text style={[styles.label, { color: colors.textSecondary }]}>עלות השירות (הוצאה שלי)</Text>
+                                <View style={[styles.moneyInput, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                                    <Text style={[styles.currencySymbol, { color: colors.textSecondary }]}>₪</Text>
                                     <TextInput
-                                        style={styles.moneyTextInput}
+                                        style={[styles.moneyTextInput, { color: colors.textPrimary }]}
                                         placeholder="0.00"
-                                        placeholderTextColor={COLORS.textSecondary}
+                                        placeholderTextColor={colors.textTertiary}
                                         keyboardType="numeric"
                                         value={serviceCost}
                                         onChangeText={setServiceCost}
@@ -432,73 +442,82 @@ export default function CreateInvoiceScreen() {
                             </View>
                         )}
 
-                        {/* Suggestion Bubble */}
                         {averagePrice > 0 && serviceType !== 'project' && (
                             <TouchableOpacity
-                                style={styles.suggestionBubble}
+                                style={[styles.suggestionBubble, { backgroundColor: colors.infoMuted }]}
                                 onPress={() => setRate(averagePrice.toString())}
                             >
-                                <Info size={14} color={COLORS.secondary} />
-                                <Text style={styles.suggestionText}>תמחור ממוצע לקטגוריה: ₪{averagePrice}</Text>
+                                <Info size={14} color={colors.info} />
+                                <Text style={[styles.suggestionText, { color: colors.info }]}>תמחור ממוצע לקטגוריה: ₪{averagePrice}</Text>
                             </TouchableOpacity>
                         )}
 
-                        {/* Total Amount - Highlighted */}
-                        <View style={styles.totalSection}>
-                            <Text style={styles.totalLabel}>סה״כ לתשלום</Text>
+                        {/* Total Amount */}
+                        <View style={[styles.totalSection, { borderTopColor: colors.border }]}>
+                            <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>סה״כ לתשלום</Text>
                             <View style={styles.totalInputContainer}>
-                                <Text style={styles.totalCurrency}>₪</Text>
+                                <Text style={[styles.totalCurrency, { color: colors.primary }]}>₪</Text>
                                 <TextInput
-                                    style={styles.totalInput}
+                                    style={[styles.totalInput, { color: colors.textPrimary }]}
                                     placeholder="0.00"
-                                    placeholderTextColor="rgba(132, 101, 243, 0.3)" // Keep as is or map if necessary
+                                    placeholderTextColor={colors.textQuaternary}
                                     keyboardType="numeric"
                                     value={totalAmount}
                                     onChangeText={(val) => {
                                         setTotalAmount(val);
                                         setIsTotalLocked(true);
                                     }}
-                                    textAlign="left" // LTR for numbers looks better usually, but sticking to RTL logic
+                                    textAlign="left"
                                 />
                             </View>
                         </View>
-
                     </View>
 
                     {/* SECTION 4: DATES & STATUS */}
-                    <View style={styles.cardContainer}>
+                    <View style={[styles.cardContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                         <View style={styles.row}>
                             <View style={{ flex: 1, marginLeft: 12 }}>
-                                <Text style={styles.label}>תאריך העבודה</Text>
-                                <View style={styles.dateDisplay}>
-                                    <Text style={styles.dateDisplayText}>{serviceDate}</Text>
-                                    <Calendar size={16} color={COLORS.textSecondary} />
+                                <Text style={[styles.label, { color: colors.textSecondary }]}>תאריך העבודה</Text>
+                                <View style={[styles.dateDisplay, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                                    <Text style={[styles.dateDisplayText, { color: colors.textPrimary }]}>{serviceDate}</Text>
+                                    <Calendar size={16} color={colors.textSecondary} />
                                 </View>
                             </View>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.label}>תאריך דרישה</Text>
-                                <View style={styles.dateDisplay}>
-                                    <Text style={styles.dateDisplayText}>{invoiceDate}</Text>
-                                    <Calendar size={16} color={COLORS.textSecondary} />
+                                <Text style={[styles.label, { color: colors.textSecondary }]}>תאריך דרישה</Text>
+                                <View style={[styles.dateDisplay, { backgroundColor: colors.background, borderColor: colors.border }]}>
+                                    <Text style={[styles.dateDisplayText, { color: colors.textPrimary }]}>{invoiceDate}</Text>
+                                    <Calendar size={16} color={colors.textSecondary} />
                                 </View>
                             </View>
                         </View>
 
-                        <Text style={[styles.label, { marginTop: 16 }]}>סטטוס תשלום</Text>
+                        <Text style={[styles.label, { marginTop: 16, color: colors.textSecondary }]}>סטטוס תשלום</Text>
                         <View style={styles.statusRow}>
                             {['pending', 'paid', 'overdue'].map((status) => {
-                                const activeStyle =
-                                    status === 'pending' ? styles.pendingActive :
-                                        status === 'paid' ? styles.paidActive :
-                                            styles.overdueActive;
+                                const isActive = paymentStatus === status;
+                                const statusColors = {
+                                    pending: colors.warning,
+                                    paid: colors.success,
+                                    overdue: colors.danger,
+                                };
+                                const activeColor = statusColors[status as keyof typeof statusColors];
 
                                 return (
                                     <TouchableOpacity
                                         key={status}
-                                        style={[styles.statusChip, paymentStatus === status && activeStyle]}
+                                        style={[
+                                            styles.statusChip,
+                                            { backgroundColor: colors.background, borderColor: colors.border },
+                                            isActive && { backgroundColor: activeColor, borderColor: activeColor }
+                                        ]}
                                         onPress={() => setPaymentStatus(status as TransactionStatus)}
                                     >
-                                        <Text style={[styles.statusText, paymentStatus === status && { color: COLORS.white }]}>
+                                        <Text style={[
+                                            styles.statusText,
+                                            { color: colors.textSecondary },
+                                            isActive && { color: '#FFFFFF' }
+                                        ]}>
                                             {status === 'pending' ? 'ממתין' : status === 'paid' ? 'שולם' : 'בפיגור'}
                                         </Text>
                                     </TouchableOpacity>
@@ -509,11 +528,11 @@ export default function CreateInvoiceScreen() {
 
                     {/* Actions */}
                     <View style={styles.footerActions}>
-                        <TouchableOpacity style={styles.saveBtn} onPress={() => handleSave(false)}>
+                        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={() => handleSave(false)}>
                             <Text style={styles.saveBtnText}>צור חשבונית</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.secondaryBtn} onPress={() => handleSave(true)}>
-                            <Text style={styles.secondaryBtnText}>שמור וצור חדשה</Text>
+                            <Text style={[styles.secondaryBtnText, { color: colors.primary }]}>שמור וצור חדשה</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -527,240 +546,172 @@ export default function CreateInvoiceScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
-        paddingTop: Platform.OS === 'android' ? 40 : 0,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingBottom: 20,
-        backgroundColor: COLORS.background,
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingVertical: SPACING.lg,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
-    backButton: { padding: 8 },
+    backButton: { padding: SPACING.sm },
     headerTitle: {
-        fontSize: 18,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.medium,
+        ...TYPOGRAPHY.h3,
     },
-    content: { padding: 20 },
+    content: { padding: LAYOUT.screenPadding },
 
     sectionTitle: {
-        color: COLORS.textSecondary,
-        fontSize: 14,
+        ...TYPOGRAPHY.caption,
         fontFamily: FONTS.medium,
-        marginBottom: 12,
-        marginLeft: 4,
+        marginBottom: SPACING.md,
+        marginLeft: SPACING.xs,
         textAlign: 'left'
     },
     serviceTypesGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'space-between',
-        marginBottom: 24,
-        gap: 12,
+        marginBottom: SPACING.xl,
+        gap: SPACING.md,
     },
     serviceTypeCard: {
         width: '48%',
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        padding: 16,
+        borderRadius: RADIUS.lg,
+        padding: SPACING.lg,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: COLORS.border,
-        gap: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-        elevation: 2,
-    },
-    serviceTypeCardActive: {
-        borderColor: COLORS.primary,
-        backgroundColor: 'rgba(0, 212, 170, 0.1)', // Primary with opacity
+        gap: SPACING.sm,
     },
     serviceTypeLabel: {
-        color: COLORS.textSecondary,
-        fontSize: 14,
+        ...TYPOGRAPHY.caption,
         fontFamily: FONTS.medium,
-    },
-    serviceTypeLabelActive: {
-        color: COLORS.primary,
     },
     activeDot: {
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: COLORS.primary,
         position: 'absolute',
         top: 10,
         right: 10,
     },
 
     cardContainer: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 20,
+        borderRadius: RADIUS.lg,
+        padding: SPACING.lg,
+        marginBottom: SPACING.lg,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        gap: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        gap: SPACING.lg,
     },
-    inputContainer: { gap: 8 },
+    inputContainer: { gap: SPACING.sm },
     label: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
+        ...TYPOGRAPHY.caption,
         fontFamily: FONTS.medium,
         textAlign: 'left',
     },
     input: {
-        backgroundColor: COLORS.background,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        borderRadius: 12,
-        padding: 14,
-        color: COLORS.textPrimary,
-        fontSize: 16,
-        fontFamily: FONTS.regular,
+        borderRadius: RADIUS.md,
+        padding: SPACING.md,
+        ...TYPOGRAPHY.body,
     },
 
-    // Custom Cat
     customCatRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: SPACING.sm,
     },
     closeIcon: {
-        padding: 10,
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
+        padding: SPACING.sm,
+        borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
     },
 
-    // Dropdown
     dropdownTrigger: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: COLORS.background,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        borderRadius: 12,
-        padding: 14,
+        borderRadius: RADIUS.md,
+        padding: SPACING.md,
     },
     dropdownValue: {
-        color: COLORS.textPrimary,
-        fontSize: 16,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.body,
     },
     dropdownList: {
         position: 'absolute',
         top: '100%',
         left: 0,
         right: 0,
-        backgroundColor: COLORS.surface,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        borderRadius: 12,
+        borderRadius: RADIUS.md,
         zIndex: 5000,
-        marginTop: 4,
+        marginTop: SPACING.xs,
         elevation: 5,
-        shadowColor: COLORS.black,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
+        ...SHADOWS.lg,
     },
     dropdownItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        padding: 14,
+        alignItems: 'center',
+        padding: SPACING.md,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        gap: SPACING.sm,
     },
     dropdownItemText: {
-        color: COLORS.textSecondary,
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-    },
-    dropdownItemActive: {
-        backgroundColor: `${COLORS.primary}10`,
+        ...TYPOGRAPHY.body,
     },
     dropdownItemSubtext: {
-        color: COLORS.textTertiary,
-        fontSize: 12,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.caption,
         marginTop: 2,
     },
     noClientsText: {
-        color: COLORS.textTertiary,
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        padding: 16,
+        ...TYPOGRAPHY.body,
+        padding: SPACING.lg,
         textAlign: 'center',
     },
 
-    // Money
     row: { flexDirection: 'row' },
     moneyInput: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.background,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        borderRadius: 12,
-        paddingHorizontal: 16,
+        borderRadius: RADIUS.md,
+        paddingHorizontal: SPACING.lg,
     },
     currencySymbol: {
-        color: COLORS.textSecondary,
-        fontSize: 16,
-        marginRight: 4,
+        ...TYPOGRAPHY.body,
+        marginRight: SPACING.xs,
         fontFamily: FONTS.medium,
     },
     moneyTextInput: {
         flex: 1,
-        color: COLORS.textPrimary,
-        paddingVertical: 14,
-        fontSize: 16,
-        fontFamily: FONTS.regular,
+        paddingVertical: SPACING.md,
+        ...TYPOGRAPHY.body,
     },
 
-    // Suggestion
     suggestionBubble: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(108, 99, 255, 0.1)', // Keep secondary faint for suggestion
-        padding: 10,
-        borderRadius: 8,
+        padding: SPACING.sm,
+        borderRadius: RADIUS.sm,
         alignSelf: 'flex-start',
     },
     suggestionText: {
-        color: COLORS.secondary,
-        fontSize: 12,
-        marginLeft: 8,
+        ...TYPOGRAPHY.caption,
+        marginLeft: SPACING.sm,
         fontFamily: FONTS.medium,
     },
 
-    // Total
     totalSection: {
-        marginTop: 8,
+        marginTop: SPACING.sm,
         borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-        paddingTop: 16,
+        paddingTop: SPACING.lg,
     },
     totalLabel: {
-        color: COLORS.textSecondary,
-        fontSize: 14,
+        ...TYPOGRAPHY.caption,
         fontFamily: FONTS.medium,
-        marginBottom: 8,
+        marginBottom: SPACING.sm,
         textAlign: 'left',
     },
     totalInputContainer: {
@@ -770,83 +721,60 @@ const styles = StyleSheet.create({
     },
     totalCurrency: {
         fontSize: 24,
-        color: COLORS.primary,
         fontFamily: FONTS.bold,
-        marginRight: 8,
+        marginRight: SPACING.sm,
     },
     totalInput: {
         fontSize: 32,
-        color: COLORS.textPrimary,
         fontFamily: FONTS.bold,
         minWidth: 120,
         textAlign: 'center',
     },
 
-    // Dates
     dateDisplay: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: COLORS.background,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        borderRadius: 12,
-        padding: 14,
+        borderRadius: RADIUS.md,
+        padding: SPACING.md,
     },
     dateDisplayText: {
-        color: COLORS.textPrimary,
-        fontSize: 14,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.body,
     },
 
-    // Status
     statusRow: {
         flexDirection: 'row-reverse',
-        gap: 8,
+        gap: SPACING.sm,
     },
     statusChip: {
         flex: 1,
         alignItems: 'center',
-        paddingVertical: 10,
-        borderRadius: 12,
-        backgroundColor: COLORS.background,
+        paddingVertical: SPACING.sm,
+        borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
     },
     statusText: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
+        ...TYPOGRAPHY.caption,
         fontFamily: FONTS.medium,
     },
-    pendingActive: { backgroundColor: COLORS.warning, borderColor: COLORS.warning },
-    paidActive: { backgroundColor: COLORS.success, borderColor: COLORS.success },
-    overdueActive: { backgroundColor: COLORS.danger, borderColor: COLORS.danger },
 
-    // Footer
-    footerActions: { gap: 12, marginTop: 12 },
+    footerActions: { gap: SPACING.md, marginTop: SPACING.md },
     saveBtn: {
-        backgroundColor: COLORS.primary,
-        borderRadius: 12,
-        paddingVertical: 18,
+        borderRadius: RADIUS.md,
+        paddingVertical: SPACING.lg,
         alignItems: 'center',
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
+        ...SHADOWS.md,
     },
     saveBtnText: {
-        color: COLORS.white, // Keep button text white for contrast
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+        color: '#FFFFFF',
+        ...TYPOGRAPHY.label,
     },
     secondaryBtn: {
         alignItems: 'center',
-        paddingVertical: 8,
+        paddingVertical: SPACING.sm,
     },
     secondaryBtnText: {
-        color: COLORS.primary,
-        fontSize: 14,
-        fontFamily: FONTS.medium,
+        ...TYPOGRAPHY.label,
     },
 });

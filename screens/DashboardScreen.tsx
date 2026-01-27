@@ -111,6 +111,61 @@ export default function DashboardScreen() {
 
     const expenseProgress = useMemo(() => getMonthlyExpenseProgress(), [getMonthlyExpenseProgress]);
 
+    // Calculate freelancer score
+    const freelancerScore = useMemo(() => {
+        const invoices = transactions.filter(t => t.type === 'invoice');
+        const paidInvoices = invoices.filter(t => t.status === 'paid');
+
+        // Income to Expense Ratio (max 150)
+        const incomeExpenseRatio = totalExpenses > 0 ? totalRevenue / totalExpenses : totalRevenue > 0 ? 10 : 0;
+        const ratioScore = Math.min(Math.round(incomeExpenseRatio * 30), 150);
+
+        // Collection Rate (max 150)
+        const totalInvoicesCount = invoices.length;
+        const collectionRate = totalInvoicesCount > 0 ? (paidInvoices.length / totalInvoicesCount) * 100 : 100;
+        const collectionScore = Math.round((collectionRate / 100) * 150);
+
+        // Savings Rate (max 150)
+        const savingsRate = totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue) * 100 : 0;
+        const savingsScore = Math.round(Math.max(0, Math.min(savingsRate, 50)) * 3);
+
+        // Goal Achievement (max 150)
+        const incomeGoalProg = goals.monthlyIncomeTarget > 0
+            ? Math.min((totalRevenue / goals.monthlyIncomeTarget) * 100, 100)
+            : 50;
+        const goalScore = Math.round((incomeGoalProg / 100) * 150);
+
+        // Client Diversity (max 150)
+        const uniqueClients = new Set(invoices.map(i => i.clientName).filter(Boolean));
+        const diversityScore = Math.min(uniqueClients.size * 25, 150);
+
+        // Consistency (max 100)
+        const hasRecentActivity = transactions.some(t => {
+            const date = new Date(t.date);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            return date >= thirtyDaysAgo;
+        });
+        const consistencyScore = hasRecentActivity ? 100 : 50;
+
+        const total = ratioScore + collectionScore + savingsScore + goalScore + diversityScore + consistencyScore;
+        return Math.min(total, 850);
+    }, [transactions, totalRevenue, totalExpenses, goals]);
+
+    const getScoreColor = (score: number) => {
+        if (score >= 750) return colors.success;
+        if (score >= 650) return colors.primary;
+        if (score >= 500) return colors.warning;
+        return colors.danger;
+    };
+
+    const getScoreLabel = (score: number) => {
+        if (score >= 750) return 'מצוין';
+        if (score >= 650) return 'טוב';
+        if (score >= 500) return 'בינוני';
+        return 'דורש שיפור';
+    };
+
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
@@ -367,18 +422,33 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     )}
 
-                    {/* Goals Progress */}
+                    {/* Goals Progress - Enhanced */}
                     <TouchableOpacity
-                        style={[styles.goalsCard, { backgroundColor: colors.surface }, SHADOWS.md]}
+                        style={[styles.goalsCard, { backgroundColor: colors.surface }, SHADOWS.lg]}
                         onPress={() => navigation.navigate('Goals')}
                         activeOpacity={0.8}
                     >
+                        <LinearGradient
+                            colors={isDark
+                                ? ['rgba(16, 185, 129, 0.08)', 'transparent']
+                                : ['rgba(16, 185, 129, 0.1)', 'rgba(99, 102, 241, 0.05)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={StyleSheet.absoluteFill}
+                        />
                         <View style={styles.goalsHeader}>
                             <View style={styles.goalsHeaderLeft}>
-                                <Zap size={20} color={colors.primary} />
-                                <Text style={[styles.goalsTitle, { color: colors.textPrimary }]}>
-                                    יעדים חודשיים
-                                </Text>
+                                <View style={[styles.goalsIconBox, { backgroundColor: colors.primaryMuted }]}>
+                                    <Zap size={18} color={colors.primary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.goalsTitle, { color: colors.textPrimary }]}>
+                                        יעדים חודשיים
+                                    </Text>
+                                    <Text style={[styles.goalsSubtitle, { color: colors.textTertiary }]}>
+                                        לחץ לעריכה
+                                    </Text>
+                                </View>
                             </View>
                             <ChevronLeft size={20} color={colors.textTertiary} />
                         </View>
@@ -387,7 +457,10 @@ export default function DashboardScreen() {
                             {/* Income Goal */}
                             <View style={styles.goalItem}>
                                 <View style={styles.goalHeader}>
-                                    <Text style={[styles.goalLabel, { color: colors.textSecondary }]}>הכנסות</Text>
+                                    <View style={styles.goalLabelRow}>
+                                        <View style={[styles.goalDot, { backgroundColor: colors.success }]} />
+                                        <Text style={[styles.goalLabel, { color: colors.textPrimary }]}>הכנסות</Text>
+                                    </View>
                                     <Text style={[styles.goalPercent, { color: colors.success }]}>
                                         {Math.round(incomeProgress)}%
                                     </Text>
@@ -403,12 +476,20 @@ export default function DashboardScreen() {
                                         ]}
                                     />
                                 </View>
+                                {goals.monthlyIncomeTarget > 0 && (
+                                    <Text style={[styles.goalAmount, { color: colors.textTertiary }]}>
+                                        ₪{totalRevenue.toLocaleString()} / ₪{goals.monthlyIncomeTarget.toLocaleString()}
+                                    </Text>
+                                )}
                             </View>
 
                             {/* Expense Goal */}
                             <View style={styles.goalItem}>
                                 <View style={styles.goalHeader}>
-                                    <Text style={[styles.goalLabel, { color: colors.textSecondary }]}>הוצאות</Text>
+                                    <View style={styles.goalLabelRow}>
+                                        <View style={[styles.goalDot, { backgroundColor: expenseProgress.percentage > 80 ? colors.danger : colors.primary }]} />
+                                        <Text style={[styles.goalLabel, { color: colors.textPrimary }]}>הוצאות</Text>
+                                    </View>
                                     <Text style={[
                                         styles.goalPercent,
                                         { color: expenseProgress.percentage > 80 ? colors.danger : colors.primary }
@@ -427,36 +508,64 @@ export default function DashboardScreen() {
                                         ]}
                                     />
                                 </View>
+                                {goals.monthlyExpenseLimit > 0 && (
+                                    <Text style={[styles.goalAmount, { color: colors.textTertiary }]}>
+                                        ₪{totalExpenses.toLocaleString()} / ₪{goals.monthlyExpenseLimit.toLocaleString()}
+                                    </Text>
+                                )}
                             </View>
                         </View>
                     </TouchableOpacity>
 
-                    {/* Freelancer Score Card */}
+                    {/* Freelancer Score Card - Prominent */}
                     <TouchableOpacity
-                        style={[styles.scoreCard, { backgroundColor: colors.surface }, SHADOWS.md]}
+                        style={[styles.scoreCard, { backgroundColor: colors.surface }, SHADOWS.lg]}
                         onPress={() => navigation.navigate('FreelancerScore')}
                         activeOpacity={0.8}
                     >
                         <LinearGradient
                             colors={isDark
-                                ? ['rgba(129, 140, 248, 0.1)', 'rgba(167, 139, 250, 0.05)']
-                                : ['rgba(99, 102, 241, 0.1)', 'rgba(139, 92, 246, 0.05)']}
+                                ? ['rgba(129, 140, 248, 0.15)', 'rgba(167, 139, 250, 0.05)']
+                                : [getScoreColor(freelancerScore) + '20', 'transparent']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
                             style={styles.scoreGradient}
                         />
                         <View style={styles.scoreContent}>
-                            <View style={[styles.scoreIconBox, { backgroundColor: colors.primaryMuted }]}>
-                                <Award size={24} color={colors.primary} />
-                            </View>
-                            <View style={styles.scoreInfo}>
-                                <Text style={[styles.scoreTitle, { color: colors.textPrimary }]}>
-                                    ציון פרילנסר
-                                </Text>
-                                <Text style={[styles.scoreSubtitle, { color: colors.textSecondary }]}>
-                                    בדוק את הבריאות הפיננסית שלך
-                                </Text>
+                            <View style={styles.scoreMainSection}>
+                                <View style={[styles.scoreBigNumber, { borderColor: getScoreColor(freelancerScore) }]}>
+                                    <Text style={[styles.scoreValue, { color: getScoreColor(freelancerScore) }]}>
+                                        {freelancerScore}
+                                    </Text>
+                                </View>
+                                <View style={styles.scoreTextSection}>
+                                    <Text style={[styles.scoreTitle, { color: colors.textPrimary }]}>
+                                        ציון פרילנסר
+                                    </Text>
+                                    <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(freelancerScore) + '20' }]}>
+                                        <Award size={14} color={getScoreColor(freelancerScore)} />
+                                        <Text style={[styles.scoreBadgeText, { color: getScoreColor(freelancerScore) }]}>
+                                            {getScoreLabel(freelancerScore)}
+                                        </Text>
+                                    </View>
+                                </View>
                             </View>
                             <ChevronLeft size={20} color={colors.textTertiary} />
                         </View>
+                        <View style={[styles.scoreProgressBar, { backgroundColor: colors.fillSecondary }]}>
+                            <Animated.View
+                                style={[
+                                    styles.scoreProgressFill,
+                                    {
+                                        width: `${(freelancerScore / 850) * 100}%`,
+                                        backgroundColor: getScoreColor(freelancerScore),
+                                    }
+                                ]}
+                            />
+                        </View>
+                        <Text style={[styles.scoreHint, { color: colors.textTertiary }]}>
+                            לחץ לפירוט מלא • מתוך 850
+                        </Text>
                     </TouchableOpacity>
 
                     {/* Recent Activity */}
@@ -760,12 +869,13 @@ const styles = StyleSheet.create({
     pendingAmount: {
         ...TYPOGRAPHY.moneySmall,
     },
-    // Goals Card
+    // Goals Card - Enhanced
     goalsCard: {
         marginHorizontal: LAYOUT.screenPadding,
         marginTop: SPACING.lg,
         borderRadius: RADIUS.xl,
         padding: SPACING.xl,
+        overflow: 'hidden',
     },
     goalsHeader: {
         flexDirection: 'row',
@@ -776,13 +886,24 @@ const styles = StyleSheet.create({
     goalsHeaderLeft: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: SPACING.sm,
+        gap: SPACING.md,
+    },
+    goalsIconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     goalsTitle: {
         ...TYPOGRAPHY.label,
     },
+    goalsSubtitle: {
+        ...TYPOGRAPHY.captionSmall,
+        marginTop: 2,
+    },
     goalsContent: {
-        gap: SPACING.lg,
+        gap: SPACING.xl,
     },
     goalItem: {
         gap: SPACING.sm,
@@ -792,27 +913,43 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
     },
-    goalLabel: {
-        ...TYPOGRAPHY.caption,
+    goalLabelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
     },
-    goalPercent: {
-        ...TYPOGRAPHY.labelSmall,
-    },
-    goalBar: {
+    goalDot: {
+        width: 8,
         height: 8,
         borderRadius: 4,
+    },
+    goalLabel: {
+        ...TYPOGRAPHY.body,
+        fontFamily: FONTS.medium,
+    },
+    goalPercent: {
+        ...TYPOGRAPHY.label,
+    },
+    goalBar: {
+        height: 10,
+        borderRadius: 5,
         overflow: 'hidden',
     },
     goalFill: {
         height: '100%',
-        borderRadius: 4,
+        borderRadius: 5,
     },
-    // Score Card
+    goalAmount: {
+        ...TYPOGRAPHY.captionSmall,
+        textAlign: 'left',
+    },
+    // Score Card - Prominent Design
     scoreCard: {
         marginHorizontal: LAYOUT.screenPadding,
         marginTop: SPACING.lg,
         borderRadius: RADIUS.xl,
         overflow: 'hidden',
+        paddingBottom: SPACING.md,
     },
     scoreGradient: {
         position: 'absolute',
@@ -824,7 +961,58 @@ const styles = StyleSheet.create({
     scoreContent: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         padding: SPACING.lg,
+        paddingBottom: SPACING.sm,
+    },
+    scoreMainSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.lg,
+    },
+    scoreBigNumber: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        borderWidth: 3,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    scoreValue: {
+        fontSize: 28,
+        fontFamily: FONTS.bold,
+        letterSpacing: -1,
+    },
+    scoreTextSection: {
+        gap: SPACING.xs,
+    },
+    scoreBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: SPACING.xs,
+        borderRadius: RADIUS.full,
+        gap: SPACING.xs,
+        alignSelf: 'flex-start',
+    },
+    scoreBadgeText: {
+        ...TYPOGRAPHY.captionSmall,
+        fontFamily: FONTS.semiBold,
+    },
+    scoreProgressBar: {
+        height: 6,
+        marginHorizontal: SPACING.lg,
+        borderRadius: 3,
+        overflow: 'hidden',
+    },
+    scoreProgressFill: {
+        height: '100%',
+        borderRadius: 3,
+    },
+    scoreHint: {
+        ...TYPOGRAPHY.captionSmall,
+        textAlign: 'center',
+        marginTop: SPACING.sm,
     },
     scoreIconBox: {
         width: 48,
