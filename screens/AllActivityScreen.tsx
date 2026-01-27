@@ -1,56 +1,88 @@
 import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, FlatList, Platform } from 'react-native';
+import {
+    StyleSheet,
+    Text,
+    View,
+    TouchableOpacity,
+    FlatList,
+    useColorScheme,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronRight, FileText, CreditCard } from 'lucide-react-native';
-import { useTransactions } from '../context/TransactionsContext';
-import { COLORS, FONTS } from '../constants/theme';
+import { ChevronRight, FileText, CreditCard, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { useTransactions, Transaction } from '../context/TransactionsContext';
+import { useTheme } from '../context/ThemeContext';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 export default function AllActivityScreen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { allTransactions } = useTransactions();
 
-    const handleTransactionPress = (id: string) => {
-        navigation.navigate('InvoiceDetails', { transactionId: id });
+    const handleTransactionPress = (item: Transaction) => {
+        if (item.type === 'invoice') {
+            navigation.navigate('InvoiceDetails', { transactionId: item.id });
+        }
     };
 
-    const renderItem = ({ item }: any) => {
+    const renderItem = ({ item }: { item: Transaction }) => {
         const timeAgo = () => {
             const days = Math.floor((Date.now() - new Date(item.date).getTime()) / (1000 * 60 * 60 * 24));
             if (days === 0) return 'היום';
             if (days === 1) return 'אתמול';
-            return `${days} ימים אחורה`;
+            return `לפני ${days} ימים`;
         };
 
+        const isIncome = item.isIncome;
+
         return (
-            <TouchableOpacity style={styles.activityItem} onPress={() => handleTransactionPress(item.id)}>
-                <View style={styles.activityLeft}>
-                    <View style={styles.activityIconContainer}>
-                        {item.type === 'invoice' ? (
-                            <FileText size={18} color={COLORS.white} />
+            <TouchableOpacity
+                style={[styles.activityItem, { backgroundColor: colors.surface }, SHADOWS.sm]}
+                onPress={() => handleTransactionPress(item)}
+                activeOpacity={0.7}
+            >
+                <View style={styles.activityContent}>
+                    <View style={[
+                        styles.iconContainer,
+                        { backgroundColor: isIncome ? colors.successMuted : colors.dangerMuted }
+                    ]}>
+                        {isIncome ? (
+                            <TrendingUp size={18} color={colors.success} />
                         ) : (
-                            <CreditCard size={18} color={COLORS.white} />
+                            <TrendingDown size={18} color={colors.danger} />
                         )}
                     </View>
-                    <View>
-                        <Text style={styles.activityTitle}>{item.title}</Text>
-                        <Text style={styles.activityTime}>{timeAgo()} • {new Date(item.date).toLocaleDateString('he-IL')}</Text>
+                    <View style={styles.textContent}>
+                        <Text style={[styles.activityTitle, { color: colors.textPrimary }]}>
+                            {item.title}
+                        </Text>
+                        <Text style={[styles.activityTime, { color: colors.textTertiary }]}>
+                            {timeAgo()} • {new Date(item.date).toLocaleDateString('he-IL')}
+                        </Text>
                     </View>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
+                <View style={styles.amountSection}>
                     <Text style={[
                         styles.activityAmount,
-                        { color: item.isIncome ? COLORS.success : COLORS.warning }
+                        { color: isIncome ? colors.success : colors.danger }
                     ]}>
-                        {item.isIncome ? '' : '-'}{item.amount}
+                        {isIncome ? '+' : '-'}{item.amount}
                     </Text>
                     {item.type === 'invoice' && (
-                        <Text style={[
-                            styles.statusText,
-                            { color: item.status === 'paid' ? COLORS.success : COLORS.warning }
+                        <View style={[
+                            styles.statusBadge,
+                            { backgroundColor: item.status === 'paid' ? colors.successMuted : colors.warningMuted }
                         ]}>
-                            {item.status === 'paid' ? 'שולם' : 'ממתין'}
-                        </Text>
+                            <Text style={[
+                                styles.statusText,
+                                { color: item.status === 'paid' ? colors.success : colors.warning }
+                            ]}>
+                                {item.status === 'paid' ? 'שולם' : 'ממתין'}
+                            </Text>
+                        </View>
                     )}
                 </View>
             </TouchableOpacity>
@@ -58,21 +90,43 @@ export default function AllActivityScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            <StatusBar style="light" backgroundColor={COLORS.background} />
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ChevronRight size={28} color={COLORS.white} />
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+
+            {/* Header */}
+            <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
+                >
+                    <ChevronRight size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>כל הפעילות</Text>
-                <View style={{ width: 28 }} />
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+                    כל הפעילות
+                </Text>
+                <View style={{ width: 44 }} />
             </View>
 
+            {/* List */}
             <FlatList
                 data={allTransactions}
                 renderItem={renderItem}
                 keyExtractor={item => item.id}
                 contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                ListEmptyComponent={
+                    <View style={styles.emptyState}>
+                        <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceSecondary }]}>
+                            <FileText size={32} color={colors.textTertiary} />
+                        </View>
+                        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+                            אין פעילות עדיין
+                        </Text>
+                        <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
+                            ההכנסות וההוצאות שלך יופיעו כאן
+                        </Text>
+                    </View>
+                }
             />
         </View>
     );
@@ -81,71 +135,94 @@ export default function AllActivityScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingTop: Platform.OS === 'ios' ? 60 : 40,
-        paddingBottom: 20,
-        paddingHorizontal: 20,
-        backgroundColor: COLORS.background,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: SPACING.lg,
+    },
+    headerButton: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerTitle: {
-        color: COLORS.textPrimary,
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-    },
-    backButton: {
-        padding: 4,
+        ...TYPOGRAPHY.h3,
     },
     listContent: {
-        padding: 20,
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: 100,
     },
     activityItem: {
-        flexDirection: 'row-reverse',
+        flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: COLORS.surface,
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
+        padding: SPACING.lg,
+        borderRadius: RADIUS.xl,
+        marginBottom: SPACING.md,
     },
-    activityLeft: {
-        flexDirection: 'row-reverse',
+    activityContent: {
+        flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        flex: 1,
     },
-    activityIconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.05)',
+    iconContainer: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
         justifyContent: 'center',
         alignItems: 'center',
+        marginLeft: SPACING.md,
+    },
+    textContent: {
+        flex: 1,
     },
     activityTitle: {
-        color: COLORS.textPrimary,
-        fontSize: 16,
+        ...TYPOGRAPHY.body,
         fontFamily: FONTS.medium,
-        textAlign: 'left',
+        marginBottom: SPACING.xs,
     },
     activityTime: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        fontFamily: FONTS.regular,
-        textAlign: 'left',
+        ...TYPOGRAPHY.caption,
+    },
+    amountSection: {
+        alignItems: 'flex-end',
     },
     activityAmount: {
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+        ...TYPOGRAPHY.label,
+        marginBottom: SPACING.xs,
+    },
+    statusBadge: {
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: SPACING.xs,
+        borderRadius: RADIUS.sm,
     },
     statusText: {
-        fontSize: 10,
-        fontFamily: FONTS.regular,
-        marginTop: 4,
-    }
+        ...TYPOGRAPHY.captionSmall,
+    },
+    emptyState: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: SPACING['6xl'],
+    },
+    emptyIcon: {
+        width: 80,
+        height: 80,
+        borderRadius: RADIUS.xl,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: SPACING.lg,
+    },
+    emptyTitle: {
+        ...TYPOGRAPHY.h4,
+        marginBottom: SPACING.sm,
+    },
+    emptySubtitle: {
+        ...TYPOGRAPHY.body,
+        textAlign: 'center',
+    },
 });

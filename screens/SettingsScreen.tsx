@@ -39,14 +39,20 @@ import {
     X,
     MessageSquare,
     ExternalLink,
-    Lock
+    Lock,
+    Sun,
+    Moon,
+    Smartphone,
+    Palette,
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
 import { useNotification } from '../context/NotificationContext';
+import { useTheme, ThemeMode } from '../context/ThemeContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 const SECTIONS = [
     { id: 'profile', title: 'פרופיל אישי', icon: User },
+    { id: 'appearance', title: 'מראה ותצוגה', icon: Palette },
     { id: 'business', title: 'הגדרות עסק', icon: Building2 },
     { id: 'clients', title: 'ניהול לקוחות', icon: Users, navigate: 'Clients' },
     { id: 'recurring', title: 'עסקאות חוזרות', icon: Repeat, navigate: 'Recurring' },
@@ -56,6 +62,12 @@ const SECTIONS = [
     { id: 'backup', title: 'גיבוי וייצוא (בקרוב)', icon: Database, disabled: true },
     { id: 'security', title: 'פרטיות ואבטחה', icon: Shield },
     { id: 'about', title: 'אודות ועזרה', icon: HelpCircle },
+];
+
+const THEME_OPTIONS: { value: ThemeMode; label: string; icon: any }[] = [
+    { value: 'light', label: 'בהיר', icon: Sun },
+    { value: 'dark', label: 'כהה', icon: Moon },
+    { value: 'system', label: 'לפי המערכת', icon: Smartphone },
 ];
 
 const INDUSTRIES = [
@@ -74,8 +86,8 @@ const INDUSTRIES = [
 export default function SettingsScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme, themeMode, setThemeMode, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { showDeleteConfirm, showSuccess } = useNotification();
 
     const {
@@ -133,7 +145,7 @@ export default function SettingsScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
@@ -254,6 +266,62 @@ export default function SettingsScreen() {
                                                     <ChevronDown size={18} color={colors.textTertiary} />
                                                 </TouchableOpacity>
                                             </View>
+                                        </View>
+                                    )}
+
+                                    {section.id === 'appearance' && (
+                                        <View style={styles.inputList}>
+                                            <Text style={[styles.inputLabel, { color: colors.textSecondary, marginBottom: SPACING.md }]}>
+                                                בחר מצב תצוגה
+                                            </Text>
+                                            <View style={styles.themeOptions}>
+                                                {THEME_OPTIONS.map((option) => {
+                                                    const IconComponent = option.icon;
+                                                    const isSelected = themeMode === option.value;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={option.value}
+                                                            style={[
+                                                                styles.themeOption,
+                                                                {
+                                                                    backgroundColor: isSelected ? colors.primaryMuted : colors.surfaceSecondary,
+                                                                    borderColor: isSelected ? colors.primary : colors.border,
+                                                                }
+                                                            ]}
+                                                            onPress={() => setThemeMode(option.value)}
+                                                        >
+                                                            <View style={[
+                                                                styles.themeIconBox,
+                                                                { backgroundColor: isSelected ? colors.primary : colors.fill }
+                                                            ]}>
+                                                                <IconComponent
+                                                                    size={20}
+                                                                    color={isSelected ? '#FFFFFF' : colors.textSecondary}
+                                                                />
+                                                            </View>
+                                                            <Text style={[
+                                                                styles.themeLabel,
+                                                                { color: isSelected ? colors.primary : colors.textPrimary }
+                                                            ]}>
+                                                                {option.label}
+                                                            </Text>
+                                                            {isSelected && (
+                                                                <View style={[styles.themeCheck, { backgroundColor: colors.primary }]}>
+                                                                    <Save size={10} color="#FFFFFF" />
+                                                                </View>
+                                                            )}
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </View>
+                                            <Text style={[styles.themeHint, { color: colors.textTertiary }]}>
+                                                {themeMode === 'system'
+                                                    ? 'המראה ישתנה אוטומטית לפי הגדרות המכשיר שלך'
+                                                    : themeMode === 'dark'
+                                                    ? 'מצב כהה פעיל'
+                                                    : 'מצב בהיר פעיל'
+                                                }
+                                            </Text>
                                         </View>
                                     )}
 
@@ -705,5 +773,44 @@ const styles = StyleSheet.create({
     },
     modalItemText: {
         ...TYPOGRAPHY.body,
+    },
+    // Theme styles
+    themeOptions: {
+        flexDirection: 'row',
+        gap: SPACING.md,
+        marginBottom: SPACING.lg,
+    },
+    themeOption: {
+        flex: 1,
+        padding: SPACING.md,
+        borderRadius: RADIUS.lg,
+        borderWidth: 1.5,
+        alignItems: 'center',
+        position: 'relative',
+    },
+    themeIconBox: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: SPACING.sm,
+    },
+    themeLabel: {
+        ...TYPOGRAPHY.labelSmall,
+    },
+    themeCheck: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    themeHint: {
+        ...TYPOGRAPHY.caption,
+        textAlign: 'center',
     },
 });

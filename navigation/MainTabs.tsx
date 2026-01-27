@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, StyleSheet, useColorScheme, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Home, BarChart3, Receipt, User, Plus } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -8,13 +8,14 @@ import DashboardScreen from '../screens/DashboardScreen';
 import PnLScreen from '../screens/PnLScreen';
 import ExpensesListScreen from '../screens/ExpensesListScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import { useTheme } from '../context/ThemeContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../constants/theme';
 
 const Tab = createBottomTabNavigator();
 
 const CustomTabBar = ({ state, descriptors, navigation }: any) => {
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const { resolvedTheme } = useTheme();
+    const colors = getColors(resolvedTheme);
     const insets = useSafeAreaInsets();
     const mainNav = useNavigation<any>();
 
