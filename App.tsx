@@ -27,6 +27,7 @@ import ClientsScreen from './screens/ClientsScreen';
 import RecurringScreen from './screens/RecurringScreen';
 import ExpenseTemplatesScreen from './screens/ExpenseTemplatesScreen';
 import ReceiptGalleryScreen from './screens/ReceiptGalleryScreen';
+import FreelancerScoreScreen from './screens/FreelancerScoreScreen';
 import MainTabs from './navigation/MainTabs';
 import { TransactionsProvider } from './context/TransactionsContext';
 import { UserProfileProvider } from './context/UserProfileContext';
@@ -128,6 +129,7 @@ function AppContent() {
                     }}
                 />
                 <Stack.Screen name="ReceiptGallery" component={ReceiptGalleryScreen} />
+                <Stack.Screen name="FreelancerScore" component={FreelancerScoreScreen} />
                 <Stack.Screen name="Settings" component={SettingsScreen} />
                 <Stack.Screen name="PnL" component={PnLScreen} />
             </Stack.Navigator>

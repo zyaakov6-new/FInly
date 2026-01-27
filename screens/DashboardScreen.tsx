@@ -28,6 +28,7 @@ import {
     Clock,
     Sparkles,
     Calendar,
+    Award,
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
 import { useTheme } from '../context/ThemeContext';
@@ -218,7 +219,11 @@ export default function DashboardScreen() {
                                     <Text style={[styles.balanceLabel, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.7)' }]}>
                                         יתרה חודשית
                                     </Text>
-                                    <Text style={[styles.balanceAmount, { color: isDark ? colors.textPrimary : '#FFFFFF' }]}>
+                                    <Text
+                                        style={[styles.balanceAmount, { color: isDark ? colors.textPrimary : '#FFFFFF' }]}
+                                        numberOfLines={1}
+                                        adjustsFontSizeToFit
+                                    >
                                         ₪{Math.abs(netProfit).toLocaleString()}
                                     </Text>
                                     <View style={[
@@ -426,6 +431,34 @@ export default function DashboardScreen() {
                         </View>
                     </TouchableOpacity>
 
+                    {/* Freelancer Score Card */}
+                    <TouchableOpacity
+                        style={[styles.scoreCard, { backgroundColor: colors.surface }, SHADOWS.md]}
+                        onPress={() => navigation.navigate('FreelancerScore')}
+                        activeOpacity={0.8}
+                    >
+                        <LinearGradient
+                            colors={isDark
+                                ? ['rgba(129, 140, 248, 0.1)', 'rgba(167, 139, 250, 0.05)']
+                                : ['rgba(99, 102, 241, 0.1)', 'rgba(139, 92, 246, 0.05)']}
+                            style={styles.scoreGradient}
+                        />
+                        <View style={styles.scoreContent}>
+                            <View style={[styles.scoreIconBox, { backgroundColor: colors.primaryMuted }]}>
+                                <Award size={24} color={colors.primary} />
+                            </View>
+                            <View style={styles.scoreInfo}>
+                                <Text style={[styles.scoreTitle, { color: colors.textPrimary }]}>
+                                    ציון פרילנסר
+                                </Text>
+                                <Text style={[styles.scoreSubtitle, { color: colors.textSecondary }]}>
+                                    בדוק את הבריאות הפיננסית שלך
+                                </Text>
+                            </View>
+                            <ChevronLeft size={20} color={colors.textTertiary} />
+                        </View>
+                    </TouchableOpacity>
+
                     {/* Recent Activity */}
                     <View style={styles.recentSection}>
                         <View style={styles.recentHeader}>
@@ -574,6 +607,7 @@ const styles = StyleSheet.create({
         fontFamily: FONTS.bold,
         letterSpacing: -1,
         marginBottom: SPACING.sm,
+        flexShrink: 1,
     },
     balanceBadge: {
         flexDirection: 'row',
@@ -772,6 +806,43 @@ const styles = StyleSheet.create({
     goalFill: {
         height: '100%',
         borderRadius: 4,
+    },
+    // Score Card
+    scoreCard: {
+        marginHorizontal: LAYOUT.screenPadding,
+        marginTop: SPACING.lg,
+        borderRadius: RADIUS.xl,
+        overflow: 'hidden',
+    },
+    scoreGradient: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    },
+    scoreContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: SPACING.lg,
+    },
+    scoreIconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: RADIUS.lg,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    scoreInfo: {
+        flex: 1,
+        marginHorizontal: SPACING.md,
+    },
+    scoreTitle: {
+        ...TYPOGRAPHY.label,
+        marginBottom: 2,
+    },
+    scoreSubtitle: {
+        ...TYPOGRAPHY.caption,
     },
     // Recent Activity
     recentSection: {
