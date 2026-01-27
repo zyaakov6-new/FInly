@@ -1,9 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, useColorScheme } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Animated, useColorScheme } from 'react-native';
 import { CheckCircle } from 'lucide-react-native';
-import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY } from '../constants/theme';
-
-const { width } = Dimensions.get('window');
+import { getColors, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 interface SuccessModalProps {
     visible: boolean;
@@ -41,7 +39,6 @@ export const SuccessModal = ({ visible, title, description, onClose, buttonText 
                 }),
             ]).start();
 
-            // Check animation with delay
             setTimeout(() => {
                 Animated.spring(checkAnim, {
                     toValue: 1,
@@ -67,7 +64,6 @@ export const SuccessModal = ({ visible, title, description, onClose, buttonText 
                         opacity: opacityAnim,
                     }
                 ]}>
-                    {/* Check Icon */}
                     <Animated.View style={[
                         styles.iconContainer,
                         { backgroundColor: colors.successMuted },
@@ -115,7 +111,7 @@ const styles = StyleSheet.create({
         marginBottom: SPACING.xl,
     },
     title: {
-        ...TYPOGRAPHY.title2,
+        ...TYPOGRAPHY.h3,
         marginBottom: SPACING.sm,
         textAlign: 'center',
     },
@@ -127,13 +123,13 @@ const styles = StyleSheet.create({
     },
     button: {
         width: '100%',
-        height: 50,
+        height: LAYOUT.buttonHeight,
         borderRadius: RADIUS.md,
         alignItems: 'center',
         justifyContent: 'center',
     },
     buttonText: {
-        ...TYPOGRAPHY.headline,
+        ...TYPOGRAPHY.h4,
         color: '#FFFFFF',
     },
 });

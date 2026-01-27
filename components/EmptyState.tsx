@@ -1,19 +1,36 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
-import { COLORS, FONTS } from '../constants/theme';
+import { View, Text, StyleSheet, useColorScheme } from 'react-native';
+import { Inbox, Receipt, FileText, Users, Calendar } from 'lucide-react-native';
+import { getColors, SPACING, RADIUS, TYPOGRAPHY } from '../constants/theme';
 
 interface EmptyStateProps {
-    icon?: string;
+    icon?: 'inbox' | 'receipt' | 'file' | 'users' | 'calendar';
     title: string;
     message: string;
 }
 
-export const EmptyState: React.FC<EmptyStateProps> = ({ icon = '📭', title, message }) => {
+export const EmptyState: React.FC<EmptyStateProps> = ({ icon = 'inbox', title, message }) => {
+    const colorScheme = useColorScheme();
+    const colors = getColors(colorScheme);
+
+    const getIcon = () => {
+        const iconProps = { size: 48, color: colors.textQuaternary, strokeWidth: 1.5 };
+        switch (icon) {
+            case 'receipt': return <Receipt {...iconProps} />;
+            case 'file': return <FileText {...iconProps} />;
+            case 'users': return <Users {...iconProps} />;
+            case 'calendar': return <Calendar {...iconProps} />;
+            default: return <Inbox {...iconProps} />;
+        }
+    };
+
     return (
         <View style={styles.container}>
-            <Text style={styles.icon}>{icon}</Text>
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.message}>{message}</Text>
+            <View style={[styles.iconContainer, { backgroundColor: colors.surfaceSecondary }]}>
+                {getIcon()}
+            </View>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+            <Text style={[styles.message, { color: colors.textTertiary }]}>{message}</Text>
         </View>
     );
 };
@@ -23,24 +40,24 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 40,
+        padding: SPACING['4xl'],
     },
-    icon: {
-        fontSize: 64,
-        marginBottom: 16,
+    iconContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: RADIUS.full,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: SPACING.xl,
     },
     title: {
-        fontSize: 20,
-        fontFamily: FONTS.bold,
-        color: COLORS.textPrimary,
-        marginBottom: 8,
+        ...TYPOGRAPHY.h4,
+        marginBottom: SPACING.sm,
         textAlign: 'center',
     },
     message: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: COLORS.textSecondary,
+        ...TYPOGRAPHY.body,
         textAlign: 'center',
-        lineHeight: 20,
+        lineHeight: 22,
     },
 });
