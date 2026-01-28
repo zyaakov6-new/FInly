@@ -25,6 +25,7 @@ import {
     Sparkles,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT, SHADOWS } from '../constants/theme';
 
 const { width, height } = Dimensions.get('window');
@@ -34,13 +35,14 @@ export default function LoginScreen() {
     const insets = useSafeAreaInsets();
     const { resolvedTheme, isDark } = useTheme();
     const colors = getColors(resolvedTheme);
+    const { signIn, resetPassword } = useAuth();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+    const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
 
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -132,7 +134,6 @@ export default function LoginScreen() {
             return;
         }
 
-        // Simulate login
         setIsLoading(true);
 
         // Animate button press
@@ -149,15 +150,39 @@ export default function LoginScreen() {
             }),
         ]).start();
 
-        // Simulate API call
-        setTimeout(() => {
-            setIsLoading(false);
+        // Real Firebase login
+        const result = await signIn(email, password);
+
+        setIsLoading(false);
+
+        if (result.success) {
             navigation.replace('Main');
-        }, 1000);
+        } else {
+            setErrors({ general: result.error });
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        if (!email.trim()) {
+            setErrors({ email: 'נא להזין אימייל לאיפוס סיסמה' });
+            return;
+        }
+
+        if (!validateEmail(email)) {
+            setErrors({ email: 'אימייל לא תקין' });
+            return;
+        }
+
+        const result = await resetPassword(email);
+        if (result.success) {
+            setErrors({ general: 'נשלח אימייל לאיפוס סיסמה' });
+        } else {
+            setErrors({ general: result.error });
+        }
     };
 
     const handleBiometricLogin = () => {
-        // For demo, just navigate
+        // For now, biometric just navigates (would need expo-local-authentication)
         navigation.replace('Main');
     };
 
@@ -402,8 +427,17 @@ export default function LoginScreen() {
                             )}
                         </Animated.View>
 
+                        {/* General Error */}
+                        {errors.general && (
+                            <View style={[styles.generalError, { backgroundColor: errors.general.includes('נשלח') ? colors.successMuted : colors.dangerMuted }]}>
+                                <Text style={[styles.generalErrorText, { color: errors.general.includes('נשלח') ? colors.success : colors.danger }]}>
+                                    {errors.general}
+                                </Text>
+                            </View>
+                        )}
+
                         {/* Forgot Password */}
-                        <TouchableOpacity style={styles.forgotPassword}>
+                        <TouchableOpacity style={styles.forgotPassword} onPress={handleForgotPassword}>
                             <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>
                                 שכחת סיסמה?
                             </Text>
@@ -616,6 +650,15 @@ const styles = StyleSheet.create({
         ...TYPOGRAPHY.caption,
         textAlign: 'right',
         marginTop: SPACING.xs,
+    },
+    generalError: {
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        marginBottom: SPACING.lg,
+    },
+    generalErrorText: {
+        ...TYPOGRAPHY.body,
+        textAlign: 'center',
     },
     // Forgot Password
     forgotPassword: {

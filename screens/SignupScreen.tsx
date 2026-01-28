@@ -27,6 +27,7 @@ import {
     ArrowLeft,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT, SHADOWS } from '../constants/theme';
 import { useUserProfile } from '../context/UserProfileContext';
 
@@ -38,6 +39,7 @@ export default function SignupScreen() {
     const { resolvedTheme, isDark } = useTheme();
     const colors = getColors(resolvedTheme);
     const { updateUserProfile } = useUserProfile();
+    const { signUp } = useAuth();
 
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
@@ -45,7 +47,7 @@ export default function SignupScreen() {
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string }>({});
+    const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; general?: string }>({});
 
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -159,16 +161,20 @@ export default function SignupScreen() {
             useNativeDriver: true,
         }).start();
 
-        try {
+        // Real Firebase signup
+        const result = await signUp(email, password, fullName);
+
+        if (result.success) {
+            // Also update local user profile
             await updateUserProfile({ fullName, email });
 
             setTimeout(() => {
                 setIsLoading(false);
                 navigation.navigate('SignupStep2');
-            }, 800);
-        } catch (error) {
+            }, 500);
+        } else {
             setIsLoading(false);
-            setErrors({ email: 'שגיאה ביצירת חשבון' });
+            setErrors({ general: result.error });
         }
     };
 
@@ -507,6 +513,15 @@ export default function SignupScreen() {
                             )}
                         </Animated.View>
 
+                        {/* General Error */}
+                        {errors.general && (
+                            <View style={[styles.generalError, { backgroundColor: colors.dangerMuted }]}>
+                                <Text style={[styles.generalErrorText, { color: colors.danger }]}>
+                                    {errors.general}
+                                </Text>
+                            </View>
+                        )}
+
                         {/* Continue Button */}
                         <Animated.View
                             style={{
@@ -704,6 +719,15 @@ const styles = StyleSheet.create({
         ...TYPOGRAPHY.caption,
         textAlign: 'right',
         marginTop: SPACING.xs,
+    },
+    generalError: {
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        marginBottom: SPACING.lg,
+    },
+    generalErrorText: {
+        ...TYPOGRAPHY.body,
+        textAlign: 'center',
     },
     // Password Strength
     strengthContainer: {

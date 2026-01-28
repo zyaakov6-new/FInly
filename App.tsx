@@ -33,6 +33,7 @@ import { TransactionsProvider } from './context/TransactionsContext';
 import { UserProfileProvider } from './context/UserProfileContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
 import { getColors, COLORS } from './constants/theme';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -164,13 +165,15 @@ export default function App() {
             <SafeAreaProvider>
                 <GestureHandlerRootView style={{ flex: 1 }}>
                     <ThemeProvider>
-                        <UserProfileProvider>
-                            <TransactionsProvider>
-                                <NotificationProvider>
-                                    <AppContent />
-                                </NotificationProvider>
-                            </TransactionsProvider>
-                        </UserProfileProvider>
+                        <AuthProvider>
+                            <UserProfileProvider>
+                                <TransactionsProvider>
+                                    <NotificationProvider>
+                                        <AppContent />
+                                    </NotificationProvider>
+                                </TransactionsProvider>
+                            </UserProfileProvider>
+                        </AuthProvider>
                     </ThemeProvider>
                 </GestureHandlerRootView>
             </SafeAreaProvider>
