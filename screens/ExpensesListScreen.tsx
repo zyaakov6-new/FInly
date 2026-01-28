@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronRight, Search, X, ImageIcon, Download, ArrowUpRight } from 'lucide-react-native';
+import { ChevronRight, Search, X, ImageIcon, Download, ArrowUpRight, Trash2, Edit2 } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useTransactions } from '../context/TransactionsContext';
 import { useNotification } from '../context/NotificationContext';
@@ -28,12 +28,14 @@ export default function ExpensesListScreen() {
     const navigation = useNavigation();
     const { resolvedTheme, isDark } = useTheme();
     const colors = getColors(resolvedTheme);
-    const { transactions } = useTransactions();
-    const { showSuccess, showError, showInfo } = useNotification();
+    const { transactions, deleteTransaction } = useTransactions();
+    const { showSuccess, showError, showInfo, showDeleteConfirm } = useNotification();
 
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [selectedExpense, setSelectedExpense] = useState<any>(null);
+    const [showActionMenu, setShowActionMenu] = useState(false);
 
     const parseAmount = (str?: string) => {
         if (!str) return 0;
@@ -64,6 +66,33 @@ export default function ExpensesListScreen() {
         setRefreshing(true);
         await new Promise(resolve => setTimeout(resolve, 800));
         setRefreshing(false);
+    };
+
+    const handleLongPress = (item: any) => {
+        hapticFeedback.medium();
+        setSelectedExpense(item);
+        setShowActionMenu(true);
+    };
+
+    const handleEdit = () => {
+        setShowActionMenu(false);
+        if (selectedExpense) {
+            navigation.navigate('AddExpense' as never, { expense: selectedExpense } as never);
+        }
+    };
+
+    const handleDelete = () => {
+        setShowActionMenu(false);
+        if (selectedExpense) {
+            showDeleteConfirm(
+                'מחיקת הוצאה',
+                `האם למחוק את ההוצאה "${selectedExpense.category || 'הוצאה'}"?`,
+                () => {
+                    deleteTransaction(selectedExpense.id);
+                    showSuccess('נמחק', 'ההוצאה נמחקה בהצלחה');
+                }
+            );
+        }
     };
 
     const processedData = useMemo(() => {
@@ -101,6 +130,8 @@ export default function ExpensesListScreen() {
         <TouchableOpacity
             style={[styles.item, { backgroundColor: colors.surface }, SHADOWS.sm]}
             onPress={() => navigation.navigate('AddExpense' as never, { expense: item } as never)}
+            onLongPress={() => handleLongPress(item)}
+            delayLongPress={400}
             activeOpacity={0.7}
         >
             <View style={[styles.itemIcon, { backgroundColor: colors.surfaceSecondary }]}>
@@ -236,6 +267,55 @@ export default function ExpensesListScreen() {
                                 resizeMode="contain"
                             />
                         )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Action Menu Modal */}
+            <Modal
+                visible={showActionMenu}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowActionMenu(false)}
+            >
+                <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+                    <TouchableOpacity
+                        style={StyleSheet.absoluteFill}
+                        activeOpacity={1}
+                        onPress={() => setShowActionMenu(false)}
+                    />
+                    <View style={[styles.actionMenuContent, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.actionMenuTitle, { color: colors.textPrimary }]}>
+                            {selectedExpense?.category || 'הוצאה'}
+                        </Text>
+                        <Text style={[styles.actionMenuSubtitle, { color: colors.textTertiary }]}>
+                            {selectedExpense?.amount}
+                        </Text>
+
+                        <View style={styles.actionMenuButtons}>
+                            <TouchableOpacity
+                                style={[styles.actionMenuButton, { backgroundColor: colors.primaryMuted }]}
+                                onPress={handleEdit}
+                            >
+                                <Edit2 size={20} color={colors.primary} />
+                                <Text style={[styles.actionMenuButtonText, { color: colors.primary }]}>ערוך</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.actionMenuButton, { backgroundColor: colors.dangerMuted }]}
+                                onPress={handleDelete}
+                            >
+                                <Trash2 size={20} color={colors.danger} />
+                                <Text style={[styles.actionMenuButtonText, { color: colors.danger }]}>מחק</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.actionMenuCancel, { borderTopColor: colors.border }]}
+                            onPress={() => setShowActionMenu(false)}
+                        >
+                            <Text style={[styles.actionMenuCancelText, { color: colors.textTertiary }]}>ביטול</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
@@ -376,5 +456,46 @@ const styles = StyleSheet.create({
     receiptImage: {
         width: '100%',
         height: 400,
+    },
+    actionMenuContent: {
+        width: '90%',
+        borderRadius: RADIUS.xl,
+        padding: SPACING.xl,
+        alignItems: 'center',
+    },
+    actionMenuTitle: {
+        ...TYPOGRAPHY.h4,
+        marginBottom: SPACING.xs,
+    },
+    actionMenuSubtitle: {
+        ...TYPOGRAPHY.body,
+        marginBottom: SPACING.xl,
+    },
+    actionMenuButtons: {
+        flexDirection: 'row',
+        gap: SPACING.md,
+        width: '100%',
+        marginBottom: SPACING.lg,
+    },
+    actionMenuButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: SPACING.sm,
+        paddingVertical: SPACING.lg,
+        borderRadius: RADIUS.lg,
+    },
+    actionMenuButtonText: {
+        ...TYPOGRAPHY.label,
+    },
+    actionMenuCancel: {
+        width: '100%',
+        paddingTop: SPACING.lg,
+        borderTopWidth: 1,
+        alignItems: 'center',
+    },
+    actionMenuCancelText: {
+        ...TYPOGRAPHY.body,
     },
 });

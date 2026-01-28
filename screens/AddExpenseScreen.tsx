@@ -212,10 +212,14 @@ export default function AddExpenseScreen({ route }: any) {
     const handleModalClose = () => {
         setShowSuccess(false);
         if (keepForm) {
+            // Reset form for new entry
             setAmount('');
             setSupplier('');
             setDescription('');
             setReceiptUri(null);
+        } else {
+            // Navigate back to main screen
+            navigation.goBack();
         }
     };
 
