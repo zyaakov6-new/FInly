@@ -29,6 +29,8 @@ import {
     Sparkles,
     Calendar,
     Award,
+    Lightbulb,
+    AlertCircle,
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
 import { useTheme } from '../context/ThemeContext';
@@ -165,6 +167,102 @@ export default function DashboardScreen() {
         if (score >= 500) return 'בינוני';
         return 'דורש שיפור';
     };
+
+    // Calculate insights
+    const insights = useMemo(() => {
+        const now = new Date();
+        const thisMonth = now.getMonth();
+        const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+        const thisYear = now.getFullYear();
+        const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+
+        // Get expenses by category this month
+        const thisMonthExpenses = transactions.filter(t => {
+            const date = new Date(t.date);
+            return t.type === 'expense' && date.getMonth() === thisMonth && date.getFullYear() === thisYear;
+        });
+
+        const lastMonthExpenses = transactions.filter(t => {
+            const date = new Date(t.date);
+            return t.type === 'expense' && date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
+        });
+
+        // Category breakdown
+        const categoryTotals: { [key: string]: number } = {};
+        thisMonthExpenses.forEach(t => {
+            const cat = t.category || 'אחר';
+            const amount = parseFloat(t.amount.replace(/[^0-9.-]+/g, '')) || 0;
+            categoryTotals[cat] = (categoryTotals[cat] || 0) + amount;
+        });
+
+        // Find biggest category
+        let biggestCategory = '';
+        let biggestAmount = 0;
+        Object.entries(categoryTotals).forEach(([cat, amount]) => {
+            if (amount > biggestAmount) {
+                biggestAmount = amount;
+                biggestCategory = cat;
+            }
+        });
+
+        // Compare to last month
+        const thisMonthTotal = thisMonthExpenses.reduce((sum, t) =>
+            sum + (parseFloat(t.amount.replace(/[^0-9.-]+/g, '')) || 0), 0);
+        const lastMonthTotal = lastMonthExpenses.reduce((sum, t) =>
+            sum + (parseFloat(t.amount.replace(/[^0-9.-]+/g, '')) || 0), 0);
+
+        const monthOverMonthChange = lastMonthTotal > 0
+            ? Math.round(((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100)
+            : 0;
+
+        // Pending invoices
+        const pendingInvoicesCount = transactions.filter(t =>
+            t.type === 'invoice' && t.status === 'pending'
+        ).length;
+
+        // Generate insights array
+        const insightsList: { text: string; type: 'info' | 'warning' | 'success'; icon: any }[] = [];
+
+        if (biggestCategory && biggestAmount > 0) {
+            insightsList.push({
+                text: `ההוצאה הגדולה החודש: ${biggestCategory} (₪${biggestAmount.toLocaleString()})`,
+                type: 'info',
+                icon: PieChart,
+            });
+        }
+
+        if (monthOverMonthChange > 20) {
+            insightsList.push({
+                text: `ההוצאות עלו ב-${monthOverMonthChange}% מהחודש שעבר`,
+                type: 'warning',
+                icon: TrendingUp,
+            });
+        } else if (monthOverMonthChange < -20) {
+            insightsList.push({
+                text: `חסכת ${Math.abs(monthOverMonthChange)}% בהוצאות מהחודש שעבר!`,
+                type: 'success',
+                icon: TrendingDown,
+            });
+        }
+
+        if (pendingInvoicesCount > 0) {
+            insightsList.push({
+                text: `יש לך ${pendingInvoicesCount} חשבוניות שממתינות לתשלום`,
+                type: 'warning',
+                icon: AlertCircle,
+            });
+        }
+
+        if (incomeProgress >= 100) {
+            insightsList.push({
+                text: 'עברת את יעד ההכנסות החודשי! כל הכבוד!',
+                type: 'success',
+                icon: Award,
+            });
+        }
+
+        return insightsList.slice(0, 3); // Max 3 insights
+    }, [transactions, incomeProgress]);
 
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -567,6 +665,43 @@ export default function DashboardScreen() {
                             לחץ לפירוט מלא • מתוך 850
                         </Text>
                     </TouchableOpacity>
+
+                    {/* Insights Card */}
+                    {insights.length > 0 && (
+                        <View style={[styles.insightsCard, { backgroundColor: colors.surface }, SHADOWS.md]}>
+                            <View style={styles.insightsHeader}>
+                                <View style={[styles.insightsIconBox, { backgroundColor: colors.warningMuted }]}>
+                                    <Lightbulb size={18} color={colors.warning} />
+                                </View>
+                                <Text style={[styles.insightsTitle, { color: colors.textPrimary }]}>
+                                    תובנות
+                                </Text>
+                            </View>
+                            <View style={styles.insightsList}>
+                                {insights.map((insight, index) => {
+                                    const IconComponent = insight.icon;
+                                    const iconColor = insight.type === 'success' ? colors.success
+                                        : insight.type === 'warning' ? colors.warning
+                                        : colors.info;
+                                    const bgColor = insight.type === 'success' ? colors.successMuted
+                                        : insight.type === 'warning' ? colors.warningMuted
+                                        : colors.infoMuted;
+
+                                    return (
+                                        <View
+                                            key={index}
+                                            style={[styles.insightItem, { backgroundColor: bgColor }]}
+                                        >
+                                            <IconComponent size={16} color={iconColor} />
+                                            <Text style={[styles.insightText, { color: colors.textPrimary }]}>
+                                                {insight.text}
+                                            </Text>
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    )}
 
                     {/* Recent Activity */}
                     <View style={styles.recentSection}>
@@ -1031,6 +1166,43 @@ const styles = StyleSheet.create({
     },
     scoreSubtitle: {
         ...TYPOGRAPHY.caption,
+    },
+    // Insights Card
+    insightsCard: {
+        marginHorizontal: LAYOUT.screenPadding,
+        marginTop: SPACING.lg,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+    },
+    insightsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.md,
+        marginBottom: SPACING.md,
+    },
+    insightsIconBox: {
+        width: 36,
+        height: 36,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    insightsTitle: {
+        ...TYPOGRAPHY.label,
+    },
+    insightsList: {
+        gap: SPACING.sm,
+    },
+    insightItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        gap: SPACING.sm,
+    },
+    insightText: {
+        flex: 1,
+        ...TYPOGRAPHY.bodySmall,
     },
     // Recent Activity
     recentSection: {
