@@ -35,6 +35,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useUserProfile } from '../context/UserProfileContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 import { ReceiptReminders } from '../components/ReceiptReminders';
+import { SmartInsights } from '../components/SmartInsights';
 
 const { width, height } = Dimensions.get('window');
 const CIRCLE_SIZE = 180;
@@ -525,6 +526,13 @@ export default function DashboardScreen() {
                     {expensesWithoutReceipts.length > 0 && (
                         <View style={{ marginTop: SPACING.xl }}>
                             <ReceiptReminders expenses={expensesWithoutReceipts} />
+                        </View>
+                    )}
+
+                    {/* Smart Insights */}
+                    {transactions.length >= 3 && (
+                        <View style={{ marginTop: SPACING.xl }}>
+                            <SmartInsights onNavigate={(screen, params) => navigation.navigate(screen as any, params)} />
                         </View>
                     )}
 

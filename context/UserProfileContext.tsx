@@ -13,6 +13,9 @@ interface UserProfile {
     expenseCategories: string[];
     autoTrackExpenses: boolean;
     profilePicture?: string;
+    // Notification settings
+    receiptReminders: boolean;
+    expenseReminders: boolean;
 }
 
 interface UserProfileContextType {
@@ -30,6 +33,8 @@ const DEFAULT_PROFILE: UserProfile = {
     businessCategory: '',
     expenseCategories: [],
     autoTrackExpenses: true,
+    receiptReminders: true,
+    expenseReminders: true,
 };
 
 export const UserProfileProvider = ({ children }: { children: ReactNode }) => {

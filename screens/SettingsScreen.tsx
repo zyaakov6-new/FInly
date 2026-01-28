@@ -59,6 +59,7 @@ const SECTIONS = [
     { id: 'business', title: 'הגדרות עסק', icon: Building2 },
     { id: 'clients', title: 'ניהול לקוחות', icon: Users, navigate: 'Clients' },
     { id: 'recurring', title: 'עסקאות חוזרות', icon: Repeat, navigate: 'Recurring' },
+    { id: 'templates', title: 'תבניות חשבוניות', icon: List, navigate: 'InvoiceTemplates' },
     { id: 'categories', title: 'ניהול קטגוריות', icon: List },
     { id: 'prices', title: 'מחירים וחיובים', icon: DollarSign },
     { id: 'notifications', title: 'התראות ותזכורות', icon: Bell },
@@ -112,8 +113,18 @@ export default function SettingsScreen() {
     const [tempCategoryName, setTempCategoryName] = useState('');
     const [newCategoryName, setNewCategoryName] = useState('');
     const [industryModalVisible, setIndustryModalVisible] = useState(false);
-    const [receiptReminders, setReceiptReminders] = useState(true);
-    const [expenseReminders, setExpenseReminders] = useState(true);
+
+    // Use persisted settings from context
+    const receiptReminders = userProfile?.receiptReminders ?? true;
+    const expenseReminders = userProfile?.expenseReminders ?? true;
+
+    const setReceiptReminders = (value: boolean) => {
+        updateUserProfileContext({ receiptReminders: value });
+    };
+
+    const setExpenseReminders = (value: boolean) => {
+        updateUserProfileContext({ expenseReminders: value });
+    };
 
     const toggleSection = (id: string) => {
         setActiveSection(activeSection === id ? null : id);

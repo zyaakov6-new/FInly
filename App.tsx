@@ -26,6 +26,7 @@ import GoalsScreen from './screens/GoalsScreen';
 import ClientsScreen from './screens/ClientsScreen';
 import RecurringScreen from './screens/RecurringScreen';
 import ExpenseTemplatesScreen from './screens/ExpenseTemplatesScreen';
+import InvoiceTemplatesScreen from './screens/InvoiceTemplatesScreen';
 import ReceiptGalleryScreen from './screens/ReceiptGalleryScreen';
 import FreelancerScoreScreen from './screens/FreelancerScoreScreen';
 import MainTabs from './navigation/MainTabs';
@@ -129,6 +130,7 @@ function AppContent() {
                         cardStyleInterpolator: CardStyleInterpolators.forModalPresentationIOS,
                     }}
                 />
+                <Stack.Screen name="InvoiceTemplates" component={InvoiceTemplatesScreen} />
                 <Stack.Screen name="ReceiptGallery" component={ReceiptGalleryScreen} />
                 <Stack.Screen name="FreelancerScore" component={FreelancerScoreScreen} />
                 <Stack.Screen name="Settings" component={SettingsScreen} />
