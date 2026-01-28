@@ -182,11 +182,11 @@ export default function SignupScreen() {
             useNativeDriver: true,
         }).start();
 
-        // Real Firebase signup
-        const result = await signUp(email, password, fullName);
+        // Real Firebase signup (includes phone in user profile)
+        const result = await signUp(email, password, fullName, phone);
 
         if (result.success) {
-            // Also update local user profile with phone
+            // Also update local user profile
             await updateUserProfile({ fullName, email, phone });
 
             setTimeout(() => {

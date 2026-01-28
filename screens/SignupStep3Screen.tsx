@@ -25,6 +25,7 @@ import {
     Zap,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT, SHADOWS } from '../constants/theme';
 import { useUserProfile } from '../context/UserProfileContext';
 
@@ -44,6 +45,7 @@ export default function SignupStep3Screen() {
     const { resolvedTheme, isDark } = useTheme();
     const colors = getColors(resolvedTheme);
     const { updateUserProfile } = useUserProfile();
+    const { saveOnboardingStep3 } = useAuth();
 
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [autoTrack, setAutoTrack] = useState(true);
@@ -96,6 +98,10 @@ export default function SignupStep3Screen() {
     const handleContinue = async () => {
         setIsLoading(true);
 
+        // Save to Firebase
+        await saveOnboardingStep3(selectedCategories, autoTrack);
+
+        // Also update local profile
         await updateUserProfile({
             expenseCategories: selectedCategories,
             autoTrackExpenses: autoTrack

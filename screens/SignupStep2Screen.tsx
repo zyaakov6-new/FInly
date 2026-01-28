@@ -26,6 +26,7 @@ import {
     ArrowLeft,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT, SHADOWS } from '../constants/theme';
 import { useUserProfile } from '../context/UserProfileContext';
 
@@ -45,6 +46,7 @@ export default function SignupStep2Screen() {
     const { resolvedTheme, isDark } = useTheme();
     const colors = getColors(resolvedTheme);
     const { updateUserProfile } = useUserProfile();
+    const { saveOnboardingStep2 } = useAuth();
 
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [customCategory, setCustomCategory] = useState('');
@@ -99,6 +101,14 @@ export default function SignupStep2Screen() {
         setIsLoading(true);
 
         const categoryToSave = selectedCategory === 'other' ? customCategory : selectedCategory;
+
+        // Save to Firebase
+        await saveOnboardingStep2(
+            categoryToSave || '',
+            selectedCategory === 'other' ? customCategory : undefined
+        );
+
+        // Also update local profile
         await updateUserProfile({
             businessCategory: categoryToSave || '',
             customCategory: selectedCategory === 'other' ? customCategory : undefined
