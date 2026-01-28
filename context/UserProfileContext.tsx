@@ -7,6 +7,7 @@ import { getUserId } from '../utils/cloudSync';
 interface UserProfile {
     fullName: string;
     email: string;
+    phone: string;
     businessCategory: string;
     customCategory?: string;
     expenseCategories: string[];
@@ -25,6 +26,7 @@ const UserProfileContext = createContext<UserProfileContextType | undefined>(und
 const DEFAULT_PROFILE: UserProfile = {
     fullName: '',
     email: '',
+    phone: '',
     businessCategory: '',
     expenseCategories: [],
     autoTrackExpenses: true,

@@ -32,6 +32,7 @@ import {
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
 import { useTheme } from '../context/ThemeContext';
+import { useUserProfile } from '../context/UserProfileContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 const { width, height } = Dimensions.get('window');
@@ -99,6 +100,7 @@ export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
     const { resolvedTheme, isDark } = useTheme();
     const colors = getColors(resolvedTheme);
+    const { userProfile } = useUserProfile();
 
     const {
         transactions,
@@ -303,10 +305,13 @@ export default function DashboardScreen() {
 
     const getGreeting = () => {
         const hour = now.getHours();
-        if (hour < 12) return 'בוקר טוב';
-        if (hour < 17) return 'צהריים טובים';
-        if (hour < 21) return 'ערב טוב';
-        return 'לילה טוב';
+        const firstName = userProfile?.fullName?.split(' ')[0] || '';
+        const nameSuffix = firstName ? `, ${firstName}` : '';
+
+        if (hour < 12) return `בוקר טוב${nameSuffix}`;
+        if (hour < 17) return `צהריים טובים${nameSuffix}`;
+        if (hour < 21) return `ערב טוב${nameSuffix}`;
+        return `לילה טוב${nameSuffix}`;
     };
 
     const formatCurrency = (amount: number) => {

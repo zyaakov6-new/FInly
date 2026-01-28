@@ -25,6 +25,7 @@ import {
     CheckCircle,
     Sparkles,
     ArrowLeft,
+    Phone,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -43,11 +44,12 @@ export default function SignupScreen() {
 
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
+    const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; general?: string }>({});
+    const [errors, setErrors] = useState<{ name?: string; email?: string; phone?: string; password?: string; general?: string }>({});
 
     // Animations
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -56,6 +58,7 @@ export default function SignupScreen() {
     const inputAnim1 = useRef(new Animated.Value(0)).current;
     const inputAnim2 = useRef(new Animated.Value(0)).current;
     const inputAnim3 = useRef(new Animated.Value(0)).current;
+    const inputAnim4 = useRef(new Animated.Value(0)).current;
     const buttonAnim = useRef(new Animated.Value(0)).current;
     const checkAnim = useRef(new Animated.Value(0)).current;
 
@@ -74,7 +77,7 @@ export default function SignupScreen() {
                     useNativeDriver: true,
                 }),
             ]),
-            Animated.stagger(80, [
+            Animated.stagger(70, [
                 Animated.spring(inputAnim1, {
                     toValue: 1,
                     tension: 50,
@@ -88,6 +91,12 @@ export default function SignupScreen() {
                     useNativeDriver: true,
                 }),
                 Animated.spring(inputAnim3, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(inputAnim4, {
                     toValue: 1,
                     tension: 50,
                     friction: 8,
@@ -123,10 +132,16 @@ export default function SignupScreen() {
         return emailRegex.test(email);
     };
 
+    const validatePhone = (phone: string) => {
+        // Israeli phone format: 05X-XXXXXXX or 05XXXXXXXX
+        const phoneRegex = /^0(5[0-9])[- ]?[0-9]{7}$/;
+        return phoneRegex.test(phone.replace(/[- ]/g, ''));
+    };
+
     const handleContinue = async () => {
         setErrors({});
 
-        const newErrors: { name?: string; email?: string; password?: string } = {};
+        const newErrors: { name?: string; email?: string; phone?: string; password?: string } = {};
 
         if (!fullName.trim()) {
             newErrors.name = 'נא להזין שם מלא';
@@ -138,6 +153,12 @@ export default function SignupScreen() {
             newErrors.email = 'נא להזין אימייל';
         } else if (!validateEmail(email)) {
             newErrors.email = 'אימייל לא תקין';
+        }
+
+        if (!phone.trim()) {
+            newErrors.phone = 'נא להזין מספר טלפון';
+        } else if (!validatePhone(phone)) {
+            newErrors.phone = 'מספר טלפון לא תקין';
         }
 
         if (!password.trim()) {
@@ -165,8 +186,8 @@ export default function SignupScreen() {
         const result = await signUp(email, password, fullName);
 
         if (result.success) {
-            // Also update local user profile
-            await updateUserProfile({ fullName, email });
+            // Also update local user profile with phone
+            await updateUserProfile({ fullName, email, phone });
 
             setTimeout(() => {
                 setIsLoading(false);
@@ -178,7 +199,7 @@ export default function SignupScreen() {
         }
     };
 
-    const isValid = fullName.trim().length > 0 && email.trim().length > 0 && password.length >= 6;
+    const isValid = fullName.trim().length > 0 && email.trim().length > 0 && phone.trim().length > 0 && password.length >= 6;
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -415,7 +436,7 @@ export default function SignupScreen() {
                             )}
                         </Animated.View>
 
-                        {/* Password Input */}
+                        {/* Phone Input */}
                         <Animated.View
                             style={[
                                 styles.inputGroup,
@@ -423,6 +444,69 @@ export default function SignupScreen() {
                                     opacity: inputAnim3,
                                     transform: [{
                                         translateX: inputAnim3.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [50, 0],
+                                        }),
+                                    }],
+                                }
+                            ]}
+                        >
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                                טלפון
+                            </Text>
+                            <View style={[
+                                styles.inputContainer,
+                                {
+                                    backgroundColor: colors.surfaceSecondary,
+                                    borderColor: errors.phone
+                                        ? colors.danger
+                                        : focusedField === 'phone'
+                                            ? colors.primary
+                                            : colors.border,
+                                    borderWidth: focusedField === 'phone' ? 2 : 1,
+                                }
+                            ]}>
+                                <View style={[
+                                    styles.inputIconContainer,
+                                    { backgroundColor: focusedField === 'phone' ? colors.primaryMuted : 'transparent' }
+                                ]}>
+                                    <Phone
+                                        size={20}
+                                        color={focusedField === 'phone' ? colors.primary : colors.textTertiary}
+                                    />
+                                </View>
+                                <TextInput
+                                    style={[styles.input, { color: colors.textPrimary }]}
+                                    placeholder="050-1234567"
+                                    placeholderTextColor={colors.textQuaternary}
+                                    value={phone}
+                                    onChangeText={(text) => {
+                                        setPhone(text);
+                                        if (errors.phone) setErrors({ ...errors, phone: undefined });
+                                    }}
+                                    keyboardType="phone-pad"
+                                    onFocus={() => setFocusedField('phone')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                                {validatePhone(phone) && !errors.phone && (
+                                    <CheckCircle size={20} color={colors.success} />
+                                )}
+                            </View>
+                            {errors.phone && (
+                                <Text style={[styles.errorText, { color: colors.danger }]}>
+                                    {errors.phone}
+                                </Text>
+                            )}
+                        </Animated.View>
+
+                        {/* Password Input */}
+                        <Animated.View
+                            style={[
+                                styles.inputGroup,
+                                {
+                                    opacity: inputAnim4,
+                                    transform: [{
+                                        translateX: inputAnim4.interpolate({
                                             inputRange: [0, 1],
                                             outputRange: [50, 0],
                                         }),

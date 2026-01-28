@@ -47,6 +47,7 @@ import {
 import { useTransactions } from '../context/TransactionsContext';
 import { useNotification } from '../context/NotificationContext';
 import { useTheme, ThemeMode } from '../context/ThemeContext';
+import { useUserProfile } from '../context/UserProfileContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 const SECTIONS = [
@@ -88,9 +89,10 @@ export default function SettingsScreen() {
     const { resolvedTheme, themeMode, setThemeMode, isDark } = useTheme();
     const colors = getColors(resolvedTheme);
     const { showDeleteConfirm, showSuccess } = useNotification();
+    const { userProfile, updateUserProfile: updateUserProfileContext } = useUserProfile();
 
     const {
-        userProfile,
+        userProfile: legacyProfile,
         updateUserProfile,
         businessSettings,
         updateBusinessSettings,
@@ -164,11 +166,11 @@ export default function SettingsScreen() {
                     {/* Profile Card */}
                     <View style={[styles.profileCard, { backgroundColor: colors.surface }, SHADOWS.sm]}>
                         <TouchableOpacity style={styles.avatarContainer}>
-                            {userProfile.avatarUri ? (
-                                <Image source={{ uri: userProfile.avatarUri }} style={styles.avatar} />
+                            {userProfile?.profilePicture ? (
+                                <Image source={{ uri: userProfile.profilePicture }} style={styles.avatar} />
                             ) : (
                                 <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
-                                    <Text style={styles.avatarInitials}>{userProfile.name.charAt(0)}</Text>
+                                    <Text style={styles.avatarInitials}>{(userProfile?.fullName || 'U').charAt(0)}</Text>
                                 </View>
                             )}
                             <View style={[styles.cameraIcon, { backgroundColor: colors.surface, borderColor: colors.background }]}>
@@ -176,8 +178,8 @@ export default function SettingsScreen() {
                             </View>
                         </TouchableOpacity>
                         <View style={styles.profileInfo}>
-                            <Text style={[styles.profileName, { color: colors.textPrimary }]}>{userProfile.name}</Text>
-                            <Text style={[styles.profileEmail, { color: colors.textTertiary }]}>{userProfile.email}</Text>
+                            <Text style={[styles.profileName, { color: colors.textPrimary }]}>{userProfile?.fullName || 'משתמש'}</Text>
+                            <Text style={[styles.profileEmail, { color: colors.textTertiary }]}>{userProfile?.email || ''}</Text>
                         </View>
                     </View>
 
@@ -229,15 +231,15 @@ export default function SettingsScreen() {
                                                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>שם מלא</Text>
                                                 <TextInput
                                                     style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
-                                                    value={userProfile.name}
-                                                    onChangeText={(t) => updateUserProfile({ name: t })}
+                                                    value={userProfile?.fullName || ''}
+                                                    onChangeText={(t) => updateUserProfileContext({ fullName: t })}
                                                 />
                                             </View>
                                             <View style={styles.inputGroup}>
                                                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>אימייל</Text>
                                                 <TextInput
                                                     style={[styles.input, styles.inputDisabled, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textTertiary }]}
-                                                    value={userProfile.email}
+                                                    value={userProfile?.email || ''}
                                                     editable={false}
                                                 />
                                             </View>
@@ -245,8 +247,8 @@ export default function SettingsScreen() {
                                                 <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>טלפון</Text>
                                                 <TextInput
                                                     style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
-                                                    value={userProfile.phone}
-                                                    onChangeText={(t) => updateUserProfile({ phone: t })}
+                                                    value={userProfile?.phone || ''}
+                                                    onChangeText={(t) => updateUserProfileContext({ phone: t })}
                                                     keyboardType="phone-pad"
                                                 />
                                             </View>
@@ -256,7 +258,7 @@ export default function SettingsScreen() {
                                                     style={[styles.dropdown, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
                                                     onPress={() => setIndustryModalVisible(true)}
                                                 >
-                                                    <Text style={[styles.dropdownText, { color: colors.textPrimary }]}>{userProfile.industry}</Text>
+                                                    <Text style={[styles.dropdownText, { color: colors.textPrimary }]}>{userProfile?.businessCategory || 'בחר תחום'}</Text>
                                                     <ChevronDown size={18} color={colors.textTertiary} />
                                                 </TouchableOpacity>
                                             </View>
@@ -507,16 +509,16 @@ export default function SettingsScreen() {
                                 <TouchableOpacity
                                     style={[styles.modalItem, { borderBottomColor: colors.border }]}
                                     onPress={() => {
-                                        updateUserProfile({ industry: item });
+                                        updateUserProfileContext({ businessCategory: item });
                                         setIndustryModalVisible(false);
                                     }}
                                 >
                                     <Text style={[
                                         styles.modalItemText,
                                         { color: colors.textPrimary },
-                                        userProfile.industry === item && { color: colors.primary, fontFamily: FONTS.semiBold }
+                                        userProfile?.businessCategory === item && { color: colors.primary, fontFamily: FONTS.semiBold }
                                     ]}>{item}</Text>
-                                    {userProfile.industry === item && <Text style={{ color: colors.primary }}>✓</Text>}
+                                    {userProfile?.businessCategory === item && <Text style={{ color: colors.primary }}>✓</Text>}
                                 </TouchableOpacity>
                             )}
                         />
