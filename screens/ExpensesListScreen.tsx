@@ -220,61 +220,6 @@ export default function ExpensesListScreen() {
                 </View>
             </View>
 
-            {/* Category Filters */}
-            {processedData.categories.length > 0 && (
-                <View style={styles.filtersSection}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersContent}>
-                        <TouchableOpacity
-                            style={[
-                                styles.filterChip,
-                                {
-                                    backgroundColor: selectedCategory === null ? colors.primary : colors.surface,
-                                    borderColor: selectedCategory === null ? colors.primary : colors.border,
-                                }
-                            ]}
-                            onPress={() => setSelectedCategory(null)}
-                        >
-                            <Text style={[
-                                styles.filterChipText,
-                                { color: selectedCategory === null ? '#FFFFFF' : colors.textSecondary }
-                            ]}>
-                                הכל
-                            </Text>
-                        </TouchableOpacity>
-                        {processedData.categories.map((cat) => (
-                            <TouchableOpacity
-                                key={cat}
-                                style={[
-                                    styles.filterChip,
-                                    {
-                                        backgroundColor: selectedCategory === cat ? colors.primary : colors.surface,
-                                        borderColor: selectedCategory === cat ? colors.primary : colors.border,
-                                    }
-                                ]}
-                                onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                            >
-                                <Text style={[
-                                    styles.filterChipText,
-                                    { color: selectedCategory === cat ? '#FFFFFF' : colors.textSecondary }
-                                ]}>
-                                    {cat}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
-            )}
-
-            {/* Charts */}
-            {showCharts && processedData.raw.length > 0 && (
-                <ExpenseCharts
-                    expenses={processedData.raw.map(t => ({
-                        category: t.category || 'אחר',
-                        amount: parseAmount(t.amount),
-                    }))}
-                />
-            )}
-
             {/* List */}
             {processedData.grouped.length === 0 ? (
                 <EmptyState
@@ -292,6 +237,68 @@ export default function ExpensesListScreen() {
                             <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>{title}</Text>
                         </View>
                     )}
+                    ListHeaderComponent={
+                        <>
+                            {/* Category Filter Chips */}
+                            {processedData.categories.length > 1 && (
+                                <View style={styles.filtersSection}>
+                                    <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.filtersContent}
+                                    >
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.filterChip,
+                                                {
+                                                    backgroundColor: selectedCategory === null ? colors.primary : colors.surface,
+                                                    borderColor: selectedCategory === null ? colors.primary : colors.border,
+                                                }
+                                            ]}
+                                            onPress={() => setSelectedCategory(null)}
+                                        >
+                                            <Text style={[
+                                                styles.filterChipText,
+                                                { color: selectedCategory === null ? '#FFFFFF' : colors.textSecondary }
+                                            ]}>
+                                                הכל
+                                            </Text>
+                                        </TouchableOpacity>
+                                        {processedData.categories.map((cat) => (
+                                            <TouchableOpacity
+                                                key={cat}
+                                                style={[
+                                                    styles.filterChip,
+                                                    {
+                                                        backgroundColor: selectedCategory === cat ? colors.primary : colors.surface,
+                                                        borderColor: selectedCategory === cat ? colors.primary : colors.border,
+                                                    }
+                                                ]}
+                                                onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                                            >
+                                                <Text style={[
+                                                    styles.filterChipText,
+                                                    { color: selectedCategory === cat ? '#FFFFFF' : colors.textSecondary }
+                                                ]}>
+                                                    {cat}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            )}
+
+                            {/* Charts */}
+                            {showCharts && processedData.raw.length > 0 && (
+                                <ExpenseCharts
+                                    expenses={processedData.raw.map(t => ({
+                                        category: t.category || 'אחר',
+                                        amount: parseAmount(t.amount),
+                                    }))}
+                                />
+                            )}
+                        </>
+                    }
                     contentContainerStyle={styles.listContent}
                     stickySectionHeadersEnabled
                     showsVerticalScrollIndicator={false}
