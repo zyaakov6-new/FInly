@@ -10,6 +10,7 @@ import {
     Modal,
     Image,
     RefreshControl,
+    ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -36,6 +37,7 @@ export default function ExpensesListScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [selectedExpense, setSelectedExpense] = useState<any>(null);
     const [showActionMenu, setShowActionMenu] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
     const parseAmount = (str?: string) => {
         if (!str) return 0;
@@ -98,6 +100,9 @@ export default function ExpensesListScreen() {
     const processedData = useMemo(() => {
         let data = transactions.filter(t => t.type === 'expense');
 
+        // Get unique categories for filter chips
+        const allCategories = [...new Set(data.map(t => t.category || 'אחר').filter(Boolean))];
+
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             data = data.filter(t =>
@@ -106,6 +111,11 @@ export default function ExpensesListScreen() {
                 (t.notes && t.notes.toLowerCase().includes(query)) ||
                 (t.supplier && t.supplier.toLowerCase().includes(query))
             );
+        }
+
+        // Filter by category if selected
+        if (selectedCategory) {
+            data = data.filter(t => (t.category || 'אחר') === selectedCategory);
         }
 
         data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -121,8 +131,8 @@ export default function ExpensesListScreen() {
             group.data.push(item);
         });
 
-        return { grouped, raw: data };
-    }, [transactions, searchQuery]);
+        return { grouped, raw: data, categories: allCategories };
+    }, [transactions, searchQuery, selectedCategory]);
 
     const totalFilteredAmount = processedData.raw.reduce((sum, item) => sum + parseAmount(item.amount), 0);
 
@@ -196,6 +206,51 @@ export default function ExpensesListScreen() {
                     )}
                 </View>
             </View>
+
+            {/* Category Filters */}
+            {processedData.categories.length > 0 && (
+                <View style={styles.filtersSection}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersContent}>
+                        <TouchableOpacity
+                            style={[
+                                styles.filterChip,
+                                {
+                                    backgroundColor: selectedCategory === null ? colors.primary : colors.surface,
+                                    borderColor: selectedCategory === null ? colors.primary : colors.border,
+                                }
+                            ]}
+                            onPress={() => setSelectedCategory(null)}
+                        >
+                            <Text style={[
+                                styles.filterChipText,
+                                { color: selectedCategory === null ? '#FFFFFF' : colors.textSecondary }
+                            ]}>
+                                הכל
+                            </Text>
+                        </TouchableOpacity>
+                        {processedData.categories.map((cat) => (
+                            <TouchableOpacity
+                                key={cat}
+                                style={[
+                                    styles.filterChip,
+                                    {
+                                        backgroundColor: selectedCategory === cat ? colors.primary : colors.surface,
+                                        borderColor: selectedCategory === cat ? colors.primary : colors.border,
+                                    }
+                                ]}
+                                onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                            >
+                                <Text style={[
+                                    styles.filterChipText,
+                                    { color: selectedCategory === cat ? '#FFFFFF' : colors.textSecondary }
+                                ]}>
+                                    {cat}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
 
             {/* List */}
             {processedData.grouped.length === 0 ? (
@@ -497,5 +552,23 @@ const styles = StyleSheet.create({
     },
     actionMenuCancelText: {
         ...TYPOGRAPHY.body,
+    },
+    // Category Filters
+    filtersSection: {
+        marginBottom: SPACING.md,
+    },
+    filtersContent: {
+        paddingHorizontal: LAYOUT.screenPadding,
+        gap: SPACING.sm,
+    },
+    filterChip: {
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.sm,
+        borderRadius: RADIUS.full,
+        borderWidth: 1,
+    },
+    filterChipText: {
+        ...TYPOGRAPHY.caption,
+        fontFamily: FONTS.medium,
     },
 });

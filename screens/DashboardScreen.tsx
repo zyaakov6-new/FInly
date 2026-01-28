@@ -482,6 +482,25 @@ export default function DashboardScreen() {
                         </View>
                     </View>
 
+                    {/* New User Tip Card */}
+                    {transactions.length < 3 && (
+                        <View style={[styles.tipCard, { backgroundColor: colors.surface }, SHADOWS.sm]}>
+                            <View style={[styles.tipIconBox, { backgroundColor: colors.primaryMuted }]}>
+                                <Lightbulb size={20} color={colors.primary} />
+                            </View>
+                            <View style={styles.tipContent}>
+                                <Text style={[styles.tipTitle, { color: colors.textPrimary }]}>
+                                    טיפ: {transactions.length === 0 ? 'התחל להשתמש באפליקציה' : 'המשך לתעד'}
+                                </Text>
+                                <Text style={[styles.tipText, { color: colors.textTertiary }]}>
+                                    {transactions.length === 0
+                                        ? 'צור חשבונית ראשונה או הוסף הוצאה כדי להתחיל לעקוב אחרי הפיננסים שלך'
+                                        : 'תעד הכנסות והוצאות באופן קבוע כדי לקבל תמונה מלאה של המצב הפיננסי שלך'}
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
                     {/* Pending Invoices Card */}
                     {pendingInvoices.length > 0 && (
                         <TouchableOpacity
@@ -1245,5 +1264,33 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         ...TYPOGRAPHY.body,
+    },
+    // Tip Card for new users
+    tipCard: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginHorizontal: LAYOUT.screenPadding,
+        marginTop: SPACING.xl,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+    },
+    tipIconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tipContent: {
+        flex: 1,
+        marginRight: SPACING.md,
+    },
+    tipTitle: {
+        ...TYPOGRAPHY.label,
+        marginBottom: SPACING.xs,
+    },
+    tipText: {
+        ...TYPOGRAPHY.bodySmall,
+        lineHeight: 20,
     },
 });
