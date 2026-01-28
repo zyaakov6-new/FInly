@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     StyleSheet,
     Text,
@@ -8,13 +8,26 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Animated,
+    Dimensions,
+    ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import {
+    Mail,
+    Lock,
+    Eye,
+    EyeOff,
+    Fingerprint,
+    Sparkles,
+} from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
-import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
+import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT, SHADOWS } from '../constants/theme';
+
+const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
@@ -26,14 +39,166 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [focusedField, setFocusedField] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
-    const handleLogin = () => {
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(50)).current;
+    const logoScale = useRef(new Animated.Value(0.5)).current;
+    const logoRotate = useRef(new Animated.Value(0)).current;
+    const inputAnim1 = useRef(new Animated.Value(0)).current;
+    const inputAnim2 = useRef(new Animated.Value(0)).current;
+    const buttonAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        // Staggered entrance animations
+        Animated.sequence([
+            Animated.parallel([
+                Animated.spring(logoScale, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 7,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(logoRotate, {
+                    toValue: 1,
+                    duration: 800,
+                    useNativeDriver: true,
+                }),
+            ]),
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 400,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(slideAnim, {
+                    toValue: 0,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+            ]),
+            Animated.stagger(100, [
+                Animated.spring(inputAnim1, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(inputAnim2, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(buttonAnim, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+            ]),
+        ]).start();
+    }, []);
+
+    const validateEmail = (email: string) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
+    const handleLogin = async () => {
+        // Clear previous errors
+        setErrors({});
+
+        // Validate inputs
+        const newErrors: { email?: string; password?: string } = {};
+
+        if (!email.trim()) {
+            newErrors.email = 'נא להזין אימייל';
+        } else if (!validateEmail(email)) {
+            newErrors.email = 'אימייל לא תקין';
+        }
+
+        if (!password.trim()) {
+            newErrors.password = 'נא להזין סיסמה';
+        } else if (password.length < 6) {
+            newErrors.password = 'סיסמה חייבת להכיל לפחות 6 תווים';
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        // Simulate login
+        setIsLoading(true);
+
+        // Animate button press
+        Animated.sequence([
+            Animated.timing(buttonAnim, {
+                toValue: 0.95,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+            Animated.timing(buttonAnim, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
+        // Simulate API call
+        setTimeout(() => {
+            setIsLoading(false);
+            navigation.replace('Main');
+        }, 1000);
+    };
+
+    const handleBiometricLogin = () => {
+        // For demo, just navigate
         navigation.replace('Main');
     };
+
+    const logoRotation = logoRotate.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0deg', '360deg'],
+    });
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             <StatusBar style={isDark ? 'light' : 'dark'} />
+
+            {/* Background Gradient */}
+            <LinearGradient
+                colors={isDark
+                    ? ['#18181B', '#27272A', '#18181B']
+                    : ['#6366F1', '#8B5CF6', '#A78BFA']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.gradientBg}
+            />
+
+            {/* Decorative Elements */}
+            <Animated.View
+                style={[
+                    styles.decorCircle1,
+                    {
+                        opacity: isDark ? 0.1 : 0.2,
+                        transform: [{ scale: logoScale }],
+                    }
+                ]}
+            />
+            <Animated.View
+                style={[
+                    styles.decorCircle2,
+                    {
+                        opacity: isDark ? 0.05 : 0.15,
+                        transform: [{ scale: logoScale }],
+                    }
+                ]}
+            />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -42,36 +207,83 @@ export default function LoginScreen() {
                 <ScrollView
                     contentContainerStyle={[
                         styles.scrollContent,
-                        { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 }
+                        { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 40 }
                     ]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Logo */}
-                    <View style={styles.logoSection}>
-                        <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
-                            <Text style={styles.logoText}>F</Text>
+                    {/* Logo Section */}
+                    <Animated.View
+                        style={[
+                            styles.logoSection,
+                            {
+                                transform: [
+                                    { scale: logoScale },
+                                ],
+                            }
+                        ]}
+                    >
+                        <View style={styles.logoWrapper}>
+                            <LinearGradient
+                                colors={isDark
+                                    ? ['#818CF8', '#A78BFA']
+                                    : ['#FFFFFF', '#F0F0FF']}
+                                style={styles.logoContainer}
+                            >
+                                <Animated.View style={{ transform: [{ rotate: logoRotation }] }}>
+                                    <Text style={[styles.logoText, { color: isDark ? '#18181B' : '#6366F1' }]}>F</Text>
+                                </Animated.View>
+                            </LinearGradient>
+                            <View style={[styles.logoGlow, { backgroundColor: colors.primary }]} />
                         </View>
-                        <Text style={[styles.appName, { color: colors.textPrimary }]}>Finly</Text>
-                        <Text style={[styles.tagline, { color: colors.textTertiary }]}>
-                            ניהול פיננסי חכם
+                        <Text style={[styles.appName, { color: isDark ? colors.textPrimary : '#FFFFFF' }]}>
+                            Finly
                         </Text>
-                    </View>
+                        <View style={styles.taglineContainer}>
+                            <Sparkles size={14} color={isDark ? colors.primary : 'rgba(255,255,255,0.8)'} />
+                            <Text style={[styles.tagline, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.8)' }]}>
+                                ניהול פיננסי חכם לפרילנסרים
+                            </Text>
+                        </View>
+                    </Animated.View>
 
-                    {/* Welcome Text */}
-                    <View style={styles.welcomeSection}>
-                        <Text style={[styles.welcomeTitle, { color: colors.textPrimary }]}>
-                            ברוך הבא
-                        </Text>
-                        <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
-                            היכנס לחשבון שלך כדי להמשיך
-                        </Text>
-                    </View>
+                    {/* Form Card */}
+                    <Animated.View
+                        style={[
+                            styles.formCard,
+                            {
+                                backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                                opacity: fadeAnim,
+                                transform: [{ translateY: slideAnim }],
+                            },
+                            SHADOWS.xl
+                        ]}
+                    >
+                        {/* Welcome Text */}
+                        <View style={styles.welcomeSection}>
+                            <Text style={[styles.welcomeTitle, { color: colors.textPrimary }]}>
+                                ברוך הבא
+                            </Text>
+                            <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
+                                היכנס לחשבון שלך כדי להמשיך
+                            </Text>
+                        </View>
 
-                    {/* Form */}
-                    <View style={styles.form}>
-                        {/* Email */}
-                        <View style={styles.inputGroup}>
+                        {/* Email Input */}
+                        <Animated.View
+                            style={[
+                                styles.inputGroup,
+                                {
+                                    opacity: inputAnim1,
+                                    transform: [{
+                                        translateX: inputAnim1.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [50, 0],
+                                        }),
+                                    }],
+                                }
+                            ]}
+                        >
                             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                                 אימייל
                             </Text>
@@ -79,29 +291,61 @@ export default function LoginScreen() {
                                 styles.inputContainer,
                                 {
                                     backgroundColor: colors.surfaceSecondary,
-                                    borderColor: focusedField === 'email' ? colors.primary : colors.border
+                                    borderColor: errors.email
+                                        ? colors.danger
+                                        : focusedField === 'email'
+                                            ? colors.primary
+                                            : colors.border,
+                                    borderWidth: focusedField === 'email' ? 2 : 1,
                                 }
                             ]}>
-                                <Mail
-                                    size={20}
-                                    color={focusedField === 'email' ? colors.primary : colors.textTertiary}
-                                />
+                                <View style={[
+                                    styles.inputIconContainer,
+                                    { backgroundColor: focusedField === 'email' ? colors.primaryMuted : 'transparent' }
+                                ]}>
+                                    <Mail
+                                        size={20}
+                                        color={focusedField === 'email' ? colors.primary : colors.textTertiary}
+                                    />
+                                </View>
                                 <TextInput
                                     style={[styles.input, { color: colors.textPrimary }]}
                                     placeholder="your@email.com"
                                     placeholderTextColor={colors.textQuaternary}
                                     value={email}
-                                    onChangeText={setEmail}
+                                    onChangeText={(text) => {
+                                        setEmail(text);
+                                        if (errors.email) setErrors({ ...errors, email: undefined });
+                                    }}
                                     keyboardType="email-address"
                                     autoCapitalize="none"
+                                    autoCorrect={false}
                                     onFocus={() => setFocusedField('email')}
                                     onBlur={() => setFocusedField(null)}
                                 />
                             </View>
-                        </View>
+                            {errors.email && (
+                                <Text style={[styles.errorText, { color: colors.danger }]}>
+                                    {errors.email}
+                                </Text>
+                            )}
+                        </Animated.View>
 
-                        {/* Password */}
-                        <View style={styles.inputGroup}>
+                        {/* Password Input */}
+                        <Animated.View
+                            style={[
+                                styles.inputGroup,
+                                {
+                                    opacity: inputAnim2,
+                                    transform: [{
+                                        translateX: inputAnim2.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [50, 0],
+                                        }),
+                                    }],
+                                }
+                            ]}
+                        >
                             <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
                                 סיסמה
                             </Text>
@@ -109,19 +353,32 @@ export default function LoginScreen() {
                                 styles.inputContainer,
                                 {
                                     backgroundColor: colors.surfaceSecondary,
-                                    borderColor: focusedField === 'password' ? colors.primary : colors.border
+                                    borderColor: errors.password
+                                        ? colors.danger
+                                        : focusedField === 'password'
+                                            ? colors.primary
+                                            : colors.border,
+                                    borderWidth: focusedField === 'password' ? 2 : 1,
                                 }
                             ]}>
-                                <Lock
-                                    size={20}
-                                    color={focusedField === 'password' ? colors.primary : colors.textTertiary}
-                                />
+                                <View style={[
+                                    styles.inputIconContainer,
+                                    { backgroundColor: focusedField === 'password' ? colors.primaryMuted : 'transparent' }
+                                ]}>
+                                    <Lock
+                                        size={20}
+                                        color={focusedField === 'password' ? colors.primary : colors.textTertiary}
+                                    />
+                                </View>
                                 <TextInput
                                     style={[styles.input, { color: colors.textPrimary }]}
                                     placeholder="הזן סיסמה"
                                     placeholderTextColor={colors.textQuaternary}
                                     value={password}
-                                    onChangeText={setPassword}
+                                    onChangeText={(text) => {
+                                        setPassword(text);
+                                        if (errors.password) setErrors({ ...errors, password: undefined });
+                                    }}
                                     secureTextEntry={!showPassword}
                                     onFocus={() => setFocusedField('password')}
                                     onBlur={() => setFocusedField(null)}
@@ -129,6 +386,7 @@ export default function LoginScreen() {
                                 <TouchableOpacity
                                     onPress={() => setShowPassword(!showPassword)}
                                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    style={styles.eyeButton}
                                 >
                                     {showPassword ? (
                                         <Eye size={20} color={colors.textTertiary} />
@@ -137,7 +395,12 @@ export default function LoginScreen() {
                                     )}
                                 </TouchableOpacity>
                             </View>
-                        </View>
+                            {errors.password && (
+                                <Text style={[styles.errorText, { color: colors.danger }]}>
+                                    {errors.password}
+                                </Text>
+                            )}
+                        </Animated.View>
 
                         {/* Forgot Password */}
                         <TouchableOpacity style={styles.forgotPassword}>
@@ -147,13 +410,32 @@ export default function LoginScreen() {
                         </TouchableOpacity>
 
                         {/* Login Button */}
-                        <TouchableOpacity
-                            style={[styles.loginButton, { backgroundColor: colors.primary }]}
-                            onPress={handleLogin}
-                            activeOpacity={0.8}
+                        <Animated.View
+                            style={{
+                                opacity: buttonAnim,
+                                transform: [{ scale: buttonAnim }],
+                            }}
                         >
-                            <Text style={styles.loginButtonText}>התחבר</Text>
-                        </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.loginButton]}
+                                onPress={handleLogin}
+                                activeOpacity={0.9}
+                                disabled={isLoading}
+                            >
+                                <LinearGradient
+                                    colors={['#6366F1', '#8B5CF6']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.loginButtonGradient}
+                                >
+                                    {isLoading ? (
+                                        <ActivityIndicator color="#FFFFFF" size="small" />
+                                    ) : (
+                                        <Text style={styles.loginButtonText}>התחבר</Text>
+                                    )}
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </Animated.View>
 
                         {/* Divider */}
                         <View style={styles.divider}>
@@ -169,24 +451,31 @@ export default function LoginScreen() {
                                 { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
                             ]}
                             activeOpacity={0.7}
+                            onPress={handleBiometricLogin}
                         >
+                            <Fingerprint size={22} color={colors.primary} />
                             <Text style={[styles.biometricButtonText, { color: colors.textPrimary }]}>
-                                המשך עם Face ID
+                                המשך עם זיהוי ביומטרי
                             </Text>
                         </TouchableOpacity>
-                    </View>
+                    </Animated.View>
 
                     {/* Sign Up Link */}
-                    <View style={styles.signupSection}>
-                        <Text style={[styles.signupText, { color: colors.textTertiary }]}>
+                    <Animated.View
+                        style={[
+                            styles.signupSection,
+                            { opacity: fadeAnim }
+                        ]}
+                    >
+                        <Text style={[styles.signupText, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.8)' }]}>
                             אין לך חשבון?{' '}
                         </Text>
                         <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                            <Text style={[styles.signupLink, { color: colors.primary }]}>
+                            <Text style={[styles.signupLink, { color: isDark ? colors.primary : '#FFFFFF' }]}>
                                 הרשם עכשיו
                             </Text>
                         </TouchableOpacity>
-                    </View>
+                    </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -197,6 +486,31 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
+    gradientBg: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: 0,
+        height: height * 0.45,
+    },
+    decorCircle1: {
+        position: 'absolute',
+        width: 300,
+        height: 300,
+        borderRadius: 150,
+        backgroundColor: '#FFFFFF',
+        top: -100,
+        right: -80,
+    },
+    decorCircle2: {
+        position: 'absolute',
+        width: 200,
+        height: 200,
+        borderRadius: 100,
+        backgroundColor: '#FFFFFF',
+        top: 150,
+        left: -60,
+    },
     keyboardView: {
         flex: 1,
     },
@@ -204,45 +518,68 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         paddingHorizontal: LAYOUT.screenPadding,
     },
+    // Logo
     logoSection: {
         alignItems: 'center',
-        marginBottom: SPACING['4xl'],
+        marginBottom: SPACING['3xl'],
     },
-    logoContainer: {
-        width: 64,
-        height: 64,
-        borderRadius: RADIUS.lg,
-        alignItems: 'center',
-        justifyContent: 'center',
+    logoWrapper: {
+        position: 'relative',
         marginBottom: SPACING.lg,
     },
+    logoContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: RADIUS.xl,
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1,
+    },
+    logoGlow: {
+        position: 'absolute',
+        width: 80,
+        height: 80,
+        borderRadius: RADIUS.xl,
+        top: 8,
+        left: 0,
+        opacity: 0.3,
+        zIndex: 0,
+    },
     logoText: {
-        fontSize: 28,
+        fontSize: 36,
         fontFamily: FONTS.bold,
-        color: '#FFFFFF',
     },
     appName: {
-        ...TYPOGRAPHY.h2,
-        marginBottom: SPACING.xs,
+        ...TYPOGRAPHY.h1,
+        marginBottom: SPACING.sm,
+    },
+    taglineContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
     },
     tagline: {
         ...TYPOGRAPHY.body,
     },
+    // Form Card
+    formCard: {
+        borderRadius: RADIUS['2xl'],
+        padding: SPACING.xl,
+        marginBottom: SPACING['2xl'],
+    },
     welcomeSection: {
-        marginBottom: SPACING['3xl'],
+        marginBottom: SPACING['2xl'],
     },
     welcomeTitle: {
-        ...TYPOGRAPHY.h1,
+        ...TYPOGRAPHY.h2,
         textAlign: 'right',
-        marginBottom: SPACING.sm,
+        marginBottom: SPACING.xs,
     },
     welcomeSubtitle: {
         ...TYPOGRAPHY.body,
         textAlign: 'right',
     },
-    form: {
-        marginBottom: SPACING['3xl'],
-    },
+    // Inputs
     inputGroup: {
         marginBottom: SPACING.xl,
     },
@@ -255,16 +592,32 @@ const styles = StyleSheet.create({
         flexDirection: 'row-reverse',
         alignItems: 'center',
         height: LAYOUT.inputHeight,
+        borderRadius: RADIUS.lg,
+        paddingHorizontal: SPACING.sm,
+        gap: SPACING.sm,
+    },
+    inputIconContainer: {
+        width: 40,
+        height: 40,
         borderRadius: RADIUS.md,
-        borderWidth: 1,
-        paddingHorizontal: SPACING.lg,
-        gap: SPACING.md,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     input: {
         flex: 1,
         ...TYPOGRAPHY.body,
         textAlign: 'right',
+        height: '100%',
     },
+    eyeButton: {
+        padding: SPACING.sm,
+    },
+    errorText: {
+        ...TYPOGRAPHY.caption,
+        textAlign: 'right',
+        marginTop: SPACING.xs,
+    },
+    // Forgot Password
     forgotPassword: {
         alignSelf: 'flex-end',
         marginBottom: SPACING['2xl'],
@@ -272,17 +625,23 @@ const styles = StyleSheet.create({
     forgotPasswordText: {
         ...TYPOGRAPHY.label,
     },
+    // Login Button
     loginButton: {
-        height: LAYOUT.buttonHeight,
-        borderRadius: RADIUS.md,
-        alignItems: 'center',
-        justifyContent: 'center',
+        borderRadius: RADIUS.lg,
+        overflow: 'hidden',
         marginBottom: SPACING.xl,
     },
-    loginButtonText: {
-        ...TYPOGRAPHY.h4,
-        color: '#FFFFFF',
+    loginButtonGradient: {
+        height: LAYOUT.buttonHeight,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
+    loginButtonText: {
+        ...TYPOGRAPHY.button,
+        color: '#FFFFFF',
+        fontSize: 16,
+    },
+    // Divider
     divider: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -296,16 +655,20 @@ const styles = StyleSheet.create({
         ...TYPOGRAPHY.caption,
         marginHorizontal: SPACING.lg,
     },
+    // Biometric
     biometricButton: {
         height: LAYOUT.buttonHeight,
-        borderRadius: RADIUS.md,
+        borderRadius: RADIUS.lg,
         borderWidth: 1,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: SPACING.sm,
     },
     biometricButtonText: {
-        ...TYPOGRAPHY.h4,
+        ...TYPOGRAPHY.button,
     },
+    // Signup
     signupSection: {
         flexDirection: 'row',
         justifyContent: 'center',
@@ -316,5 +679,6 @@ const styles = StyleSheet.create({
     },
     signupLink: {
         ...TYPOGRAPHY.label,
+        fontFamily: FONTS.semiBold,
     },
 });

@@ -19,14 +19,12 @@ import {
     ArrowUpRight,
     ArrowDownRight,
     ChevronLeft,
-    Plus,
     FileText,
     Zap,
     PieChart,
     Users,
     Receipt,
     Clock,
-    Sparkles,
     Calendar,
     Award,
     Lightbulb,
@@ -352,12 +350,6 @@ export default function DashboardScreen() {
                                     {now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}
                                 </Text>
                             </View>
-                            <TouchableOpacity
-                                style={[styles.addButton, { backgroundColor: isDark ? colors.primary : 'rgba(255,255,255,0.2)' }]}
-                                onPress={() => navigation.navigate('CreateInvoice')}
-                            >
-                                <Plus size={22} color="#FFFFFF" strokeWidth={2.5} />
-                            </TouchableOpacity>
                         </View>
 
                         {/* Balance Display */}
@@ -819,13 +811,6 @@ const styles = StyleSheet.create({
     },
     dateText: {
         ...TYPOGRAPHY.h3,
-    },
-    addButton: {
-        width: 48,
-        height: 48,
-        borderRadius: RADIUS.lg,
-        alignItems: 'center',
-        justifyContent: 'center',
     },
     // Balance
     balanceContainer: {
