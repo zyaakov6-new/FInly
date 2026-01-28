@@ -34,6 +34,7 @@ import { useTransactions } from '../context/TransactionsContext';
 import { useTheme } from '../context/ThemeContext';
 import { useUserProfile } from '../context/UserProfileContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
+import { ReceiptReminders } from '../components/ReceiptReminders';
 
 const { width, height } = Dimensions.get('window');
 const CIRCLE_SIZE = 180;
@@ -112,6 +113,25 @@ export default function DashboardScreen() {
     } = useTransactions();
 
     const expenseProgress = useMemo(() => getMonthlyExpenseProgress(), [getMonthlyExpenseProgress]);
+
+    // Get expenses without receipts (recent, last 30 days)
+    const expensesWithoutReceipts = useMemo(() => {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        return transactions.filter(t => {
+            if (t.type !== 'expense') return false;
+            if (t.receiptImageUri) return false;
+            const date = new Date(t.date);
+            return date >= thirtyDaysAgo;
+        }).map(t => ({
+            id: t.id,
+            title: t.title,
+            category: t.category,
+            amount: t.amount,
+            date: t.date,
+        }));
+    }, [transactions]);
 
     // Calculate freelancer score
     const freelancerScore = useMemo(() => {
@@ -498,6 +518,13 @@ export default function DashboardScreen() {
                                         : 'תעד הכנסות והוצאות באופן קבוע כדי לקבל תמונה מלאה של המצב הפיננסי שלך'}
                                 </Text>
                             </View>
+                        </View>
+                    )}
+
+                    {/* Receipt Reminders */}
+                    {expensesWithoutReceipts.length > 0 && (
+                        <View style={{ marginTop: SPACING.xl }}>
+                            <ReceiptReminders expenses={expensesWithoutReceipts} />
                         </View>
                     )}
 

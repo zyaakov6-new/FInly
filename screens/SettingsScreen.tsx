@@ -11,6 +11,7 @@ import {
     FlatList,
     KeyboardAvoidingView,
     Platform,
+    Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -43,6 +44,8 @@ import {
     Moon,
     Smartphone,
     Palette,
+    Receipt,
+    Clock,
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
 import { useNotification } from '../context/NotificationContext';
@@ -58,7 +61,7 @@ const SECTIONS = [
     { id: 'recurring', title: 'עסקאות חוזרות', icon: Repeat, navigate: 'Recurring' },
     { id: 'categories', title: 'ניהול קטגוריות', icon: List },
     { id: 'prices', title: 'מחירים וחיובים', icon: DollarSign },
-    { id: 'notifications', title: 'התראות (בקרוב)', icon: Bell, disabled: true },
+    { id: 'notifications', title: 'התראות ותזכורות', icon: Bell },
     { id: 'backup', title: 'גיבוי וייצוא (בקרוב)', icon: Database, disabled: true },
     { id: 'security', title: 'פרטיות ואבטחה', icon: Shield },
     { id: 'about', title: 'אודות ועזרה', icon: HelpCircle },
@@ -109,6 +112,8 @@ export default function SettingsScreen() {
     const [tempCategoryName, setTempCategoryName] = useState('');
     const [newCategoryName, setNewCategoryName] = useState('');
     const [industryModalVisible, setIndustryModalVisible] = useState(false);
+    const [receiptReminders, setReceiptReminders] = useState(true);
+    const [expenseReminders, setExpenseReminders] = useState(true);
 
     const toggleSection = (id: string) => {
         setActiveSection(activeSection === id ? null : id);
@@ -440,6 +445,48 @@ export default function SettingsScreen() {
                                                     keyboardType="numeric"
                                                 />
                                             </View>
+                                        </View>
+                                    )}
+
+                                    {section.id === 'notifications' && (
+                                        <View style={styles.inputList}>
+                                            <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
+                                                <View style={styles.toggleInfo}>
+                                                    <Receipt size={18} color={colors.primary} />
+                                                    <View style={styles.toggleTextContainer}>
+                                                        <Text style={[styles.toggleTitle, { color: colors.textPrimary }]}>תזכורת קבלות</Text>
+                                                        <Text style={[styles.toggleSubtitle, { color: colors.textTertiary }]}>
+                                                            תזכורת להוסיף קבלות להוצאות
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <Switch
+                                                    value={receiptReminders}
+                                                    onValueChange={setReceiptReminders}
+                                                    trackColor={{ false: colors.border, true: `${colors.success}50` }}
+                                                    thumbColor={receiptReminders ? colors.success : colors.textQuaternary}
+                                                />
+                                            </View>
+                                            <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
+                                                <View style={styles.toggleInfo}>
+                                                    <Clock size={18} color={colors.primary} />
+                                                    <View style={styles.toggleTextContainer}>
+                                                        <Text style={[styles.toggleTitle, { color: colors.textPrimary }]}>תזכורת הוצאות</Text>
+                                                        <Text style={[styles.toggleSubtitle, { color: colors.textTertiary }]}>
+                                                            תזכורת יומית לתיעוד הוצאות
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <Switch
+                                                    value={expenseReminders}
+                                                    onValueChange={setExpenseReminders}
+                                                    trackColor={{ false: colors.border, true: `${colors.success}50` }}
+                                                    thumbColor={expenseReminders ? colors.success : colors.textQuaternary}
+                                                />
+                                            </View>
+                                            <Text style={[styles.settingsHint, { color: colors.textTertiary }]}>
+                                                התזכורות יופיעו בדשבורד כאשר יש הוצאות ללא קבלות
+                                            </Text>
                                         </View>
                                     )}
 
@@ -808,5 +855,35 @@ const styles = StyleSheet.create({
     themeHint: {
         ...TYPOGRAPHY.caption,
         textAlign: 'center',
+    },
+    // Toggle/notification styles
+    toggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: SPACING.md,
+        borderBottomWidth: 1,
+    },
+    toggleInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        gap: SPACING.md,
+    },
+    toggleTextContainer: {
+        flex: 1,
+    },
+    toggleTitle: {
+        ...TYPOGRAPHY.body,
+        fontFamily: FONTS.medium,
+        marginBottom: 2,
+    },
+    toggleSubtitle: {
+        ...TYPOGRAPHY.caption,
+    },
+    settingsHint: {
+        ...TYPOGRAPHY.caption,
+        textAlign: 'center',
+        marginTop: SPACING.lg,
     },
 });

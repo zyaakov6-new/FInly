@@ -14,15 +14,16 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ChevronRight, Search, X, ImageIcon, Download, ArrowUpRight, Trash2, Edit2 } from 'lucide-react-native';
+import { ChevronRight, Search, X, ImageIcon, Download, ArrowUpRight, Trash2, Edit2, FileText, PieChart } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useTransactions } from '../context/TransactionsContext';
 import { useNotification } from '../context/NotificationContext';
 import { useTheme } from '../context/ThemeContext';
 import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
-import { exportToCSV } from '../utils/exportData';
+import { exportToCSV, exportToPDF } from '../utils/exportData';
 import { hapticFeedback } from '../utils/haptics';
 import { EmptyState } from '../components/EmptyState';
+import { ExpenseCharts } from '../components/ExpenseCharts';
 
 export default function ExpensesListScreen() {
     const insets = useSafeAreaInsets();
@@ -38,15 +39,18 @@ export default function ExpensesListScreen() {
     const [selectedExpense, setSelectedExpense] = useState<any>(null);
     const [showActionMenu, setShowActionMenu] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [showCharts, setShowCharts] = useState(true);
+    const [showExportMenu, setShowExportMenu] = useState(false);
 
     const parseAmount = (str?: string) => {
         if (!str) return 0;
         return parseFloat(str.replace(/[^0-9.-]+/g, '')) || 0;
     };
 
-    const handleExport = async () => {
+    const handleExport = async (type: 'csv' | 'pdf') => {
         try {
             hapticFeedback.light();
+            setShowExportMenu(false);
             const expensesOnly = transactions
                 .filter(t => t.type === 'expense')
                 .map(t => ({
@@ -57,7 +61,11 @@ export default function ExpensesListScreen() {
                 showInfo('אין נתונים', 'אין הוצאות לייצוא');
                 return;
             }
-            await exportToCSV(expensesOnly, 'finly_expenses.csv');
+            if (type === 'pdf') {
+                await exportToPDF(expensesOnly, 'finly_expenses.pdf');
+            } else {
+                await exportToCSV(expensesOnly, 'finly_expenses.csv');
+            }
             showSuccess('ייצוא הושלם', `יוצאו ${expensesOnly.length} הוצאות בהצלחה`);
         } catch (error) {
             showError('שגיאה', 'שגיאה בייצוא הנתונים');
@@ -178,13 +186,18 @@ export default function ExpensesListScreen() {
             {/* Header */}
             <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
                 <TouchableOpacity
-                    onPress={handleExport}
+                    onPress={() => setShowExportMenu(true)}
                     style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
                 >
                     <Download size={20} color={colors.primary} />
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>הוצאות</Text>
-                <View style={{ width: 44 }} />
+                <TouchableOpacity
+                    onPress={() => setShowCharts(!showCharts)}
+                    style={[styles.headerButton, { backgroundColor: showCharts ? colors.primaryMuted : colors.surfaceSecondary }]}
+                >
+                    <PieChart size={20} color={showCharts ? colors.primary : colors.textTertiary} />
+                </TouchableOpacity>
             </View>
 
             {/* Search */}
@@ -250,6 +263,16 @@ export default function ExpensesListScreen() {
                         ))}
                     </ScrollView>
                 </View>
+            )}
+
+            {/* Charts */}
+            {showCharts && processedData.raw.length > 0 && (
+                <ExpenseCharts
+                    expenses={processedData.raw.map(t => ({
+                        category: t.category || 'אחר',
+                        amount: parseAmount(t.amount),
+                    }))}
+                />
             )}
 
             {/* List */}
@@ -368,6 +391,55 @@ export default function ExpensesListScreen() {
                         <TouchableOpacity
                             style={[styles.actionMenuCancel, { borderTopColor: colors.border }]}
                             onPress={() => setShowActionMenu(false)}
+                        >
+                            <Text style={[styles.actionMenuCancelText, { color: colors.textTertiary }]}>ביטול</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Export Menu Modal */}
+            <Modal
+                visible={showExportMenu}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowExportMenu(false)}
+            >
+                <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+                    <TouchableOpacity
+                        style={StyleSheet.absoluteFill}
+                        activeOpacity={1}
+                        onPress={() => setShowExportMenu(false)}
+                    />
+                    <View style={[styles.actionMenuContent, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.actionMenuTitle, { color: colors.textPrimary }]}>
+                            ייצוא הוצאות
+                        </Text>
+                        <Text style={[styles.actionMenuSubtitle, { color: colors.textTertiary }]}>
+                            בחר פורמט ייצוא
+                        </Text>
+
+                        <View style={styles.actionMenuButtons}>
+                            <TouchableOpacity
+                                style={[styles.actionMenuButton, { backgroundColor: colors.successMuted }]}
+                                onPress={() => handleExport('csv')}
+                            >
+                                <Download size={20} color={colors.success} />
+                                <Text style={[styles.actionMenuButtonText, { color: colors.success }]}>CSV</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.actionMenuButton, { backgroundColor: colors.dangerMuted }]}
+                                onPress={() => handleExport('pdf')}
+                            >
+                                <FileText size={20} color={colors.danger} />
+                                <Text style={[styles.actionMenuButtonText, { color: colors.danger }]}>PDF</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.actionMenuCancel, { borderTopColor: colors.border }]}
+                            onPress={() => setShowExportMenu(false)}
                         >
                             <Text style={[styles.actionMenuCancelText, { color: colors.textTertiary }]}>ביטול</Text>
                         </TouchableOpacity>
