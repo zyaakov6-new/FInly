@@ -7,11 +7,15 @@ import { getUserId } from '../utils/cloudSync';
 interface UserProfile {
     fullName: string;
     email: string;
+    phone: string;
     businessCategory: string;
     customCategory?: string;
     expenseCategories: string[];
     autoTrackExpenses: boolean;
     profilePicture?: string;
+    // Notification settings
+    receiptReminders: boolean;
+    expenseReminders: boolean;
 }
 
 interface UserProfileContextType {
@@ -25,9 +29,12 @@ const UserProfileContext = createContext<UserProfileContextType | undefined>(und
 const DEFAULT_PROFILE: UserProfile = {
     fullName: '',
     email: '',
+    phone: '',
     businessCategory: '',
     expenseCategories: [],
     autoTrackExpenses: true,
+    receiptReminders: true,
+    expenseReminders: true,
 };
 
 export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
@@ -68,15 +75,25 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
 
     const updateUserProfile = async (profileUpdate: Partial<UserProfile>) => {
         try {
-            const updatedProfile = { ...userProfile, ...profileUpdate } as UserProfile;
+            // Filter out undefined values (Firestore doesn't accept undefined)
+            const cleanedUpdate = Object.fromEntries(
+                Object.entries(profileUpdate).filter(([_, value]) => value !== undefined)
+            );
+
+            const updatedProfile = { ...userProfile, ...cleanedUpdate } as UserProfile;
             setUserProfile(updatedProfile);
 
             // Save to local storage
             await AsyncStorage.setItem('userProfile', JSON.stringify(updatedProfile));
 
+            // Clean the full profile for Firestore (remove undefined values)
+            const cleanedProfile = Object.fromEntries(
+                Object.entries(updatedProfile).filter(([_, value]) => value !== undefined)
+            );
+
             // Save to Firestore
             const userId = await getUserId();
-            await setDoc(doc(db, 'userProfiles', userId), updatedProfile, { merge: true });
+            await setDoc(doc(db, 'userProfiles', userId), cleanedProfile, { merge: true });
 
             console.log('✓ User profile updated successfully');
         } catch (error) {

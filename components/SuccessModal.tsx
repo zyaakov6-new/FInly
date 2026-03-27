@@ -1,9 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, Platform } from 'react-native';
-import { CheckCircle, X } from 'lucide-react-native';
-import { COLORS, FONTS } from '../constants/theme';
-
-const { width, height } = Dimensions.get('window');
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Animated, useColorScheme } from 'react-native';
+import { CheckCircle } from 'lucide-react-native';
+import { getColors, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 interface SuccessModalProps {
     visible: boolean;
@@ -13,28 +11,42 @@ interface SuccessModalProps {
     buttonText?: string;
 }
 
-export const SuccessModal = ({ visible, title, description, onClose, buttonText = "מעולה!" }: SuccessModalProps) => {
-    const scaleValue = useRef(new Animated.Value(0)).current;
-    const opacityValue = useRef(new Animated.Value(0)).current;
+export const SuccessModal = ({ visible, title, description, onClose, buttonText = "סיום" }: SuccessModalProps) => {
+    const colorScheme = useColorScheme();
+    const colors = getColors(colorScheme);
+
+    const scaleAnim = useRef(new Animated.Value(0.9)).current;
+    const opacityAnim = useRef(new Animated.Value(0)).current;
+    const checkAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         if (visible) {
+            scaleAnim.setValue(0.9);
+            opacityAnim.setValue(0);
+            checkAnim.setValue(0);
+
             Animated.parallel([
-                Animated.spring(scaleValue, {
+                Animated.spring(scaleAnim, {
                     toValue: 1,
-                    friction: 6,
-                    tension: 50,
+                    damping: 20,
+                    stiffness: 300,
                     useNativeDriver: true,
                 }),
-                Animated.timing(opacityValue, {
+                Animated.timing(opacityAnim, {
                     toValue: 1,
-                    duration: 300,
+                    duration: 200,
                     useNativeDriver: true,
-                })
+                }),
             ]).start();
-        } else {
-            scaleValue.setValue(0.8);
-            opacityValue.setValue(0);
+
+            setTimeout(() => {
+                Animated.spring(checkAnim, {
+                    toValue: 1,
+                    damping: 15,
+                    stiffness: 200,
+                    useNativeDriver: true,
+                }).start();
+            }, 150);
         }
     }, [visible]);
 
@@ -42,16 +54,32 @@ export const SuccessModal = ({ visible, title, description, onClose, buttonText 
 
     return (
         <Modal transparent visible={visible} animationType="none" onRequestClose={onClose} statusBarTranslucent>
-            <View style={styles.overlay}>
-                <Animated.View style={[styles.container, { transform: [{ scale: scaleValue }], opacity: opacityValue }]}>
-                    <View style={styles.iconContainer}>
-                        <CheckCircle size={40} color={COLORS.white} strokeWidth={3} />
-                    </View>
+            <View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
+                <Animated.View style={[
+                    styles.container,
+                    { backgroundColor: colors.surface },
+                    SHADOWS.xl,
+                    {
+                        transform: [{ scale: scaleAnim }],
+                        opacity: opacityAnim,
+                    }
+                ]}>
+                    <Animated.View style={[
+                        styles.iconContainer,
+                        { backgroundColor: colors.successMuted },
+                        { transform: [{ scale: checkAnim }] }
+                    ]}>
+                        <CheckCircle size={40} color={colors.success} strokeWidth={2} />
+                    </Animated.View>
 
-                    <Text style={styles.title}>{title}</Text>
-                    <Text style={styles.description}>{description}</Text>
+                    <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+                    <Text style={[styles.description, { color: colors.textTertiary }]}>{description}</Text>
 
-                    <TouchableOpacity style={styles.button} onPress={onClose} activeOpacity={0.8}>
+                    <TouchableOpacity
+                        style={[styles.button, { backgroundColor: colors.primary }]}
+                        onPress={onClose}
+                        activeOpacity={0.8}
+                    >
                         <Text style={styles.buttonText}>{buttonText}</Text>
                     </TouchableOpacity>
                 </Animated.View>
@@ -63,72 +91,45 @@ export const SuccessModal = ({ visible, title, description, onClose, buttonText 
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.75)', // Darker overlay for focus
         justifyContent: 'center',
         alignItems: 'center',
+        padding: SPACING['2xl'],
     },
     container: {
-        width: width * 0.85,
-        backgroundColor: COLORS.surface, // Higher contrast dark bg
-        borderRadius: 28,
-        padding: 32,
+        width: '100%',
+        maxWidth: 320,
+        borderRadius: RADIUS.xl,
+        padding: SPACING['2xl'],
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        shadowColor: "#000",
-        shadowOffset: {
-            width: 0,
-            height: 20,
-        },
-        shadowOpacity: 0.5,
-        shadowRadius: 30,
-        elevation: 20,
     },
     iconContainer: {
         width: 72,
         height: 72,
-        borderRadius: 36,
-        backgroundColor: COLORS.primary,
-        justifyContent: 'center',
+        borderRadius: RADIUS.full,
         alignItems: 'center',
-        marginBottom: 24,
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.5,
-        shadowRadius: 16,
-        elevation: 10,
+        justifyContent: 'center',
+        marginBottom: SPACING.xl,
     },
     title: {
-        fontSize: 24,
-        color: COLORS.white,
-        fontFamily: FONTS.bold,
-        marginBottom: 12,
+        ...TYPOGRAPHY.h3,
+        marginBottom: SPACING.sm,
         textAlign: 'center',
-        letterSpacing: 0.5,
     },
     description: {
-        fontSize: 16,
-        color: COLORS.textSecondary,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.body,
         textAlign: 'center',
-        marginBottom: 32,
-        lineHeight: 24,
+        marginBottom: SPACING['2xl'],
+        lineHeight: 22,
     },
     button: {
-        backgroundColor: COLORS.primary,
-        paddingVertical: 18,
         width: '100%',
-        borderRadius: 16,
+        height: LAYOUT.buttonHeight,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-        elevation: 5,
+        justifyContent: 'center',
     },
     buttonText: {
-        color: COLORS.white,
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-    }
+        ...TYPOGRAPHY.h4,
+        color: '#FFFFFF',
+    },
 });

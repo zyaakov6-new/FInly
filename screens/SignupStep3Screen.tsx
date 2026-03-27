@@ -1,35 +1,91 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     StyleSheet,
     Text,
     View,
     TouchableOpacity,
-    KeyboardAvoidingView,
-    Platform,
     ScrollView,
+    Animated,
     Dimensions,
+    Switch,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { ArrowLeft, Car, Printer, Code, TrendingUp } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FONTS } from '../constants/theme';
+import {
+    ChevronRight,
+    Car,
+    Monitor,
+    Megaphone,
+    Coffee,
+    Home,
+    CheckCircle,
+    ArrowLeft,
+    Zap,
+} from 'lucide-react-native';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT, SHADOWS } from '../constants/theme';
 import { useUserProfile } from '../context/UserProfileContext';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const EXPENSE_CATEGORIES = [
-    { id: 'transport', label: 'רכב ונסיעות', icon: <Car size={32} color="rgba(255,255,255,0.7)" /> },
-    { id: 'office', label: 'ציוד משרדי', icon: <Printer size={32} color="rgba(255,255,255,0.7)" /> },
-    { id: 'software', label: 'תוכנה ועגן', icon: <Code size={32} color="rgba(255,255,255,0.7)" /> },
-    { id: 'marketing', label: 'שיווק ופרסום', icon: <TrendingUp size={32} color="rgba(255,255,255,0.7)" /> },
+    { id: 'transport', label: 'רכב ונסיעות', icon: Car, color: '#6366F1' },
+    { id: 'software', label: 'תוכנה וטכנולוגיה', icon: Monitor, color: '#EC4899' },
+    { id: 'marketing', label: 'שיווק ופרסום', icon: Megaphone, color: '#F59E0B' },
+    { id: 'meals', label: 'ארוחות עסקיות', icon: Coffee, color: '#10B981' },
+    { id: 'office', label: 'משרד וציוד', icon: Home, color: '#8B5CF6' },
 ];
 
 export default function SignupStep3Screen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { updateUserProfile } = useUserProfile();
+    const { saveOnboardingStep3 } = useAuth();
+
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [autoTrack, setAutoTrack] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const headerAnim = useRef(new Animated.Value(0)).current;
+    const cardsAnim = useRef(new Animated.Value(0)).current;
+    const buttonAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.sequence([
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 400,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(headerAnim, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+            ]),
+            Animated.spring(cardsAnim, {
+                toValue: 1,
+                tension: 40,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+            Animated.spring(buttonAnim, {
+                toValue: 1,
+                tension: 50,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, []);
 
     const toggleCategory = (id: string) => {
         if (selectedCategories.includes(id)) {
@@ -40,130 +96,241 @@ export default function SignupStep3Screen() {
     };
 
     const handleContinue = async () => {
-        // Save expense preferences
+        setIsLoading(true);
+
+        // Save to Firebase
+        await saveOnboardingStep3(selectedCategories, autoTrack);
+
+        // Also update local profile
         await updateUserProfile({
             expenseCategories: selectedCategories,
             autoTrackExpenses: autoTrack
         });
-        navigation.navigate('SignupStep4' as never);
+
+        setTimeout(() => {
+            setIsLoading(false);
+            navigation.navigate('SignupStep4');
+        }, 300);
     };
 
     return (
-        <View style={styles.container}>
-            <StatusBar style="light" />
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
-            {/* Dark Green Gradient Background */}
+            {/* Background Gradient */}
             <LinearGradient
-                colors={['#0a3d2e', '#1a5c47', '#0a3d2e']}
-                style={styles.gradient}
+                colors={isDark
+                    ? ['#18181B', '#27272A', '#18181B']
+                    : ['#8B5CF6', '#7C3AED', '#6D28D9']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
+                style={styles.gradientBg}
             />
 
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.keyboardView}
-            >
-                <ScrollView
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                >
-                    {/* Step Progress Indicator - Scrolls with content */}
-                    <View style={styles.progressContainer}>
-                        <View style={styles.progressSteps}>
-                            <View style={[styles.progressStep, styles.progressStepActive]} />
-                            <View style={[styles.progressStep, styles.progressStepActive]} />
-                            <View style={[styles.progressStep, styles.progressStepActive]} />
-                            <View style={styles.progressStep} />
-                        </View>
-                    </View>
+            {/* Decorative Elements */}
+            <Animated.View
+                style={[
+                    styles.decorCircle1,
+                    {
+                        opacity: isDark ? 0.1 : 0.2,
+                        transform: [{ scale: headerAnim }],
+                    }
+                ]}
+            />
+            <Animated.View
+                style={[
+                    styles.decorCircle2,
+                    {
+                        opacity: isDark ? 0.05 : 0.15,
+                        transform: [{ scale: headerAnim }],
+                    }
+                ]}
+            />
 
+            <ScrollView
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }
+                ]}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* Header */}
+                <Animated.View
+                    style={[
+                        styles.header,
+                        {
+                            opacity: fadeAnim,
+                            transform: [{
+                                translateY: headerAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [-20, 0],
+                                }),
+                            }],
+                        }
+                    ]}
+                >
                     {/* Back Button */}
                     <TouchableOpacity
-                        style={styles.backButton}
+                        style={[styles.backButton, { backgroundColor: isDark ? colors.surfaceSecondary : 'rgba(255,255,255,0.2)' }]}
                         onPress={() => navigation.goBack()}
                     >
-                        <ArrowLeft size={24} color="rgba(255,255,255,0.8)" style={{ transform: [{ rotate: '180deg' }] }} />
+                        <ChevronRight size={24} color={isDark ? colors.textSecondary : '#FFFFFF'} />
                     </TouchableOpacity>
 
-                    {/* Title */}
-                    <Text style={styles.title}>ניהול הוצאות מוכרות</Text>
-                    <Text style={styles.subtitle}></Text>
+                    {/* Progress Indicator */}
+                    <View style={styles.progressContainer}>
+                        <View style={[styles.progressStep, styles.progressActive, { backgroundColor: isDark ? colors.primary : '#FFFFFF' }]} />
+                        <View style={[styles.progressStep, styles.progressActive, { backgroundColor: isDark ? colors.primary : '#FFFFFF' }]} />
+                        <View style={[styles.progressStep, styles.progressActive, { backgroundColor: isDark ? colors.primary : '#FFFFFF' }]} />
+                        <View style={[styles.progressStep, { backgroundColor: isDark ? colors.border : 'rgba(255,255,255,0.3)' }]} />
+                    </View>
+                </Animated.View>
 
-                    {/* Expense Categories Grid */}
-                    <View style={styles.categoryGrid}>
-                        {EXPENSE_CATEGORIES.map((category) => (
+                {/* Title Section */}
+                <Animated.View
+                    style={[
+                        styles.titleSection,
+                        { opacity: fadeAnim }
+                    ]}
+                >
+                    <Text style={[styles.title, { color: isDark ? colors.textPrimary : '#FFFFFF' }]}>
+                        הוצאות מוכרות
+                    </Text>
+                    <Text style={[styles.subtitle, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.8)' }]}>
+                        בחר/י את סוגי ההוצאות הרלוונטיות לעסק שלך
+                    </Text>
+                </Animated.View>
+
+                {/* Categories */}
+                <Animated.View
+                    style={[
+                        styles.categoriesContainer,
+                        {
+                            opacity: cardsAnim,
+                            transform: [{
+                                translateY: cardsAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [30, 0],
+                                }),
+                            }],
+                        }
+                    ]}
+                >
+                    {EXPENSE_CATEGORIES.map((category, index) => {
+                        const IconComponent = category.icon;
+                        const isSelected = selectedCategories.includes(category.id);
+
+                        return (
                             <TouchableOpacity
                                 key={category.id}
                                 style={[
-                                    styles.categoryButton,
-                                    selectedCategories.includes(category.id) && styles.categoryButtonActive,
+                                    styles.categoryCard,
+                                    {
+                                        backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                                        borderColor: isSelected ? category.color : colors.border,
+                                        borderWidth: isSelected ? 2 : 1,
+                                    },
+                                    isSelected && SHADOWS.md
                                 ]}
                                 onPress={() => toggleCategory(category.id)}
-                                activeOpacity={0.7}
+                                activeOpacity={0.8}
                             >
-                                <View style={styles.categoryIcon}>
-                                    {category.icon}
+                                <View style={[
+                                    styles.categoryIconContainer,
+                                    { backgroundColor: isSelected ? `${category.color}20` : colors.surfaceSecondary }
+                                ]}>
+                                    <IconComponent
+                                        size={24}
+                                        color={isSelected ? category.color : colors.textTertiary}
+                                    />
                                 </View>
-                                <Text
-                                    style={[
-                                        styles.categoryLabel,
-                                        selectedCategories.includes(category.id) && styles.categoryLabelActive,
-                                    ]}
-                                >
+                                <Text style={[
+                                    styles.categoryLabel,
+                                    { color: isSelected ? colors.textPrimary : colors.textSecondary }
+                                ]}>
                                     {category.label}
                                 </Text>
-                                {selectedCategories.includes(category.id) && (
-                                    <View style={styles.categoryCheck}>
-                                        <Text style={styles.categoryCheckText}>✓</Text>
-                                    </View>
-                                )}
+                                <View style={[
+                                    styles.checkbox,
+                                    {
+                                        backgroundColor: isSelected ? category.color : 'transparent',
+                                        borderColor: isSelected ? category.color : colors.border,
+                                    }
+                                ]}>
+                                    {isSelected && <CheckCircle size={14} color="#FFFFFF" />}
+                                </View>
                             </TouchableOpacity>
-                        ))}
-                    </View>
+                        );
+                    })}
 
-                    {/* Auto-track Checkbox */}
-                    <TouchableOpacity
-                        style={styles.checkboxContainer}
-                        onPress={() => setAutoTrack(!autoTrack)}
-                        activeOpacity={0.7}
-                    >
-                        <View style={[styles.checkbox, autoTrack && styles.checkboxActive]}>
-                            {autoTrack && <Text style={styles.checkboxCheck}>✓</Text>}
+                    {/* Auto Track Card */}
+                    <View style={[
+                        styles.autoTrackCard,
+                        {
+                            backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                        },
+                        SHADOWS.sm
+                    ]}>
+                        <View style={styles.autoTrackContent}>
+                            <View style={[styles.autoTrackIcon, { backgroundColor: colors.primaryMuted }]}>
+                                <Zap size={20} color={colors.primary} />
+                            </View>
+                            <View style={styles.autoTrackText}>
+                                <Text style={[styles.autoTrackTitle, { color: colors.textPrimary }]}>
+                                    זיהוי אוטומטי
+                                </Text>
+                                <Text style={[styles.autoTrackDescription, { color: colors.textTertiary }]}>
+                                    המערכת תזהה ותרשום הוצאות אוטומטית לאישורך
+                                </Text>
+                            </View>
                         </View>
-                        <Text style={styles.checkboxText}>
-                            המערכת תזהה ותרשום אלו באופן אוטומטי ותשאיר אותן
-                            לאישורך.
-                        </Text>
-                    </TouchableOpacity>
+                        <Switch
+                            value={autoTrack}
+                            onValueChange={setAutoTrack}
+                            trackColor={{ false: colors.border, true: colors.primaryMuted }}
+                            thumbColor={autoTrack ? colors.primary : colors.textQuaternary}
+                        />
+                    </View>
+                </Animated.View>
 
-                    {/* Continue Button */}
+                {/* Continue Button */}
+                <Animated.View
+                    style={[
+                        styles.buttonContainer,
+                        {
+                            opacity: buttonAnim,
+                            transform: [{ scale: buttonAnim }],
+                        }
+                    ]}
+                >
                     <TouchableOpacity
-                        style={styles.continueButton}
+                        style={[styles.continueButton]}
                         onPress={handleContinue}
-                        activeOpacity={0.8}
+                        activeOpacity={0.9}
+                        disabled={isLoading}
                     >
                         <LinearGradient
-                            colors={['#00ff88', '#00cc6f']}
-                            style={styles.continueButtonGradient}
+                            colors={['#8B5CF6', '#7C3AED']}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 0 }}
+                            style={styles.continueButtonGradient}
                         >
                             <Text style={styles.continueButtonText}>המשך</Text>
-                            <ArrowLeft size={20} color="#0a3d2e" style={styles.arrowIcon} />
+                            <ArrowLeft size={20} color="#FFFFFF" />
                         </LinearGradient>
                     </TouchableOpacity>
 
                     {/* Skip Link */}
                     <TouchableOpacity
-                        style={styles.skipContainer}
-                        onPress={() => navigation.navigate('SignupStep4' as never)}
+                        style={styles.skipButton}
+                        onPress={() => navigation.navigate('SignupStep4')}
                     >
-                        <Text style={styles.skipText}>דלג לשלב הבא</Text>
+                        <Text style={[styles.skipText, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.7)' }]}>
+                            דלג לשלב הבא
+                        </Text>
                     </TouchableOpacity>
-                </ScrollView>
-            </KeyboardAvoidingView>
+                </Animated.View>
+            </ScrollView>
         </View>
     );
 }
@@ -171,180 +338,167 @@ export default function SignupStep3Screen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0a3d2e',
     },
-    gradient: {
+    gradientBg: {
         position: 'absolute',
         left: 0,
         right: 0,
         top: 0,
-        bottom: 0,
+        height: height * 0.35,
+    },
+    decorCircle1: {
+        position: 'absolute',
+        width: 250,
+        height: 250,
+        borderRadius: 125,
+        backgroundColor: '#FFFFFF',
+        top: -80,
+        right: -60,
+    },
+    decorCircle2: {
+        position: 'absolute',
+        width: 180,
+        height: 180,
+        borderRadius: 90,
+        backgroundColor: '#FFFFFF',
+        top: 120,
+        left: -50,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingHorizontal: LAYOUT.screenPadding,
+    },
+    // Header
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: SPACING['2xl'],
+    },
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     progressContainer: {
-        marginBottom: 32,
-    },
-    progressSteps: {
         flexDirection: 'row',
-        gap: 8,
+        gap: SPACING.sm,
+        flex: 1,
+        marginLeft: SPACING.lg,
     },
     progressStep: {
         flex: 1,
         height: 4,
-        backgroundColor: 'rgba(255,255,255,0.2)',
         borderRadius: 2,
     },
-    progressStepActive: {
-        backgroundColor: '#00ff88',
-    },
-    keyboardView: {
-        flex: 1,
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingTop: 60,
-        paddingBottom: 40,
-    },
-    backButton: {
-        alignSelf: 'flex-start',
-        padding: 8,
-        marginBottom: 20,
+    progressActive: {},
+    // Title Section
+    titleSection: {
+        marginBottom: SPACING['2xl'],
     },
     title: {
-        fontSize: 36,
-        fontFamily: FONTS.bold,
-        color: '#ffffff',
-        textAlign: 'left',
-        lineHeight: 44,
+        ...TYPOGRAPHY.h1,
+        marginBottom: SPACING.sm,
     },
     subtitle: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
-        textAlign: 'left',
-        marginTop: 12,
-        marginBottom: 40,
-        lineHeight: 20,
+        ...TYPOGRAPHY.body,
+        textAlign: 'right',
     },
-    categoryGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-        marginBottom: 32,
+    // Categories
+    categoriesContainer: {
+        flex: 1,
+        gap: SPACING.md,
+        marginBottom: SPACING.xl,
     },
-    categoryButton: {
-        width: (width - 60) / 2,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        padding: 24,
+    categoryCard: {
+        flexDirection: 'row-reverse',
+        alignItems: 'center',
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+    },
+    categoryIconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: RADIUS.lg,
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 120,
-        position: 'relative',
-    },
-    categoryButtonActive: {
-        backgroundColor: 'rgba(0,255,136,0.15)',
-        borderColor: '#00ff88',
-        borderWidth: 2,
-    },
-    categoryIcon: {
-        marginBottom: 12,
+        marginLeft: SPACING.md,
     },
     categoryLabel: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.7)',
-        textAlign: 'center',
-    },
-    categoryLabelActive: {
-        color: '#00ff88',
-    },
-    categoryCheck: {
-        position: 'absolute',
-        top: 12,
-        right: 12,
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: '#00ff88',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    categoryCheckText: {
-        fontSize: 14,
-        color: '#0a3d2e',
-        fontFamily: FONTS.bold,
-    },
-    checkboxContainer: {
-        flexDirection: 'row-reverse',
-        alignItems: 'flex-start',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 32,
+        ...TYPOGRAPHY.body,
+        flex: 1,
+        textAlign: 'right',
     },
     checkbox: {
         width: 24,
         height: 24,
-        borderRadius: 6,
+        borderRadius: 12,
         borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.3)',
         alignItems: 'center',
         justifyContent: 'center',
-        marginLeft: 12,
-        marginTop: 2,
     },
-    checkboxActive: {
-        backgroundColor: '#00ff88',
-        borderColor: '#00ff88',
+    // Auto Track
+    autoTrackCard: {
+        flexDirection: 'row-reverse',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+        marginTop: SPACING.md,
     },
-    checkboxCheck: {
-        fontSize: 14,
-        color: '#0a3d2e',
-        fontFamily: FONTS.bold,
-    },
-    checkboxText: {
+    autoTrackContent: {
+        flexDirection: 'row-reverse',
+        alignItems: 'center',
         flex: 1,
-        fontSize: 13,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.7)',
+    },
+    autoTrackIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: SPACING.md,
+    },
+    autoTrackText: {
+        flex: 1,
+    },
+    autoTrackTitle: {
+        ...TYPOGRAPHY.label,
+        marginBottom: SPACING.xs,
         textAlign: 'right',
-        lineHeight: 20,
+    },
+    autoTrackDescription: {
+        ...TYPOGRAPHY.caption,
+        textAlign: 'right',
+    },
+    // Button
+    buttonContainer: {
+        marginTop: 'auto',
     },
     continueButton: {
-        marginBottom: 16,
-        borderRadius: 16,
+        borderRadius: RADIUS.lg,
         overflow: 'hidden',
-        shadowColor: '#00ff88',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 8,
+        marginBottom: SPACING.md,
     },
     continueButtonGradient: {
-        paddingVertical: 18,
+        height: LAYOUT.buttonHeight,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: SPACING.sm,
     },
     continueButtonText: {
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-        color: '#0a3d2e',
-        marginRight: 8,
+        ...TYPOGRAPHY.button,
+        color: '#FFFFFF',
+        fontSize: 16,
     },
-    arrowIcon: {
-        transform: [{ rotate: '0deg' }],
-    },
-    skipContainer: {
+    skipButton: {
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: SPACING.md,
     },
     skipText: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
+        ...TYPOGRAPHY.body,
     },
 });

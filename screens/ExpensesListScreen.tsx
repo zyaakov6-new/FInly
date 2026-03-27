@@ -7,55 +7,50 @@ import {
     TouchableOpacity,
     SectionList,
     Platform,
-    Dimensions,
-    Alert,
     Modal,
     Image,
-    RefreshControl
+    RefreshControl,
+    ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowRight, Search, Filter, SlidersHorizontal, ChevronDown, Trash2, FolderInput, Share as ShareIcon, X, Check, ArrowDown, ArrowUp, ImageIcon, Edit, Download } from 'lucide-react-native';
+import { ChevronRight, Search, X, ImageIcon, Download, ArrowUpRight, Trash2, Edit2, FileText, PieChart } from 'lucide-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useTransactions } from '../context/TransactionsContext';
-import { COLORS, FONTS } from '../constants/theme';
-import { exportToCSV } from '../utils/exportData';
+import { useNotification } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
+import { exportToCSV, exportToPDF } from '../utils/exportData';
 import { hapticFeedback } from '../utils/haptics';
 import { EmptyState } from '../components/EmptyState';
-
-const { width } = Dimensions.get('window');
-
-// Types for Filters
-type SortOption = 'date-newest' | 'date-oldest' | 'amount-highest' | 'amount-lowest';
+import { ExpenseCharts } from '../components/ExpenseCharts';
 
 export default function ExpensesListScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation();
-    const { transactions, categories, deleteTransaction } = useTransactions();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
+    const { transactions, deleteTransaction } = useTransactions();
+    const { showSuccess, showError, showInfo, showDeleteConfirm } = useNotification();
 
-    // State
     const [searchQuery, setSearchQuery] = useState('');
-    const [isFilterExpanded, setIsFilterExpanded] = useState(false);
-    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-    const [sortOption, setSortOption] = useState<SortOption>('date-newest');
-    const [isSortDropdownOpen, setIsSortDropdownOpen] = useState(false);
     const [selectedReceipt, setSelectedReceipt] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
+    const [selectedExpense, setSelectedExpense] = useState<any>(null);
+    const [showActionMenu, setShowActionMenu] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [showCharts, setShowCharts] = useState(true);
+    const [showExportMenu, setShowExportMenu] = useState(false);
 
-    // Batch Ops State
-    // const [selectionMode, setSelectionMode] = useState(false);
-    // const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-    // --- Helpers ---
     const parseAmount = (str?: string) => {
         if (!str) return 0;
         return parseFloat(str.replace(/[^0-9.-]+/g, '')) || 0;
     };
 
-    // Export handler
-    const handleExport = async () => {
+    const handleExport = async (type: 'csv' | 'pdf') => {
         try {
             hapticFeedback.light();
+            setShowExportMenu(false);
             const expensesOnly = transactions
                 .filter(t => t.type === 'expense')
                 .map(t => ({
@@ -63,32 +58,59 @@ export default function ExpensesListScreen() {
                     date: t.date instanceof Date ? t.date.toISOString() : t.date
                 }));
             if (expensesOnly.length === 0) {
-                hapticFeedback.warning();
-                Alert.alert('אין נתונים', 'אין הוצאות לייצוא');
+                showInfo('אין נתונים', 'אין הוצאות לייצוא');
                 return;
             }
-            await exportToCSV(expensesOnly, 'finly_expenses.csv');
-            hapticFeedback.success();
-            Alert.alert('הצלחה!', `יוצאו ${expensesOnly.length} הוצאות`);
+            if (type === 'pdf') {
+                await exportToPDF(expensesOnly, 'finly_expenses.pdf');
+            } else {
+                await exportToCSV(expensesOnly, 'finly_expenses.csv');
+            }
+            showSuccess('ייצוא הושלם', `יוצאו ${expensesOnly.length} הוצאות בהצלחה`);
         } catch (error) {
-            hapticFeedback.error();
-            Alert.alert('שגיאה', 'שגיאה בייצוא הנתונים');
+            showError('שגיאה', 'שגיאה בייצוא הנתונים');
         }
     };
 
-    // Pull to refresh handler
     const onRefresh = async () => {
         setRefreshing(true);
-        // Simulate refresh - in real app, would fetch from server
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 800));
         setRefreshing(false);
     };
 
-    // --- Filtering & Sorting Logic ---
+    const handleLongPress = (item: any) => {
+        hapticFeedback.medium();
+        setSelectedExpense(item);
+        setShowActionMenu(true);
+    };
+
+    const handleEdit = () => {
+        setShowActionMenu(false);
+        if (selectedExpense) {
+            navigation.navigate('AddExpense' as never, { expense: selectedExpense } as never);
+        }
+    };
+
+    const handleDelete = () => {
+        setShowActionMenu(false);
+        if (selectedExpense) {
+            showDeleteConfirm(
+                'מחיקת הוצאה',
+                `האם למחוק את ההוצאה "${selectedExpense.category || 'הוצאה'}"?`,
+                () => {
+                    deleteTransaction(selectedExpense.id);
+                    showSuccess('נמחק', 'ההוצאה נמחקה בהצלחה');
+                }
+            );
+        }
+    };
+
     const processedData = useMemo(() => {
         let data = transactions.filter(t => t.type === 'expense');
 
-        // 1. Search
+        // Get unique categories for filter chips
+        const allCategories = [...new Set(data.map(t => t.category || 'אחר').filter(Boolean))];
+
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
             data = data.filter(t =>
@@ -99,28 +121,13 @@ export default function ExpensesListScreen() {
             );
         }
 
-        // 2. Filter by Category
-        if (selectedCategories.length > 0) {
-            data = data.filter(t => t.category && selectedCategories.includes(t.category));
+        // Filter by category if selected
+        if (selectedCategory) {
+            data = data.filter(t => (t.category || 'אחר') === selectedCategory);
         }
 
-        // 3. Sort
-        data.sort((a, b) => {
-            const dateA = new Date(a.date).getTime();
-            const dateB = new Date(b.date).getTime();
-            const amountA = parseAmount(a.amount);
-            const amountB = parseAmount(b.amount);
+        data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-            switch (sortOption) {
-                case 'date-newest': return dateB - dateA;
-                case 'date-oldest': return dateA - dateB;
-                case 'amount-highest': return amountB - amountA;
-                case 'amount-lowest': return amountA - amountB;
-                default: return dateB - dateA;
-            }
-        });
-
-        // 4. Group by Date
         const grouped: { title: string, data: typeof data }[] = [];
         data.forEach(item => {
             const dateLabel = new Date(item.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -132,206 +139,93 @@ export default function ExpensesListScreen() {
             group.data.push(item);
         });
 
-        return { grouped, raw: data };
-    }, [transactions, searchQuery, selectedCategories, sortOption]);
+        return { grouped, raw: data, categories: allCategories };
+    }, [transactions, searchQuery, selectedCategory]);
 
     const totalFilteredAmount = processedData.raw.reduce((sum, item) => sum + parseAmount(item.amount), 0);
 
-    // --- Render Items ---
     const renderItem = ({ item }: { item: any }) => (
-        <View style={styles.itemContainer}>
-            <TouchableOpacity style={styles.itemContent}>
-                <View style={styles.itemRow}>
-                    <View style={styles.itemIconData}>
-                        <Text style={styles.itemCategory}>{item.category || 'כללי'}</Text>
-                        <Text style={styles.itemDate}>{new Date(item.date).toLocaleDateString('he-IL')}</Text>
-                    </View>
-                    <View style={styles.itemAmountData}>
-                        <Text style={styles.itemAmount}>₪{parseAmount(item.amount).toLocaleString()}</Text>
-                        {item.supplier && <Text style={styles.itemSupplier}>{item.supplier}</Text>}
-                    </View>
-                    {item.receiptImageUri && (
-                        <TouchableOpacity
-                            onPress={() => setSelectedReceipt(item.receiptImageUri)}
-                            style={{ marginRight: 8 }}
-                        >
-                            <ImageIcon size={20} color={COLORS.primary} />
-                        </TouchableOpacity>
-                    )}
-                </View>
-                {item.clientName && (
-                    <Text style={styles.itemProject}>פרויקט: {item.clientName}</Text>
-                )}
-            </TouchableOpacity>
-            <View style={styles.itemActions}>
-                <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => {
-                        hapticFeedback.light();
-                        // Navigate to edit screen with expense data
-                        navigation.navigate('AddExpense' as never, { expense: item } as never);
-                    }}
-                >
-                    <Edit size={18} color={COLORS.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => {
-                        hapticFeedback.warning();
-                        Alert.alert(
-                            'מחיקת הוצאה',
-                            'האם למחוק הוצאה זו?',
-                            [
-                                {
-                                    text: 'ביטול',
-                                    style: 'cancel',
-                                    onPress: () => hapticFeedback.light()
-                                },
-                                {
-                                    text: 'מחק',
-                                    style: 'destructive',
-                                    onPress: () => {
-                                        hapticFeedback.success();
-                                        deleteTransaction(item.id);
-                                    },
-                                },
-                            ]
-                        );
-                    }}
-                >
-                    <Trash2 size={18} color={COLORS.danger} />
-                </TouchableOpacity>
-            </View>
-        </View>
-    );
-
-    const renderReceiptModal = () => (
-        <Modal
-            visible={selectedReceipt !== null}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setSelectedReceipt(null)}
+        <TouchableOpacity
+            style={[styles.item, { backgroundColor: colors.surface }, SHADOWS.sm]}
+            onPress={() => navigation.navigate('AddExpense' as never, { expense: item } as never)}
+            onLongPress={() => handleLongPress(item)}
+            delayLongPress={400}
+            activeOpacity={0.7}
         >
-            <View style={styles.modalOverlay}>
-                <TouchableOpacity
-                    style={styles.modalCloseArea}
-                    activeOpacity={1}
-                    onPress={() => setSelectedReceipt(null)}
-                />
-                <View style={styles.receiptModalContent}>
-                    <View style={styles.receiptModalHeader}>
-                        <Text style={styles.receiptModalTitle}>קבלה</Text>
-                        <TouchableOpacity onPress={() => setSelectedReceipt(null)}>
-                            <X color={COLORS.textPrimary} size={24} />
-                        </TouchableOpacity>
-                    </View>
-                    {selectedReceipt && (
-                        <Image
-                            source={{ uri: selectedReceipt }}
-                            style={styles.receiptImage}
-                            resizeMode="contain"
-                        />
-                    )}
-                </View>
+            <View style={[styles.itemIcon, { backgroundColor: colors.surfaceSecondary }]}>
+                <ArrowUpRight size={18} color={colors.textTertiary} />
             </View>
-        </Modal>
+            <View style={styles.itemContent}>
+                <Text style={[styles.itemTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                    {item.category || 'כללי'}
+                </Text>
+                <Text style={[styles.itemSubtitle, { color: colors.textTertiary }]} numberOfLines={1}>
+                    {item.supplier || item.notes || 'ללא תיאור'}
+                </Text>
+            </View>
+            <View style={styles.itemRight}>
+                <Text style={[styles.itemAmount, { color: colors.danger }]}>
+                    -₪{parseAmount(item.amount).toLocaleString()}
+                </Text>
+                {item.receiptImageUri && (
+                    <TouchableOpacity
+                        onPress={() => setSelectedReceipt(item.receiptImageUri)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                        <ImageIcon size={14} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                )}
+            </View>
+        </TouchableOpacity>
     );
 
     return (
-        <View style={styles.container}>
-            <StatusBar style="light" backgroundColor={COLORS.background} />
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowRight color={COLORS.primary} size={24} />
+            <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
+                <TouchableOpacity
+                    onPress={() => setShowExportMenu(true)}
+                    style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
+                >
+                    <Download size={20} color={colors.primary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>הוצאות</Text>
-                <View style={{ width: 24 }} />
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>הוצאות</Text>
+                <TouchableOpacity
+                    onPress={() => setShowCharts(!showCharts)}
+                    style={[styles.headerButton, { backgroundColor: showCharts ? colors.primaryMuted : colors.surfaceSecondary }]}
+                >
+                    <PieChart size={20} color={showCharts ? colors.primary : colors.textTertiary} />
+                </TouchableOpacity>
             </View>
 
-            {/* Search & Filters */}
-            <View style={styles.filterSection}>
-                {/* Search Bar */}
-                <View style={styles.searchBar}>
-                    <Search color={COLORS.textSecondary} size={20} style={{ marginLeft: 8 }} />
+            {/* Search */}
+            <View style={styles.searchSection}>
+                <View style={[styles.searchBar, { backgroundColor: colors.surface }, SHADOWS.sm]}>
+                    <Search color={colors.textTertiary} size={20} />
                     <TextInput
-                        style={styles.searchInput}
-                        placeholder="חפש הוצאה..."
-                        placeholderTextColor={COLORS.textSecondary}
+                        style={[styles.searchInput, { color: colors.textPrimary }]}
+                        placeholder="חיפוש..."
+                        placeholderTextColor={colors.textQuaternary}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         textAlign="right"
                     />
                     {searchQuery.length > 0 && (
                         <TouchableOpacity onPress={() => setSearchQuery('')}>
-                            <X color={COLORS.textSecondary} size={18} />
+                            <X color={colors.textTertiary} size={18} />
                         </TouchableOpacity>
                     )}
                 </View>
-
-                {/* Filter Toggle Row */}
-                <View style={styles.filterControls}>
-                    <TouchableOpacity
-                        style={styles.filterToggleBtn}
-                        onPress={() => setIsFilterExpanded(!isFilterExpanded)}
-                    >
-                        <Filter size={16} color={COLORS.textSecondary} />
-                        <Text style={styles.filterBtnText}>סינון</Text>
-                        <ChevronDown size={14} color={COLORS.textSecondary} style={{ transform: [{ rotate: isFilterExpanded ? '180deg' : '0deg' }] }} />
-                    </TouchableOpacity>
-
-                    {/* Sort Dropdown Trigger (Simplified for now) */}
-                    <TouchableOpacity
-                        style={styles.filterToggleBtn}
-                        onPress={() => {
-                            // Cycle sort for MVP or open modal
-                            const nextSort = sortOption === 'date-newest' ? 'date-oldest' :
-                                sortOption === 'date-oldest' ? 'amount-highest' :
-                                    sortOption === 'amount-highest' ? 'amount-lowest' : 'date-newest';
-                            setSortOption(nextSort);
-                        }}
-                    >
-                        <ArrowUp size={16} color={COLORS.textSecondary} />
-                        <Text style={styles.filterBtnText}>
-                            {sortOption === 'date-newest' ? 'תאריך (הכי חדש)' :
-                                sortOption === 'date-oldest' ? 'תאריך (הכי ישן)' :
-                                    sortOption === 'amount-highest' ? 'סכום (הכי גבוה)' : 'סכום (הכי נמוך)'}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Expandable Filters */}
-                {isFilterExpanded && (
-                    <View style={styles.expandedFilters}>
-                        <Text style={styles.filterLabel}>לפי קטגוריה:</Text>
-                        <View style={styles.catsRow}>
-                            {categories.map(cat => {
-                                const isSel = selectedCategories.includes(cat);
-                                return (
-                                    <TouchableOpacity
-                                        key={cat}
-                                        style={[styles.catChip, isSel && styles.catChipSelected]}
-                                        onPress={() => {
-                                            if (isSel) setSelectedCategories(prev => prev.filter(c => c !== cat));
-                                            else setSelectedCategories(prev => [...prev, cat]);
-                                        }}
-                                    >
-                                        <Text style={[styles.catChipText, isSel && styles.catChipTextSelected]}>{cat}</Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    </View>
-                )}
             </View>
 
             {/* List */}
             {processedData.grouped.length === 0 ? (
                 <EmptyState
-                    icon="📊"
-                    title="אין הוצאות עדיין"
-                    message="לחץ על כפתור + בתפריט התחתון\nכדי להוסיף הוצאה ראשונה"
+                    icon="receipt"
+                    title="אין הוצאות"
+                    message="לחץ על + להוספת הוצאה חדשה"
                 />
             ) : (
                 <SectionList
@@ -339,31 +233,226 @@ export default function ExpensesListScreen() {
                     keyExtractor={item => item.id}
                     renderItem={renderItem}
                     renderSectionHeader={({ section: { title } }) => (
-                        <Text style={styles.sectionHeader}>{title}</Text>
+                        <View style={[styles.sectionHeader, { backgroundColor: colors.background }]}>
+                            <Text style={[styles.sectionTitle, { color: colors.textTertiary }]}>{title}</Text>
+                        </View>
                     )}
-                    contentContainerStyle={{ paddingBottom: 100 }}
-                    stickySectionHeadersEnabled={true}
+                    ListHeaderComponent={
+                        <>
+                            {/* Category Filter Chips */}
+                            {processedData.categories.length > 1 && (
+                                <View style={styles.filtersSection}>
+                                    <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.filtersContent}
+                                    >
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.filterChip,
+                                                {
+                                                    backgroundColor: selectedCategory === null ? colors.primary : colors.surface,
+                                                    borderColor: selectedCategory === null ? colors.primary : colors.border,
+                                                }
+                                            ]}
+                                            onPress={() => setSelectedCategory(null)}
+                                        >
+                                            <Text style={[
+                                                styles.filterChipText,
+                                                { color: selectedCategory === null ? '#FFFFFF' : colors.textSecondary }
+                                            ]}>
+                                                הכל
+                                            </Text>
+                                        </TouchableOpacity>
+                                        {processedData.categories.map((cat) => (
+                                            <TouchableOpacity
+                                                key={cat}
+                                                style={[
+                                                    styles.filterChip,
+                                                    {
+                                                        backgroundColor: selectedCategory === cat ? colors.primary : colors.surface,
+                                                        borderColor: selectedCategory === cat ? colors.primary : colors.border,
+                                                    }
+                                                ]}
+                                                onPress={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                                            >
+                                                <Text style={[
+                                                    styles.filterChipText,
+                                                    { color: selectedCategory === cat ? '#FFFFFF' : colors.textSecondary }
+                                                ]}>
+                                                    {cat}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </View>
+                            )}
+
+                            {/* Charts */}
+                            {showCharts && processedData.raw.length > 0 && (
+                                <ExpenseCharts
+                                    expenses={processedData.raw.map(t => ({
+                                        category: t.category || 'אחר',
+                                        amount: parseAmount(t.amount),
+                                    }))}
+                                />
+                            )}
+                        </>
+                    }
+                    contentContainerStyle={styles.listContent}
+                    stickySectionHeadersEnabled
+                    showsVerticalScrollIndicator={false}
                     refreshControl={
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            tintColor={COLORS.primary}
-                            colors={[COLORS.primary]}
+                            tintColor={colors.primary}
                         />
                     }
                 />
             )}
 
-            {/* Footer Totals */}
-            <View style={styles.stickyFooter}>
-                <View style={styles.footerRow}>
-                    <Text style={styles.footerLabel}>סה״כ הוצאות מסוננות:</Text>
-                    <Text style={styles.footerAmount}>₪{totalFilteredAmount.toLocaleString()}</Text>
+            {/* Footer */}
+            <View style={[styles.footer, { backgroundColor: colors.surface }, SHADOWS.lg]}>
+                <View style={styles.footerContent}>
+                    <Text style={[styles.footerLabel, { color: colors.textTertiary }]}>סה״כ</Text>
+                    <Text style={[styles.footerAmount, { color: colors.textPrimary }]}>
+                        ₪{totalFilteredAmount.toLocaleString()}
+                    </Text>
                 </View>
-                <Text style={styles.footerCount}>מספר פריטים: {processedData.raw.length}</Text>
+                <Text style={[styles.footerCount, { color: colors.textTertiary }]}>
+                    {processedData.raw.length} פריטים
+                </Text>
             </View>
 
-            {renderReceiptModal()}
+            {/* Receipt Modal */}
+            <Modal
+                visible={selectedReceipt !== null}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setSelectedReceipt(null)}
+            >
+                <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+                    <TouchableOpacity
+                        style={StyleSheet.absoluteFill}
+                        activeOpacity={1}
+                        onPress={() => setSelectedReceipt(null)}
+                    />
+                    <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                        <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+                            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>קבלה</Text>
+                            <TouchableOpacity onPress={() => setSelectedReceipt(null)}>
+                                <X color={colors.textPrimary} size={24} />
+                            </TouchableOpacity>
+                        </View>
+                        {selectedReceipt && (
+                            <Image
+                                source={{ uri: selectedReceipt }}
+                                style={styles.receiptImage}
+                                resizeMode="contain"
+                            />
+                        )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Action Menu Modal */}
+            <Modal
+                visible={showActionMenu}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowActionMenu(false)}
+            >
+                <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+                    <TouchableOpacity
+                        style={StyleSheet.absoluteFill}
+                        activeOpacity={1}
+                        onPress={() => setShowActionMenu(false)}
+                    />
+                    <View style={[styles.actionMenuContent, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.actionMenuTitle, { color: colors.textPrimary }]}>
+                            {selectedExpense?.category || 'הוצאה'}
+                        </Text>
+                        <Text style={[styles.actionMenuSubtitle, { color: colors.textTertiary }]}>
+                            {selectedExpense?.amount}
+                        </Text>
+
+                        <View style={styles.actionMenuButtons}>
+                            <TouchableOpacity
+                                style={[styles.actionMenuButton, { backgroundColor: colors.primaryMuted }]}
+                                onPress={handleEdit}
+                            >
+                                <Edit2 size={20} color={colors.primary} />
+                                <Text style={[styles.actionMenuButtonText, { color: colors.primary }]}>ערוך</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.actionMenuButton, { backgroundColor: colors.dangerMuted }]}
+                                onPress={handleDelete}
+                            >
+                                <Trash2 size={20} color={colors.danger} />
+                                <Text style={[styles.actionMenuButtonText, { color: colors.danger }]}>מחק</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.actionMenuCancel, { borderTopColor: colors.border }]}
+                            onPress={() => setShowActionMenu(false)}
+                        >
+                            <Text style={[styles.actionMenuCancelText, { color: colors.textTertiary }]}>ביטול</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Export Menu Modal */}
+            <Modal
+                visible={showExportMenu}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowExportMenu(false)}
+            >
+                <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+                    <TouchableOpacity
+                        style={StyleSheet.absoluteFill}
+                        activeOpacity={1}
+                        onPress={() => setShowExportMenu(false)}
+                    />
+                    <View style={[styles.actionMenuContent, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.actionMenuTitle, { color: colors.textPrimary }]}>
+                            ייצוא הוצאות
+                        </Text>
+                        <Text style={[styles.actionMenuSubtitle, { color: colors.textTertiary }]}>
+                            בחר פורמט ייצוא
+                        </Text>
+
+                        <View style={styles.actionMenuButtons}>
+                            <TouchableOpacity
+                                style={[styles.actionMenuButton, { backgroundColor: colors.successMuted }]}
+                                onPress={() => handleExport('csv')}
+                            >
+                                <Download size={20} color={colors.success} />
+                                <Text style={[styles.actionMenuButtonText, { color: colors.success }]}>CSV</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.actionMenuButton, { backgroundColor: colors.dangerMuted }]}
+                                onPress={() => handleExport('pdf')}
+                            >
+                                <FileText size={20} color={colors.danger} />
+                                <Text style={[styles.actionMenuButtonText, { color: colors.danger }]}>PDF</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.actionMenuCancel, { borderTopColor: colors.border }]}
+                            onPress={() => setShowExportMenu(false)}
+                        >
+                            <Text style={[styles.actionMenuCancelText, { color: colors.textTertiary }]}>ביטול</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -371,235 +460,194 @@ export default function ExpensesListScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingBottom: 20,
-        backgroundColor: COLORS.background,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: SPACING.lg,
     },
-    backButton: { padding: 4 },
-    exportButton: { padding: 4 },
+    headerButton: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     headerTitle: {
-        fontSize: 20,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.medium,
+        ...TYPOGRAPHY.h3,
     },
-
-    // Filters
-    filterSection: {
-        padding: 16,
-        backgroundColor: COLORS.background,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+    searchSection: {
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: SPACING.lg,
     },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        height: 44,
-        marginBottom: 12,
+        borderRadius: RADIUS.md,
+        paddingHorizontal: SPACING.lg,
+        height: 48,
+        gap: SPACING.sm,
     },
     searchInput: {
         flex: 1,
-        color: COLORS.textPrimary,
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        marginHorizontal: 8,
-        textAlign: 'right'
+        ...TYPOGRAPHY.body,
     },
-    filterControls: {
-        flexDirection: 'row',
-        gap: 12,
+    listContent: {
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: 180,
     },
-    filterToggleBtn: {
+    sectionHeader: {
+        paddingVertical: SPACING.sm,
+    },
+    sectionTitle: {
+        ...TYPOGRAPHY.caption,
+        fontFamily: FONTS.medium,
+    },
+    item: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
+        padding: SPACING.lg,
+        borderRadius: RADIUS.lg,
+        marginBottom: SPACING.sm,
     },
-    filterBtnText: {
-        color: COLORS.textSecondary,
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-    },
-    expandedFilters: {
-        marginTop: 12,
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-    },
-    filterLabel: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        marginBottom: 8,
-        textAlign: 'left'
-    },
-    catsRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-    },
-    catChip: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        backgroundColor: COLORS.surface,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    catChipSelected: {
-        borderColor: COLORS.primary,
-        backgroundColor: 'rgba(0, 212, 170, 0.1)',
-    },
-    catChipText: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-    },
-    catChipTextSelected: {
-        color: COLORS.primary,
-    },
-
-    // List
-    sectionHeader: {
-        paddingVertical: 8,
-        paddingHorizontal: 20,
-        backgroundColor: COLORS.background, // Sticky needs opaque bg
-        color: COLORS.textSecondary,
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        textAlign: 'left'
-    },
-    itemContainer: {
-        marginHorizontal: 16,
-        marginVertical: 6,
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: COLORS.border, // Subtle border
+    itemIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.sm,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: SPACING.md,
     },
     itemContent: {
-        padding: 16,
+        flex: 1,
     },
-    itemActions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 12,
-        paddingHorizontal: 16,
-        paddingBottom: 12,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-        paddingTop: 12,
-    },
-    actionButton: {
-        padding: 8,
-    },
-    itemRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    itemIconData: {
-        gap: 4,
-    },
-    itemCategory: {
-        color: COLORS.textPrimary,
-        fontSize: 16,
+    itemTitle: {
+        ...TYPOGRAPHY.body,
         fontFamily: FONTS.medium,
-        textAlign: 'left'
+        marginBottom: 2,
     },
-    itemDate: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        textAlign: 'left'
+    itemSubtitle: {
+        ...TYPOGRAPHY.caption,
     },
-    itemAmountData: {
+    itemRight: {
         alignItems: 'flex-end',
-        gap: 4,
+        gap: SPACING.xs,
     },
     itemAmount: {
-        color: COLORS.danger,
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+        ...TYPOGRAPHY.label,
     },
-    itemSupplier: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
+    footer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        paddingTop: SPACING.lg,
+        paddingBottom: Platform.OS === 'ios' ? 100 : 90,
+        paddingHorizontal: LAYOUT.screenPadding,
+        borderTopLeftRadius: RADIUS.xl,
+        borderTopRightRadius: RADIUS.xl,
     },
-    itemProject: {
-        marginTop: 8,
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        textAlign: 'left'
-    },
-
-    // Footer
-    stickyFooter: {
-        padding: 16,
-        paddingBottom: 30, // Safe area
-        backgroundColor: COLORS.surface,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-    },
-    footerRow: {
+    footerContent: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 4,
+        marginBottom: SPACING.xs,
     },
     footerLabel: {
-        color: COLORS.textSecondary,
-        fontSize: 14,
+        ...TYPOGRAPHY.body,
     },
     footerAmount: {
-        color: COLORS.danger,
-        fontSize: 18,
-        fontFamily: FONTS.bold,
+        ...TYPOGRAPHY.h2,
     },
     footerCount: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        textAlign: 'left'
+        ...TYPOGRAPHY.caption,
+        textAlign: 'right',
     },
-
-    // Receipt Modal
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
         justifyContent: 'center',
         alignItems: 'center',
+        padding: LAYOUT.screenPadding,
     },
-    modalCloseArea: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    receiptModalContent: {
-        width: width * 0.9,
+    modalContent: {
+        width: '100%',
         maxHeight: '80%',
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
+        borderRadius: RADIUS.xl,
         overflow: 'hidden',
     },
-    receiptModalHeader: {
+    modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 16,
+        padding: SPACING.lg,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
-    receiptModalTitle: {
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-        color: COLORS.textPrimary,
+    modalTitle: {
+        ...TYPOGRAPHY.h4,
     },
     receiptImage: {
         width: '100%',
         height: 400,
-    }
+    },
+    actionMenuContent: {
+        width: '90%',
+        borderRadius: RADIUS.xl,
+        padding: SPACING.xl,
+        alignItems: 'center',
+    },
+    actionMenuTitle: {
+        ...TYPOGRAPHY.h4,
+        marginBottom: SPACING.xs,
+    },
+    actionMenuSubtitle: {
+        ...TYPOGRAPHY.body,
+        marginBottom: SPACING.xl,
+    },
+    actionMenuButtons: {
+        flexDirection: 'row',
+        gap: SPACING.md,
+        width: '100%',
+        marginBottom: SPACING.lg,
+    },
+    actionMenuButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: SPACING.sm,
+        paddingVertical: SPACING.lg,
+        borderRadius: RADIUS.lg,
+    },
+    actionMenuButtonText: {
+        ...TYPOGRAPHY.label,
+    },
+    actionMenuCancel: {
+        width: '100%',
+        paddingTop: SPACING.lg,
+        borderTopWidth: 1,
+        alignItems: 'center',
+    },
+    actionMenuCancelText: {
+        ...TYPOGRAPHY.body,
+    },
+    // Category Filters
+    filtersSection: {
+        marginBottom: SPACING.md,
+    },
+    filtersContent: {
+        paddingHorizontal: LAYOUT.screenPadding,
+        gap: SPACING.sm,
+    },
+    filterChip: {
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.sm,
+        borderRadius: RADIUS.full,
+        borderWidth: 1,
+    },
+    filterChipText: {
+        ...TYPOGRAPHY.caption,
+        fontFamily: FONTS.medium,
+    },
 });

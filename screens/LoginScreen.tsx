@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     StyleSheet,
     Text,
@@ -8,37 +8,221 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Animated,
     Dimensions,
+    ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { Mail, Lock, Eye, EyeOff, HelpCircle, Fingerprint } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FONTS } from '../constants/theme';
+import {
+    Mail,
+    Lock,
+    Eye,
+    EyeOff,
+    Fingerprint,
+    Sparkles,
+} from 'lucide-react-native';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT, SHADOWS } from '../constants/theme';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
+    const { signIn, resetPassword } = useAuth();
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [focusedField, setFocusedField] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [errors, setErrors] = useState<{ email?: string; password?: string; general?: string }>({});
 
-    const handleLogin = () => {
-        // Mock login - navigate to main
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(50)).current;
+    const logoScale = useRef(new Animated.Value(0.5)).current;
+    const logoRotate = useRef(new Animated.Value(0)).current;
+    const inputAnim1 = useRef(new Animated.Value(0)).current;
+    const inputAnim2 = useRef(new Animated.Value(0)).current;
+    const buttonAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        // Staggered entrance animations
+        Animated.sequence([
+            Animated.parallel([
+                Animated.spring(logoScale, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 7,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(logoRotate, {
+                    toValue: 1,
+                    duration: 800,
+                    useNativeDriver: true,
+                }),
+            ]),
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 400,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(slideAnim, {
+                    toValue: 0,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+            ]),
+            Animated.stagger(100, [
+                Animated.spring(inputAnim1, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(inputAnim2, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(buttonAnim, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+            ]),
+        ]).start();
+    }, []);
+
+    const validateEmail = (email: string) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
+
+    const handleLogin = async () => {
+        // Clear previous errors
+        setErrors({});
+
+        // Validate inputs
+        const newErrors: { email?: string; password?: string } = {};
+
+        if (!email.trim()) {
+            newErrors.email = 'נא להזין אימייל';
+        } else if (!validateEmail(email)) {
+            newErrors.email = 'אימייל לא תקין';
+        }
+
+        if (!password.trim()) {
+            newErrors.password = 'נא להזין סיסמה';
+        } else if (password.length < 6) {
+            newErrors.password = 'סיסמה חייבת להכיל לפחות 6 תווים';
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        setIsLoading(true);
+
+        // Animate button press
+        Animated.sequence([
+            Animated.timing(buttonAnim, {
+                toValue: 0.95,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+            Animated.timing(buttonAnim, {
+                toValue: 1,
+                duration: 100,
+                useNativeDriver: true,
+            }),
+        ]).start();
+
+        // Real Firebase login
+        const result = await signIn(email, password);
+
+        setIsLoading(false);
+
+        if (result.success) {
+            navigation.replace('Main');
+        } else {
+            setErrors({ general: result.error });
+        }
+    };
+
+    const handleForgotPassword = async () => {
+        if (!email.trim()) {
+            setErrors({ email: 'נא להזין אימייל לאיפוס סיסמה' });
+            return;
+        }
+
+        if (!validateEmail(email)) {
+            setErrors({ email: 'אימייל לא תקין' });
+            return;
+        }
+
+        const result = await resetPassword(email);
+        if (result.success) {
+            setErrors({ general: 'נשלח אימייל לאיפוס סיסמה' });
+        } else {
+            setErrors({ general: result.error });
+        }
+    };
+
+    const handleBiometricLogin = () => {
+        // For now, biometric just navigates (would need expo-local-authentication)
         navigation.replace('Main');
     };
 
-    return (
-        <View style={styles.container}>
-            <StatusBar style="light" />
+    const logoRotation = logoRotate.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['0deg', '360deg'],
+    });
 
-            {/* Dark Green Gradient Background */}
+    return (
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+
+            {/* Background Gradient */}
             <LinearGradient
-                colors={['#0a3d2e', '#1a5c47', '#0a3d2e']}
-                style={styles.gradient}
+                colors={isDark
+                    ? ['#18181B', '#27272A', '#18181B']
+                    : ['#6366F1', '#8B5CF6', '#A78BFA']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
+                style={styles.gradientBg}
+            />
+
+            {/* Decorative Elements */}
+            <Animated.View
+                style={[
+                    styles.decorCircle1,
+                    {
+                        opacity: isDark ? 0.1 : 0.2,
+                        transform: [{ scale: logoScale }],
+                    }
+                ]}
+            />
+            <Animated.View
+                style={[
+                    styles.decorCircle2,
+                    {
+                        opacity: isDark ? 0.05 : 0.15,
+                        transform: [{ scale: logoScale }],
+                    }
+                ]}
             />
 
             <KeyboardAvoidingView
@@ -46,121 +230,286 @@ export default function LoginScreen() {
                 style={styles.keyboardView}
             >
                 <ScrollView
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 40 }
+                    ]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Help Icon */}
-                    <TouchableOpacity style={styles.helpButton}>
-                        <HelpCircle size={24} color="rgba(255,255,255,0.6)" />
-                    </TouchableOpacity>
-
-                    {/* Logo */}
-                    <View style={styles.logoContainer}>
-                        <View style={styles.logo}>
-                            <Text style={styles.logoText}>F</Text>
+                    {/* Logo Section */}
+                    <Animated.View
+                        style={[
+                            styles.logoSection,
+                            {
+                                transform: [
+                                    { scale: logoScale },
+                                ],
+                            }
+                        ]}
+                    >
+                        <View style={styles.logoWrapper}>
+                            <LinearGradient
+                                colors={isDark
+                                    ? ['#818CF8', '#A78BFA']
+                                    : ['#FFFFFF', '#F0F0FF']}
+                                style={styles.logoContainer}
+                            >
+                                <Animated.View style={{ transform: [{ rotate: logoRotation }] }}>
+                                    <Text style={[styles.logoText, { color: isDark ? '#18181B' : '#6366F1' }]}>F</Text>
+                                </Animated.View>
+                            </LinearGradient>
+                            <View style={[styles.logoGlow, { backgroundColor: colors.primary }]} />
                         </View>
-                    </View>
+                        <Text style={[styles.appName, { color: isDark ? colors.textPrimary : '#FFFFFF' }]}>
+                            Finly
+                        </Text>
+                        <View style={styles.taglineContainer}>
+                            <Sparkles size={14} color={isDark ? colors.primary : 'rgba(255,255,255,0.8)'} />
+                            <Text style={[styles.tagline, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.8)' }]}>
+                                ניהול פיננסי חכם לפרילנסרים
+                            </Text>
+                        </View>
+                    </Animated.View>
 
-                    {/* Title */}
-                    <Text style={styles.title}>ברוכים השבים</Text>
-                    <Text style={styles.subtitle}>הזן את הפרטים שלך כדי להתחבר  </Text>
+                    {/* Form Card */}
+                    <Animated.View
+                        style={[
+                            styles.formCard,
+                            {
+                                backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                                opacity: fadeAnim,
+                                transform: [{ translateY: slideAnim }],
+                            },
+                            SHADOWS.xl
+                        ]}
+                    >
+                        {/* Welcome Text */}
+                        <View style={styles.welcomeSection}>
+                            <Text style={[styles.welcomeTitle, { color: colors.textPrimary }]}>
+                                ברוך הבא
+                            </Text>
+                            <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
+                                היכנס לחשבון שלך כדי להמשיך
+                            </Text>
+                        </View>
 
-                    {/* Email Input */}
-                    <View style={styles.inputContainer}>
-                        <View style={styles.inputWrapper}>
-                            <Mail size={20} color="rgba(255,255,255,0.5)" style={styles.inputIcon} />
-                            <View style={styles.inputContent}>
-                                <Text style={styles.labelInside}>אימייל</Text>
+                        {/* Email Input */}
+                        <Animated.View
+                            style={[
+                                styles.inputGroup,
+                                {
+                                    opacity: inputAnim1,
+                                    transform: [{
+                                        translateX: inputAnim1.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [50, 0],
+                                        }),
+                                    }],
+                                }
+                            ]}
+                        >
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                                אימייל
+                            </Text>
+                            <View style={[
+                                styles.inputContainer,
+                                {
+                                    backgroundColor: colors.surfaceSecondary,
+                                    borderColor: errors.email
+                                        ? colors.danger
+                                        : focusedField === 'email'
+                                            ? colors.primary
+                                            : colors.border,
+                                    borderWidth: focusedField === 'email' ? 2 : 1,
+                                }
+                            ]}>
+                                <View style={[
+                                    styles.inputIconContainer,
+                                    { backgroundColor: focusedField === 'email' ? colors.primaryMuted : 'transparent' }
+                                ]}>
+                                    <Mail
+                                        size={20}
+                                        color={focusedField === 'email' ? colors.primary : colors.textTertiary}
+                                    />
+                                </View>
                                 <TextInput
-                                    style={styles.input}
-                                    placeholder="name@agency.com"
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
+                                    style={[styles.input, { color: colors.textPrimary }]}
+                                    placeholder="your@email.com"
+                                    placeholderTextColor={colors.textQuaternary}
                                     value={email}
-                                    onChangeText={setEmail}
+                                    onChangeText={(text) => {
+                                        setEmail(text);
+                                        if (errors.email) setErrors({ ...errors, email: undefined });
+                                    }}
                                     keyboardType="email-address"
                                     autoCapitalize="none"
+                                    autoCorrect={false}
+                                    onFocus={() => setFocusedField('email')}
+                                    onBlur={() => setFocusedField(null)}
                                 />
                             </View>
-                        </View>
-                    </View>
+                            {errors.email && (
+                                <Text style={[styles.errorText, { color: colors.danger }]}>
+                                    {errors.email}
+                                </Text>
+                            )}
+                        </Animated.View>
 
-                    {/* Password Input */}
-                    <View style={styles.inputContainer}>
-                        <View style={styles.inputWrapper}>
-                            <Lock size={20} color="rgba(255,255,255,0.5)" style={styles.inputIcon} />
-                            <View style={styles.inputContent}>
-                                <Text style={styles.labelInside}>סיסמה</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="••••••••"
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secureTextEntry={!showPassword}
-                                />
-                            </View>
-                            <TouchableOpacity
-                                onPress={() => setShowPassword(!showPassword)}
-                                style={styles.eyeIcon}
-                            >
-                                {showPassword ? (
-                                    <Eye size={20} color="rgba(255,255,255,0.5)" />
-                                ) : (
-                                    <EyeOff size={20} color="rgba(255,255,255,0.5)" />
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-
-                    {/* Forgot Password */}
-                    <TouchableOpacity style={styles.forgotPassword}>
-                        <Text style={styles.forgotPasswordText}>שכחת סיסמה?</Text>
-                    </TouchableOpacity>
-
-                    {/* Login Button */}
-                    <TouchableOpacity
-                        style={styles.loginButton}
-                        onPress={handleLogin}
-                        activeOpacity={0.8}
-                    >
-                        <LinearGradient
-                            colors={['#00ff88', '#00cc6f']}
-                            style={styles.loginButtonGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
+                        {/* Password Input */}
+                        <Animated.View
+                            style={[
+                                styles.inputGroup,
+                                {
+                                    opacity: inputAnim2,
+                                    transform: [{
+                                        translateX: inputAnim2.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [50, 0],
+                                        }),
+                                    }],
+                                }
+                            ]}
                         >
-                            <Text style={styles.loginButtonText}>התחברות</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-
-                    {/* Divider */}
-                    <View style={styles.divider}>
-                        <View style={styles.dividerLine} />
-                        <Text style={styles.dividerText}>או המשך באמצעות</Text>
-                        <View style={styles.dividerLine} />
-                    </View>
-
-                    {/* Biometric Options */}
-                    <View style={styles.biometricContainer}>
-                        <TouchableOpacity style={styles.biometricButton}>
-                            <View style={styles.biometricIcon}>
-                                <Text style={styles.biometricEmoji}>🔐</Text>
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+                                סיסמה
+                            </Text>
+                            <View style={[
+                                styles.inputContainer,
+                                {
+                                    backgroundColor: colors.surfaceSecondary,
+                                    borderColor: errors.password
+                                        ? colors.danger
+                                        : focusedField === 'password'
+                                            ? colors.primary
+                                            : colors.border,
+                                    borderWidth: focusedField === 'password' ? 2 : 1,
+                                }
+                            ]}>
+                                <View style={[
+                                    styles.inputIconContainer,
+                                    { backgroundColor: focusedField === 'password' ? colors.primaryMuted : 'transparent' }
+                                ]}>
+                                    <Lock
+                                        size={20}
+                                        color={focusedField === 'password' ? colors.primary : colors.textTertiary}
+                                    />
+                                </View>
+                                <TextInput
+                                    style={[styles.input, { color: colors.textPrimary }]}
+                                    placeholder="הזן סיסמה"
+                                    placeholderTextColor={colors.textQuaternary}
+                                    value={password}
+                                    onChangeText={(text) => {
+                                        setPassword(text);
+                                        if (errors.password) setErrors({ ...errors, password: undefined });
+                                    }}
+                                    secureTextEntry={!showPassword}
+                                    onFocus={() => setFocusedField('password')}
+                                    onBlur={() => setFocusedField(null)}
+                                />
+                                <TouchableOpacity
+                                    onPress={() => setShowPassword(!showPassword)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    style={styles.eyeButton}
+                                >
+                                    {showPassword ? (
+                                        <Eye size={20} color={colors.textTertiary} />
+                                    ) : (
+                                        <EyeOff size={20} color={colors.textTertiary} />
+                                    )}
+                                </TouchableOpacity>
                             </View>
+                            {errors.password && (
+                                <Text style={[styles.errorText, { color: colors.danger }]}>
+                                    {errors.password}
+                                </Text>
+                            )}
+                        </Animated.View>
+
+                        {/* General Error */}
+                        {errors.general && (
+                            <View style={[styles.generalError, { backgroundColor: errors.general.includes('נשלח') ? colors.successMuted : colors.dangerMuted }]}>
+                                <Text style={[styles.generalErrorText, { color: errors.general.includes('נשלח') ? colors.success : colors.danger }]}>
+                                    {errors.general}
+                                </Text>
+                            </View>
+                        )}
+
+                        {/* Forgot Password */}
+                        <TouchableOpacity style={styles.forgotPassword} onPress={handleForgotPassword}>
+                            <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>
+                                שכחת סיסמה?
+                            </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.biometricButton}>
-                            <Fingerprint size={28} color="rgba(255,255,255,0.6)" />
+
+                        {/* Login Button */}
+                        <Animated.View
+                            style={{
+                                opacity: buttonAnim,
+                                transform: [{ scale: buttonAnim }],
+                            }}
+                        >
+                            <TouchableOpacity
+                                style={[styles.loginButton]}
+                                onPress={handleLogin}
+                                activeOpacity={0.9}
+                                disabled={isLoading}
+                            >
+                                <LinearGradient
+                                    colors={['#6366F1', '#8B5CF6']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={styles.loginButtonGradient}
+                                >
+                                    {isLoading ? (
+                                        <ActivityIndicator color="#FFFFFF" size="small" />
+                                    ) : (
+                                        <Text style={styles.loginButtonText}>התחבר</Text>
+                                    )}
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        </Animated.View>
+
+                        {/* Divider */}
+                        <View style={styles.divider}>
+                            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                            <Text style={[styles.dividerText, { color: colors.textTertiary }]}>או</Text>
+                            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+                        </View>
+
+                        {/* Biometric Button */}
+                        <TouchableOpacity
+                            style={[
+                                styles.biometricButton,
+                                { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
+                            ]}
+                            activeOpacity={0.7}
+                            onPress={handleBiometricLogin}
+                        >
+                            <Fingerprint size={22} color={colors.primary} />
+                            <Text style={[styles.biometricButtonText, { color: colors.textPrimary }]}>
+                                המשך עם זיהוי ביומטרי
+                            </Text>
                         </TouchableOpacity>
-                    </View>
+                    </Animated.View>
 
                     {/* Sign Up Link */}
-                    <View style={styles.signupContainer}>
-                        <Text style={styles.signupText}>כבר יש לך חשבון? </Text>
+                    <Animated.View
+                        style={[
+                            styles.signupSection,
+                            { opacity: fadeAnim }
+                        ]}
+                    >
+                        <Text style={[styles.signupText, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.8)' }]}>
+                            אין לך חשבון?{' '}
+                        </Text>
                         <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                            <Text style={styles.signupLink}>יצירת חשבון</Text>
+                            <Text style={[styles.signupLink, { color: isDark ? colors.primary : '#FFFFFF' }]}>
+                                הרשם עכשיו
+                            </Text>
                         </TouchableOpacity>
-                        <Text style={styles.signupText}> חדש בפלטפורמה?</Text>
-                    </View>
+                    </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -170,191 +519,209 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0a3d2e',
     },
-    gradient: {
+    gradientBg: {
         position: 'absolute',
         left: 0,
         right: 0,
         top: 0,
-        bottom: 0,
+        height: height * 0.45,
+    },
+    decorCircle1: {
+        position: 'absolute',
+        width: 300,
+        height: 300,
+        borderRadius: 150,
+        backgroundColor: '#FFFFFF',
+        top: -100,
+        right: -80,
+    },
+    decorCircle2: {
+        position: 'absolute',
+        width: 200,
+        height: 200,
+        borderRadius: 100,
+        backgroundColor: '#FFFFFF',
+        top: 150,
+        left: -60,
     },
     keyboardView: {
         flex: 1,
     },
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingTop: 60,
-        paddingBottom: 40,
+        paddingHorizontal: LAYOUT.screenPadding,
     },
-    helpButton: {
-        alignSelf: 'flex-start',
-        padding: 8,
-        marginBottom: 20,
+    // Logo
+    logoSection: {
+        alignItems: 'center',
+        marginBottom: SPACING['3xl'],
+    },
+    logoWrapper: {
+        position: 'relative',
+        marginBottom: SPACING.lg,
     },
     logoContainer: {
-        alignItems: 'center',
-        marginBottom: 40,
-    },
-    logo: {
         width: 80,
         height: 80,
-        borderRadius: 20,
-        backgroundColor: '#00ff88',
+        borderRadius: RADIUS.xl,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#00ff88',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 8,
+        zIndex: 1,
+    },
+    logoGlow: {
+        position: 'absolute',
+        width: 80,
+        height: 80,
+        borderRadius: RADIUS.xl,
+        top: 8,
+        left: 0,
+        opacity: 0.3,
+        zIndex: 0,
     },
     logoText: {
-        fontSize: 40,
+        fontSize: 36,
         fontFamily: FONTS.bold,
-        color: '#0a3d2e',
     },
-    title: {
-        fontSize: 32,
-        fontFamily: FONTS.bold,
-        color: '#ffffff',
-        textAlign: 'right',
-        marginBottom: 8,
+    appName: {
+        ...TYPOGRAPHY.h1,
+        marginBottom: SPACING.sm,
     },
-    subtitle: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
+    taglineContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
+    },
+    tagline: {
+        ...TYPOGRAPHY.body,
+    },
+    // Form Card
+    formCard: {
+        borderRadius: RADIUS['2xl'],
+        padding: SPACING.xl,
+        marginBottom: SPACING['2xl'],
+    },
+    welcomeSection: {
+        marginBottom: SPACING['2xl'],
+    },
+    welcomeTitle: {
+        ...TYPOGRAPHY.h2,
         textAlign: 'right',
-        marginBottom: 40,
-        lineHeight: 20,
+        marginBottom: SPACING.xs,
+    },
+    welcomeSubtitle: {
+        ...TYPOGRAPHY.body,
+        textAlign: 'right',
+    },
+    // Inputs
+    inputGroup: {
+        marginBottom: SPACING.xl,
+    },
+    inputLabel: {
+        ...TYPOGRAPHY.label,
+        marginBottom: SPACING.sm,
+        textAlign: 'right',
     },
     inputContainer: {
-        marginBottom: 20,
-    },
-    inputWrapper: {
         flexDirection: 'row-reverse',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        minHeight: 72,
+        height: LAYOUT.inputHeight,
+        borderRadius: RADIUS.lg,
+        paddingHorizontal: SPACING.sm,
+        gap: SPACING.sm,
     },
-    inputIcon: {
-        marginLeft: 12,
-        alignSelf: 'flex-start',
-        marginTop: 8,
-    },
-    inputContent: {
-        flex: 1,
-    },
-    labelInside: {
-        fontSize: 12,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.6)',
-        marginBottom: 4,
-        textAlign: 'right',
+    inputIconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     input: {
-        fontSize: 16,
-        fontFamily: FONTS.regular,
-        color: '#ffffff',
+        flex: 1,
+        ...TYPOGRAPHY.body,
         textAlign: 'right',
-        padding: 0,
+        height: '100%',
     },
-    eyeIcon: {
-        padding: 8,
-        marginRight: -8,
-        alignSelf: 'flex-start',
-        marginTop: 8,
+    eyeButton: {
+        padding: SPACING.sm,
     },
+    errorText: {
+        ...TYPOGRAPHY.caption,
+        textAlign: 'right',
+        marginTop: SPACING.xs,
+    },
+    generalError: {
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        marginBottom: SPACING.lg,
+    },
+    generalErrorText: {
+        ...TYPOGRAPHY.body,
+        textAlign: 'center',
+    },
+    // Forgot Password
     forgotPassword: {
         alignSelf: 'flex-end',
-        marginBottom: 32,
+        marginBottom: SPACING['2xl'],
     },
     forgotPasswordText: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.7)',
+        ...TYPOGRAPHY.label,
     },
+    // Login Button
     loginButton: {
-        marginBottom: 32,
-        borderRadius: 16,
+        borderRadius: RADIUS.lg,
         overflow: 'hidden',
-        shadowColor: '#00ff88',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 8,
+        marginBottom: SPACING.xl,
     },
     loginButtonGradient: {
-        paddingVertical: 18,
+        height: LAYOUT.buttonHeight,
         alignItems: 'center',
         justifyContent: 'center',
     },
     loginButtonText: {
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-        color: '#0a3d2e',
+        ...TYPOGRAPHY.button,
+        color: '#FFFFFF',
+        fontSize: 16,
     },
+    // Divider
     divider: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 32,
+        marginBottom: SPACING.xl,
     },
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: 'rgba(255,255,255,0.1)',
     },
     dividerText: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
-        marginHorizontal: 16,
+        ...TYPOGRAPHY.caption,
+        marginHorizontal: SPACING.lg,
     },
-    biometricContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 16,
-        marginBottom: 32,
-    },
+    // Biometric
     biometricButton: {
-        width: 64,
-        height: 64,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        height: LAYOUT.buttonHeight,
+        borderRadius: RADIUS.lg,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: SPACING.sm,
     },
-    biometricIcon: {
-        width: 40,
-        height: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
+    biometricButtonText: {
+        ...TYPOGRAPHY.button,
     },
-    biometricEmoji: {
-        fontSize: 28,
-    },
-    signupContainer: {
+    // Signup
+    signupSection: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
     },
     signupText: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
+        ...TYPOGRAPHY.body,
     },
     signupLink: {
-        fontSize: 14,
-        fontFamily: FONTS.bold,
-        color: '#00ff88',
+        ...TYPOGRAPHY.label,
+        fontFamily: FONTS.semiBold,
     },
 });

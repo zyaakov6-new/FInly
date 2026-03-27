@@ -7,17 +7,24 @@ import {
     TouchableOpacity,
     TextInput,
     Modal,
-    Platform,
-    Alert,
-    Animated
+    Animated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Plus, Search, User, Building2, Phone, Mail, Edit2, Trash2, X, ChevronRight } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { ChevronRight, Plus, Search, User, Building2, Trash2, X, ChevronLeft, Check } from 'lucide-react-native';
 import { useTransactions, Client } from '../context/TransactionsContext';
-import { COLORS, FONTS } from '../constants/theme';
+import { useNotification } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 export default function ClientsScreen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
+    const { showDeleteConfirm, showWarning } = useNotification();
+
     const { clients, addClient, updateClient, deleteClient, getClientTransactions } = useTransactions();
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -71,7 +78,7 @@ export default function ClientsScreen() {
 
     const handleSave = () => {
         if (!formData.name.trim()) {
-            Alert.alert('שגיאה', 'נא להזין שם לקוח');
+            showWarning('נא להזין שם לקוח');
             return;
         }
 
@@ -89,13 +96,10 @@ export default function ClientsScreen() {
     };
 
     const handleDelete = (clientId: string) => {
-        Alert.alert(
+        showDeleteConfirm(
             'מחיקת לקוח',
             'האם אתה בטוח שברצונך למחוק לקוח זה?',
-            [
-                { text: 'ביטול', style: 'cancel' },
-                { text: 'מחק', style: 'destructive', onPress: () => deleteClient(clientId) }
-            ]
+            () => deleteClient(clientId)
         );
     };
 
@@ -114,57 +118,67 @@ export default function ClientsScreen() {
         return (
             <Animated.View style={{ opacity: fadeAnim }}>
                 <TouchableOpacity
-                    style={styles.clientCard}
+                    style={[styles.clientCard, { backgroundColor: colors.surface }, SHADOWS.sm]}
                     onPress={() => openEditModal(client)}
                     activeOpacity={0.7}
                 >
                     <View style={styles.cardLeft}>
-                        <View style={styles.avatar}>
-                            <User size={24} color={COLORS.primary} />
+                        <View style={[styles.avatar, { backgroundColor: colors.primaryMuted }]}>
+                            <User size={24} color={colors.primary} />
                         </View>
                         <View style={styles.clientInfo}>
-                            <Text style={styles.clientName}>{client.name}</Text>
+                            <Text style={[styles.clientName, { color: colors.textPrimary }]}>{client.name}</Text>
                             {client.company && (
                                 <View style={styles.companyRow}>
-                                    <Building2 size={12} color={COLORS.textSecondary} />
-                                    <Text style={styles.companyText}>{client.company}</Text>
+                                    <Building2 size={12} color={colors.textTertiary} />
+                                    <Text style={[styles.companyText, { color: colors.textSecondary }]}>{client.company}</Text>
                                 </View>
                             )}
-                            <Text style={styles.statsText}>
+                            <Text style={[styles.statsText, { color: colors.textTertiary }]}>
                                 {stats.count} עסקאות • ₪{stats.total.toLocaleString()}
                             </Text>
                         </View>
                     </View>
-                    <ChevronRight size={20} color={COLORS.textTertiary} />
+                    <ChevronLeft size={20} color={colors.textTertiary} />
                 </TouchableOpacity>
             </Animated.View>
         );
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color={COLORS.textPrimary} />
+            <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
+                >
+                    <ChevronRight size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>לקוחות</Text>
-                <TouchableOpacity onPress={openAddModal} style={styles.addButton}>
-                    <Plus size={24} color={COLORS.primary} />
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>לקוחות</Text>
+                <TouchableOpacity
+                    onPress={openAddModal}
+                    style={[styles.headerButton, { backgroundColor: colors.primaryMuted }]}
+                >
+                    <Plus size={24} color={colors.primary} />
                 </TouchableOpacity>
             </View>
 
             {/* Search */}
-            <View style={styles.searchContainer}>
-                <Search size={20} color={COLORS.textSecondary} />
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="חיפוש לקוח..."
-                    placeholderTextColor={COLORS.textTertiary}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    textAlign="right"
-                />
+            <View style={styles.searchWrapper}>
+                <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Search size={20} color={colors.textTertiary} />
+                    <TextInput
+                        style={[styles.searchInput, { color: colors.textPrimary }]}
+                        placeholder="חיפוש לקוח..."
+                        placeholderTextColor={colors.textQuaternary}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        textAlign="right"
+                    />
+                </View>
             </View>
 
             {/* Client List */}
@@ -174,11 +188,16 @@ export default function ClientsScreen() {
             >
                 {filteredClients.length === 0 ? (
                     <View style={styles.emptyState}>
-                        <User size={48} color={COLORS.textTertiary} />
-                        <Text style={styles.emptyTitle}>אין לקוחות עדיין</Text>
-                        <Text style={styles.emptySubtitle}>הוסף את הלקוח הראשון שלך</Text>
-                        <TouchableOpacity style={styles.emptyButton} onPress={openAddModal}>
-                            <Plus size={20} color={COLORS.white} />
+                        <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceSecondary }]}>
+                            <User size={32} color={colors.textTertiary} />
+                        </View>
+                        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>אין לקוחות עדיין</Text>
+                        <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>הוסף את הלקוח הראשון שלך</Text>
+                        <TouchableOpacity
+                            style={[styles.emptyButton, { backgroundColor: colors.primary }]}
+                            onPress={openAddModal}
+                        >
+                            <Plus size={20} color="#FFFFFF" />
                             <Text style={styles.emptyButtonText}>הוסף לקוח</Text>
                         </TouchableOpacity>
                     </View>
@@ -197,88 +216,92 @@ export default function ClientsScreen() {
                 animationType="slide"
                 onRequestClose={() => setModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+                    <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
+                            <TouchableOpacity
+                                onPress={() => setModalVisible(false)}
+                                style={[styles.modalCloseButton, { backgroundColor: colors.surfaceSecondary }]}
+                            >
+                                <X size={20} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
                                 {editingClient ? 'עריכת לקוח' : 'לקוח חדש'}
                             </Text>
-                            <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                <X size={24} color={COLORS.textPrimary} />
-                            </TouchableOpacity>
+                            <View style={{ width: 36 }} />
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>שם *</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>שם *</Text>
                                 <TextInput
-                                    style={styles.formInput}
+                                    style={[styles.formInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                     value={formData.name}
                                     onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
                                     placeholder="שם הלקוח"
-                                    placeholderTextColor={COLORS.textTertiary}
+                                    placeholderTextColor={colors.textQuaternary}
                                     textAlign="right"
                                 />
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>חברה</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>חברה</Text>
                                 <TextInput
-                                    style={styles.formInput}
+                                    style={[styles.formInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                     value={formData.company}
                                     onChangeText={(text) => setFormData(prev => ({ ...prev, company: text }))}
                                     placeholder="שם החברה"
-                                    placeholderTextColor={COLORS.textTertiary}
+                                    placeholderTextColor={colors.textQuaternary}
                                     textAlign="right"
                                 />
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>טלפון</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>טלפון</Text>
                                 <TextInput
-                                    style={styles.formInput}
+                                    style={[styles.formInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                     value={formData.phone}
                                     onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
                                     placeholder="050-000-0000"
-                                    placeholderTextColor={COLORS.textTertiary}
+                                    placeholderTextColor={colors.textQuaternary}
                                     keyboardType="phone-pad"
                                     textAlign="right"
                                 />
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>אימייל</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>אימייל</Text>
                                 <TextInput
-                                    style={styles.formInput}
+                                    style={[styles.formInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                     value={formData.email}
                                     onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
                                     placeholder="email@example.com"
-                                    placeholderTextColor={COLORS.textTertiary}
+                                    placeholderTextColor={colors.textQuaternary}
                                     keyboardType="email-address"
                                     textAlign="right"
                                 />
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>כתובת</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>כתובת</Text>
                                 <TextInput
-                                    style={styles.formInput}
+                                    style={[styles.formInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                     value={formData.address}
                                     onChangeText={(text) => setFormData(prev => ({ ...prev, address: text }))}
                                     placeholder="כתובת הלקוח"
-                                    placeholderTextColor={COLORS.textTertiary}
+                                    placeholderTextColor={colors.textQuaternary}
                                     textAlign="right"
                                 />
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>הערות</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>הערות</Text>
                                 <TextInput
-                                    style={[styles.formInput, styles.notesInput]}
+                                    style={[styles.formInput, styles.notesInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                     value={formData.notes}
                                     onChangeText={(text) => setFormData(prev => ({ ...prev, notes: text }))}
                                     placeholder="הערות נוספות..."
-                                    placeholderTextColor={COLORS.textTertiary}
+                                    placeholderTextColor={colors.textQuaternary}
                                     multiline
                                     numberOfLines={3}
                                     textAlign="right"
@@ -290,19 +313,20 @@ export default function ClientsScreen() {
                         <View style={styles.modalButtons}>
                             {editingClient && (
                                 <TouchableOpacity
-                                    style={styles.deleteButton}
+                                    style={[styles.deleteButton, { backgroundColor: colors.dangerMuted }]}
                                     onPress={() => {
                                         setModalVisible(false);
                                         handleDelete(editingClient.id);
                                     }}
                                 >
-                                    <Trash2 size={20} color={COLORS.danger} />
+                                    <Trash2 size={20} color={colors.danger} />
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
-                                style={styles.saveButton}
+                                style={[styles.saveButton, { backgroundColor: colors.primary }]}
                                 onPress={handleSave}
                             >
+                                <Check size={18} color="#FFFFFF" style={{ marginLeft: SPACING.xs }} />
                                 <Text style={styles.saveButtonText}>
                                     {editingClient ? 'עדכן' : 'שמור'}
                                 </Text>
@@ -318,80 +342,62 @@ export default function ClientsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
-        paddingTop: Platform.OS === 'android' ? 40 : 0,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: SPACING.lg,
     },
-    backButton: {
-        padding: 8,
+    headerButton: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerTitle: {
-        fontSize: 20,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
+        ...TYPOGRAPHY.h3,
     },
-    addButton: {
-        padding: 8,
-        backgroundColor: `${COLORS.primary}15`,
-        borderRadius: 12,
+    searchWrapper: {
+        paddingHorizontal: LAYOUT.screenPadding,
+        marginBottom: SPACING.md,
     },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.surface,
-        margin: 20,
-        marginBottom: 0,
-        borderRadius: 12,
-        paddingHorizontal: 16,
+        borderRadius: RADIUS.md,
+        paddingHorizontal: SPACING.md,
         height: 48,
-        gap: 12,
+        gap: SPACING.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
     },
     searchInput: {
         flex: 1,
-        fontSize: 16,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.body,
     },
     listContent: {
-        padding: 20,
+        paddingHorizontal: LAYOUT.screenPadding,
     },
     clientCard: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+        marginBottom: SPACING.md,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
     },
     cardLeft: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
-        gap: 14,
+        gap: SPACING.md,
     },
     avatar: {
         width: 50,
         height: 50,
         borderRadius: 25,
-        backgroundColor: `${COLORS.primary}15`,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -399,127 +405,119 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     clientName: {
-        fontSize: 16,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
-        marginBottom: 4,
+        ...TYPOGRAPHY.body,
+        fontFamily: FONTS.semiBold,
+        marginBottom: SPACING.xs,
     },
     companyRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        marginBottom: 4,
+        marginBottom: SPACING.xs,
     },
     companyText: {
-        fontSize: 13,
-        color: COLORS.textSecondary,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.caption,
     },
     statsText: {
-        fontSize: 12,
-        color: COLORS.textTertiary,
-        fontFamily: FONTS.medium,
+        ...TYPOGRAPHY.captionSmall,
     },
     emptyState: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 60,
+        paddingVertical: SPACING['4xl'],
+    },
+    emptyIcon: {
+        width: 80,
+        height: 80,
+        borderRadius: RADIUS.xl,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: SPACING.lg,
     },
     emptyTitle: {
-        fontSize: 18,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
-        marginTop: 16,
-        marginBottom: 8,
+        ...TYPOGRAPHY.h4,
+        marginBottom: SPACING.sm,
     },
     emptySubtitle: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        fontFamily: FONTS.regular,
-        marginBottom: 24,
+        ...TYPOGRAPHY.body,
+        marginBottom: SPACING.xl,
     },
     emptyButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.primary,
-        paddingHorizontal: 24,
-        paddingVertical: 14,
-        borderRadius: 12,
-        gap: 8,
+        paddingHorizontal: SPACING.xl,
+        paddingVertical: SPACING.md,
+        borderRadius: RADIUS.md,
+        gap: SPACING.sm,
     },
     emptyButtonText: {
-        color: COLORS.white,
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+        color: '#FFFFFF',
+        ...TYPOGRAPHY.label,
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: COLORS.surface,
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 24,
+        borderTopLeftRadius: RADIUS['2xl'],
+        borderTopRightRadius: RADIUS['2xl'],
+        padding: SPACING['2xl'],
         maxHeight: '85%',
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 24,
+        marginBottom: SPACING.xl,
+    },
+    modalCloseButton: {
+        width: 36,
+        height: 36,
+        borderRadius: RADIUS.sm,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     modalTitle: {
-        fontSize: 20,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
+        ...TYPOGRAPHY.h4,
     },
     formGroup: {
-        marginBottom: 20,
+        marginBottom: SPACING.lg,
     },
     formLabel: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        fontFamily: FONTS.medium,
-        marginBottom: 8,
+        ...TYPOGRAPHY.caption,
+        marginBottom: SPACING.sm,
     },
     formInput: {
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        padding: 16,
-        fontSize: 16,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.regular,
+        borderRadius: RADIUS.md,
+        padding: SPACING.md,
+        ...TYPOGRAPHY.body,
         borderWidth: 1,
-        borderColor: COLORS.border,
     },
     notesInput: {
         minHeight: 80,
     },
     modalButtons: {
         flexDirection: 'row',
-        gap: 12,
-        marginTop: 16,
+        gap: SPACING.md,
+        marginTop: SPACING.lg,
     },
     deleteButton: {
         width: 52,
         height: 52,
-        borderRadius: 12,
-        backgroundColor: `${COLORS.danger}15`,
+        borderRadius: RADIUS.md,
         justifyContent: 'center',
         alignItems: 'center',
     },
     saveButton: {
         flex: 1,
-        backgroundColor: COLORS.primary,
-        padding: 16,
-        borderRadius: 12,
+        flexDirection: 'row',
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     saveButtonText: {
-        color: COLORS.white,
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+        color: '#FFFFFF',
+        ...TYPOGRAPHY.label,
     },
 });

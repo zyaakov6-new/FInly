@@ -7,15 +7,17 @@ import {
     TouchableOpacity,
     TextInput,
     Modal,
-    Platform,
-    Alert,
     Animated,
-    Switch
+    Switch,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { ArrowLeft, Plus, Repeat, Clock, Calendar, Edit2, Trash2, X, DollarSign, TrendingUp, TrendingDown } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { ChevronRight, Plus, Repeat, Calendar, Trash2, X, TrendingUp, TrendingDown, Check } from 'lucide-react-native';
 import { useTransactions, RecurringTransaction, Transaction } from '../context/TransactionsContext';
-import { COLORS, FONTS } from '../constants/theme';
+import { useNotification } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 const FREQUENCY_OPTIONS = [
     { value: 'daily', label: 'יומי' },
@@ -26,6 +28,11 @@ const FREQUENCY_OPTIONS = [
 
 export default function RecurringScreen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
+    const { showDeleteConfirm, showWarning } = useNotification();
+
     const {
         recurringTransactions,
         addRecurringTransaction,
@@ -106,7 +113,7 @@ export default function RecurringScreen() {
 
     const handleSave = () => {
         if (!formData.title.trim() || !formData.amount.trim()) {
-            Alert.alert('שגיאה', 'נא למלא כותרת וסכום');
+            showWarning('נא למלא כותרת וסכום');
             return;
         }
 
@@ -142,13 +149,10 @@ export default function RecurringScreen() {
     };
 
     const handleDelete = (id: string) => {
-        Alert.alert(
+        showDeleteConfirm(
             'מחיקת עסקה חוזרת',
             'האם אתה בטוח שברצונך למחוק?',
-            [
-                { text: 'ביטול', style: 'cancel' },
-                { text: 'מחק', style: 'destructive', onPress: () => deleteRecurringTransaction(id) }
-            ]
+            () => deleteRecurringTransaction(id)
         );
     };
 
@@ -162,34 +166,49 @@ export default function RecurringScreen() {
         return (
             <Animated.View style={{ opacity: fadeAnim }}>
                 <TouchableOpacity
-                    style={[styles.card, !item.isActive && styles.cardInactive]}
+                    style={[
+                        styles.card,
+                        { backgroundColor: colors.surface },
+                        SHADOWS.sm,
+                        !item.isActive && styles.cardInactive
+                    ]}
                     onPress={() => openEditModal(item)}
                     activeOpacity={0.7}
                 >
                     <View style={styles.cardHeader}>
-                        <View style={[styles.iconBg, { backgroundColor: isIncome ? `${COLORS.success}15` : `${COLORS.danger}15` }]}>
+                        <View style={[
+                            styles.iconBg,
+                            { backgroundColor: isIncome ? colors.successMuted : colors.dangerMuted }
+                        ]}>
                             {isIncome ? (
-                                <TrendingUp size={20} color={COLORS.success} />
+                                <TrendingUp size={20} color={colors.success} />
                             ) : (
-                                <TrendingDown size={20} color={COLORS.danger} />
+                                <TrendingDown size={20} color={colors.danger} />
                             )}
                         </View>
                         <View style={styles.cardInfo}>
-                            <Text style={styles.cardTitle}>{item.templateTransaction.title}</Text>
-                            <View style={styles.frequencyBadge}>
-                                <Repeat size={12} color={COLORS.textSecondary} />
-                                <Text style={styles.frequencyText}>{getFrequencyLabel(item.frequency)}</Text>
+                            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                                {item.templateTransaction.title}
+                            </Text>
+                            <View style={[styles.frequencyBadge, { backgroundColor: colors.surfaceSecondary }]}>
+                                <Repeat size={12} color={colors.textTertiary} />
+                                <Text style={[styles.frequencyText, { color: colors.textSecondary }]}>
+                                    {getFrequencyLabel(item.frequency)}
+                                </Text>
                             </View>
                         </View>
                         <View style={styles.cardRight}>
-                            <Text style={[styles.cardAmount, { color: isIncome ? COLORS.success : COLORS.danger }]}>
+                            <Text style={[
+                                styles.cardAmount,
+                                { color: isIncome ? colors.success : colors.danger }
+                            ]}>
                                 {item.templateTransaction.amount}
                             </Text>
                             <Switch
                                 value={item.isActive}
                                 onValueChange={() => toggleRecurringActive(item.id)}
-                                trackColor={{ false: COLORS.border, true: `${COLORS.success}50` }}
-                                thumbColor={item.isActive ? COLORS.success : COLORS.textTertiary}
+                                trackColor={{ false: colors.border, true: `${colors.success}50` }}
+                                thumbColor={item.isActive ? colors.success : colors.textQuaternary}
                             />
                         </View>
                     </View>
@@ -199,15 +218,25 @@ export default function RecurringScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ArrowLeft size={24} color={COLORS.textPrimary} />
+            <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
+                >
+                    <ChevronRight size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>עסקאות חוזרות</Text>
-                <TouchableOpacity onPress={openAddModal} style={styles.addButton}>
-                    <Plus size={24} color={COLORS.primary} />
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+                    עסקאות חוזרות
+                </Text>
+                <TouchableOpacity
+                    onPress={openAddModal}
+                    style={[styles.headerButton, { backgroundColor: colors.primaryMuted }]}
+                >
+                    <Plus size={24} color={colors.primary} />
                 </TouchableOpacity>
             </View>
 
@@ -218,11 +247,20 @@ export default function RecurringScreen() {
             >
                 {recurringTransactions.length === 0 ? (
                     <View style={styles.emptyState}>
-                        <Repeat size={48} color={COLORS.textTertiary} />
-                        <Text style={styles.emptyTitle}>אין עסקאות חוזרות</Text>
-                        <Text style={styles.emptySubtitle}>הוסף הוצאות או הכנסות שחוזרות באופן קבוע</Text>
-                        <TouchableOpacity style={styles.emptyButton} onPress={openAddModal}>
-                            <Plus size={20} color={COLORS.white} />
+                        <View style={[styles.emptyIcon, { backgroundColor: colors.surfaceSecondary }]}>
+                            <Repeat size={32} color={colors.textTertiary} />
+                        </View>
+                        <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+                            אין עסקאות חוזרות
+                        </Text>
+                        <Text style={[styles.emptySubtitle, { color: colors.textTertiary }]}>
+                            הוסף הוצאות או הכנסות שחוזרות באופן קבוע
+                        </Text>
+                        <TouchableOpacity
+                            style={[styles.emptyButton, { backgroundColor: colors.primary }]}
+                            onPress={openAddModal}
+                        >
+                            <Plus size={20} color="#FFFFFF" />
                             <Text style={styles.emptyButtonText}>הוסף עסקה חוזרת</Text>
                         </TouchableOpacity>
                     </View>
@@ -241,76 +279,118 @@ export default function RecurringScreen() {
                 animationType="slide"
                 onRequestClose={() => setModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+                    <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
+                            <TouchableOpacity
+                                onPress={() => setModalVisible(false)}
+                                style={[styles.modalCloseButton, { backgroundColor: colors.surfaceSecondary }]}
+                            >
+                                <X size={20} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>
                                 {editingRecurring ? 'עריכת עסקה חוזרת' : 'עסקה חוזרת חדשה'}
                             </Text>
-                            <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                <X size={24} color={COLORS.textPrimary} />
-                            </TouchableOpacity>
+                            <View style={{ width: 36 }} />
                         </View>
 
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {/* Type Toggle */}
                             <View style={styles.typeToggle}>
                                 <TouchableOpacity
-                                    style={[styles.typeOption, !formData.isIncome && styles.typeOptionActive]}
+                                    style={[
+                                        styles.typeOption,
+                                        { backgroundColor: colors.surfaceSecondary, borderColor: colors.border },
+                                        !formData.isIncome && { backgroundColor: colors.danger, borderColor: colors.danger }
+                                    ]}
                                     onPress={() => setFormData(prev => ({ ...prev, isIncome: false }))}
                                 >
-                                    <TrendingDown size={18} color={!formData.isIncome ? COLORS.white : COLORS.danger} />
-                                    <Text style={[styles.typeText, !formData.isIncome && styles.typeTextActive]}>הוצאה</Text>
+                                    <TrendingDown size={18} color={!formData.isIncome ? '#FFFFFF' : colors.danger} />
+                                    <Text style={[
+                                        styles.typeText,
+                                        { color: colors.textPrimary },
+                                        !formData.isIncome && { color: '#FFFFFF' }
+                                    ]}>הוצאה</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
-                                    style={[styles.typeOption, formData.isIncome && styles.typeOptionIncome]}
+                                    style={[
+                                        styles.typeOption,
+                                        { backgroundColor: colors.surfaceSecondary, borderColor: colors.border },
+                                        formData.isIncome && { backgroundColor: colors.success, borderColor: colors.success }
+                                    ]}
                                     onPress={() => setFormData(prev => ({ ...prev, isIncome: true }))}
                                 >
-                                    <TrendingUp size={18} color={formData.isIncome ? COLORS.white : COLORS.success} />
-                                    <Text style={[styles.typeText, formData.isIncome && styles.typeTextActive]}>הכנסה</Text>
+                                    <TrendingUp size={18} color={formData.isIncome ? '#FFFFFF' : colors.success} />
+                                    <Text style={[
+                                        styles.typeText,
+                                        { color: colors.textPrimary },
+                                        formData.isIncome && { color: '#FFFFFF' }
+                                    ]}>הכנסה</Text>
                                 </TouchableOpacity>
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>כותרת *</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>כותרת *</Text>
                                 <TextInput
-                                    style={styles.formInput}
+                                    style={[
+                                        styles.formInput,
+                                        {
+                                            backgroundColor: colors.surfaceSecondary,
+                                            borderColor: colors.border,
+                                            color: colors.textPrimary
+                                        }
+                                    ]}
                                     value={formData.title}
                                     onChangeText={(text) => setFormData(prev => ({ ...prev, title: text }))}
                                     placeholder="לדוגמה: דמי שכירות"
-                                    placeholderTextColor={COLORS.textTertiary}
+                                    placeholderTextColor={colors.textQuaternary}
                                     textAlign="right"
                                 />
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>סכום *</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>סכום *</Text>
                                 <TextInput
-                                    style={styles.formInput}
+                                    style={[
+                                        styles.formInput,
+                                        {
+                                            backgroundColor: colors.surfaceSecondary,
+                                            borderColor: colors.border,
+                                            color: colors.textPrimary
+                                        }
+                                    ]}
                                     value={formData.amount}
                                     onChangeText={(text) => setFormData(prev => ({ ...prev, amount: text }))}
                                     placeholder="0"
-                                    placeholderTextColor={COLORS.textTertiary}
+                                    placeholderTextColor={colors.textQuaternary}
                                     keyboardType="numeric"
                                     textAlign="right"
                                 />
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>תדירות</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>תדירות</Text>
                                 <View style={styles.frequencyOptions}>
                                     {FREQUENCY_OPTIONS.map(opt => (
                                         <TouchableOpacity
                                             key={opt.value}
                                             style={[
                                                 styles.frequencyOption,
-                                                formData.frequency === opt.value && styles.frequencyOptionActive
+                                                {
+                                                    backgroundColor: colors.surfaceSecondary,
+                                                    borderColor: colors.border
+                                                },
+                                                formData.frequency === opt.value && {
+                                                    backgroundColor: colors.primary,
+                                                    borderColor: colors.primary
+                                                }
                                             ]}
                                             onPress={() => setFormData(prev => ({ ...prev, frequency: opt.value }))}
                                         >
                                             <Text style={[
                                                 styles.frequencyOptionText,
-                                                formData.frequency === opt.value && styles.frequencyOptionTextActive
+                                                { color: colors.textPrimary },
+                                                formData.frequency === opt.value && { color: '#FFFFFF' }
                                             ]}>{opt.label}</Text>
                                         </TouchableOpacity>
                                     ))}
@@ -319,23 +399,34 @@ export default function RecurringScreen() {
 
                             {/* Start Date */}
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>תאריך התחלה</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>תאריך התחלה</Text>
                                 <View style={styles.datePickerRow}>
                                     <TouchableOpacity
-                                        style={styles.dateAdjustButton}
+                                        style={[
+                                            styles.dateAdjustButton,
+                                            { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
+                                        ]}
                                         onPress={() => adjustDate('startDate', -1)}
                                     >
-                                        <Text style={styles.dateAdjustText}>-</Text>
+                                        <Text style={[styles.dateAdjustText, { color: colors.textPrimary }]}>-</Text>
                                     </TouchableOpacity>
-                                    <View style={styles.dateDisplay}>
-                                        <Calendar size={16} color={COLORS.primary} />
-                                        <Text style={styles.dateText}>{formatDate(formData.startDate)}</Text>
+                                    <View style={[
+                                        styles.dateDisplay,
+                                        { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
+                                    ]}>
+                                        <Calendar size={16} color={colors.primary} />
+                                        <Text style={[styles.dateText, { color: colors.textPrimary }]}>
+                                            {formatDate(formData.startDate)}
+                                        </Text>
                                     </View>
                                     <TouchableOpacity
-                                        style={styles.dateAdjustButton}
+                                        style={[
+                                            styles.dateAdjustButton,
+                                            { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
+                                        ]}
                                         onPress={() => adjustDate('startDate', 1)}
                                     >
-                                        <Text style={styles.dateAdjustText}>+</Text>
+                                        <Text style={[styles.dateAdjustText, { color: colors.textPrimary }]}>+</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -343,55 +434,81 @@ export default function RecurringScreen() {
                             {/* End Date */}
                             <View style={styles.formGroup}>
                                 <View style={styles.endDateHeader}>
-                                    <Text style={styles.formLabel}>תאריך סיום (אופציונלי)</Text>
+                                    <Text style={[styles.formLabel, { color: colors.textSecondary }]}>
+                                        תאריך סיום (אופציונלי)
+                                    </Text>
                                     {formData.endDate && (
                                         <TouchableOpacity onPress={() => setFormData(prev => ({ ...prev, endDate: null }))}>
-                                            <Text style={styles.clearDateText}>נקה</Text>
+                                            <Text style={[styles.clearDateText, { color: colors.danger }]}>נקה</Text>
                                         </TouchableOpacity>
                                     )}
                                 </View>
                                 {formData.endDate ? (
                                     <View style={styles.datePickerRow}>
                                         <TouchableOpacity
-                                            style={styles.dateAdjustButton}
+                                            style={[
+                                                styles.dateAdjustButton,
+                                                { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
+                                            ]}
                                             onPress={() => adjustDate('endDate', -1)}
                                         >
-                                            <Text style={styles.dateAdjustText}>-</Text>
+                                            <Text style={[styles.dateAdjustText, { color: colors.textPrimary }]}>-</Text>
                                         </TouchableOpacity>
-                                        <View style={styles.dateDisplay}>
-                                            <Calendar size={16} color={COLORS.danger} />
-                                            <Text style={styles.dateText}>{formatDate(formData.endDate)}</Text>
+                                        <View style={[
+                                            styles.dateDisplay,
+                                            { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
+                                        ]}>
+                                            <Calendar size={16} color={colors.danger} />
+                                            <Text style={[styles.dateText, { color: colors.textPrimary }]}>
+                                                {formatDate(formData.endDate)}
+                                            </Text>
                                         </View>
                                         <TouchableOpacity
-                                            style={styles.dateAdjustButton}
+                                            style={[
+                                                styles.dateAdjustButton,
+                                                { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
+                                            ]}
                                             onPress={() => adjustDate('endDate', 1)}
                                         >
-                                            <Text style={styles.dateAdjustText}>+</Text>
+                                            <Text style={[styles.dateAdjustText, { color: colors.textPrimary }]}>+</Text>
                                         </TouchableOpacity>
                                     </View>
                                 ) : (
                                     <TouchableOpacity
-                                        style={styles.addEndDateButton}
+                                        style={[
+                                            styles.addEndDateButton,
+                                            { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }
+                                        ]}
                                         onPress={() => {
                                             const future = new Date();
                                             future.setMonth(future.getMonth() + 12);
                                             setFormData(prev => ({ ...prev, endDate: future }));
                                         }}
                                     >
-                                        <Plus size={16} color={COLORS.primary} />
-                                        <Text style={styles.addEndDateText}>הוסף תאריך סיום</Text>
+                                        <Plus size={16} color={colors.primary} />
+                                        <Text style={[styles.addEndDateText, { color: colors.primary }]}>
+                                            הוסף תאריך סיום
+                                        </Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
 
                             <View style={styles.formGroup}>
-                                <Text style={styles.formLabel}>הערות</Text>
+                                <Text style={[styles.formLabel, { color: colors.textSecondary }]}>הערות</Text>
                                 <TextInput
-                                    style={[styles.formInput, styles.notesInput]}
+                                    style={[
+                                        styles.formInput,
+                                        styles.notesInput,
+                                        {
+                                            backgroundColor: colors.surfaceSecondary,
+                                            borderColor: colors.border,
+                                            color: colors.textPrimary
+                                        }
+                                    ]}
                                     value={formData.notes}
                                     onChangeText={(text) => setFormData(prev => ({ ...prev, notes: text }))}
                                     placeholder="הערות נוספות..."
-                                    placeholderTextColor={COLORS.textTertiary}
+                                    placeholderTextColor={colors.textQuaternary}
                                     multiline
                                     numberOfLines={3}
                                     textAlign="right"
@@ -403,19 +520,20 @@ export default function RecurringScreen() {
                         <View style={styles.modalButtons}>
                             {editingRecurring && (
                                 <TouchableOpacity
-                                    style={styles.deleteButton}
+                                    style={[styles.deleteButton, { backgroundColor: colors.dangerMuted }]}
                                     onPress={() => {
                                         setModalVisible(false);
                                         handleDelete(editingRecurring.id);
                                     }}
                                 >
-                                    <Trash2 size={20} color={COLORS.danger} />
+                                    <Trash2 size={20} color={colors.danger} />
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
-                                style={styles.saveButton}
+                                style={[styles.saveButton, { backgroundColor: colors.primary }]}
                                 onPress={handleSave}
                             >
+                                <Check size={18} color="#FFFFFF" style={{ marginLeft: SPACING.xs }} />
                                 <Text style={styles.saveButtonText}>
                                     {editingRecurring ? 'עדכן' : 'שמור'}
                                 </Text>
@@ -431,46 +549,31 @@ export default function RecurringScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
-        paddingTop: Platform.OS === 'android' ? 40 : 0,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: SPACING.lg,
     },
-    backButton: {
-        padding: 8,
+    headerButton: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerTitle: {
-        fontSize: 20,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
-    },
-    addButton: {
-        padding: 8,
-        backgroundColor: `${COLORS.primary}15`,
-        borderRadius: 12,
+        ...TYPOGRAPHY.h3,
     },
     listContent: {
-        padding: 20,
+        paddingHorizontal: LAYOUT.screenPadding,
     },
     card: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+        marginBottom: SPACING.md,
     },
     cardInactive: {
         opacity: 0.6,
@@ -482,218 +585,186 @@ const styles = StyleSheet.create({
     iconBg: {
         width: 44,
         height: 44,
-        borderRadius: 12,
+        borderRadius: RADIUS.md,
         justifyContent: 'center',
         alignItems: 'center',
     },
     cardInfo: {
         flex: 1,
-        marginHorizontal: 14,
+        marginHorizontal: SPACING.md,
     },
     cardTitle: {
-        fontSize: 16,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
-        marginBottom: 4,
+        ...TYPOGRAPHY.body,
+        fontFamily: FONTS.semiBold,
+        marginBottom: SPACING.xs,
     },
     frequencyBadge: {
         flexDirection: 'row',
         alignItems: 'center',
+        alignSelf: 'flex-start',
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: SPACING.xs,
+        borderRadius: RADIUS.full,
         gap: 4,
     },
     frequencyText: {
-        fontSize: 12,
-        color: COLORS.textSecondary,
-        fontFamily: FONTS.medium,
+        ...TYPOGRAPHY.captionSmall,
     },
     cardRight: {
         alignItems: 'flex-end',
-        gap: 8,
+        gap: SPACING.sm,
     },
     cardAmount: {
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+        ...TYPOGRAPHY.label,
     },
     emptyState: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 60,
+        paddingVertical: SPACING['4xl'],
+    },
+    emptyIcon: {
+        width: 80,
+        height: 80,
+        borderRadius: RADIUS.xl,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: SPACING.lg,
     },
     emptyTitle: {
-        fontSize: 18,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
-        marginTop: 16,
-        marginBottom: 8,
+        ...TYPOGRAPHY.h4,
+        marginBottom: SPACING.sm,
     },
     emptySubtitle: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        fontFamily: FONTS.regular,
-        marginBottom: 24,
+        ...TYPOGRAPHY.body,
         textAlign: 'center',
+        marginBottom: SPACING.xl,
     },
     emptyButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.primary,
-        paddingHorizontal: 24,
-        paddingVertical: 14,
-        borderRadius: 12,
-        gap: 8,
+        paddingHorizontal: SPACING.xl,
+        paddingVertical: SPACING.md,
+        borderRadius: RADIUS.md,
+        gap: SPACING.sm,
     },
     emptyButtonText: {
-        color: COLORS.white,
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+        color: '#FFFFFF',
+        ...TYPOGRAPHY.label,
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: COLORS.surface,
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 24,
+        borderTopLeftRadius: RADIUS['2xl'],
+        borderTopRightRadius: RADIUS['2xl'],
+        padding: SPACING['2xl'],
         maxHeight: '85%',
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 24,
+        marginBottom: SPACING.xl,
+    },
+    modalCloseButton: {
+        width: 36,
+        height: 36,
+        borderRadius: RADIUS.sm,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     modalTitle: {
-        fontSize: 20,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
+        ...TYPOGRAPHY.h4,
     },
     typeToggle: {
         flexDirection: 'row',
-        gap: 12,
-        marginBottom: 24,
+        gap: SPACING.md,
+        marginBottom: SPACING.xl,
     },
     typeOption: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        padding: 14,
-        borderRadius: 12,
-        backgroundColor: COLORS.background,
+        gap: SPACING.sm,
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    typeOptionActive: {
-        backgroundColor: COLORS.danger,
-        borderColor: COLORS.danger,
-    },
-    typeOptionIncome: {
-        backgroundColor: COLORS.success,
-        borderColor: COLORS.success,
     },
     typeText: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: COLORS.textPrimary,
-    },
-    typeTextActive: {
-        color: COLORS.white,
+        ...TYPOGRAPHY.label,
     },
     formGroup: {
-        marginBottom: 20,
+        marginBottom: SPACING.lg,
     },
     formLabel: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        fontFamily: FONTS.medium,
-        marginBottom: 8,
+        ...TYPOGRAPHY.caption,
+        marginBottom: SPACING.sm,
     },
     formInput: {
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        padding: 16,
-        fontSize: 16,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.regular,
+        borderRadius: RADIUS.md,
+        padding: SPACING.md,
+        ...TYPOGRAPHY.body,
         borderWidth: 1,
-        borderColor: COLORS.border,
     },
     notesInput: {
         minHeight: 80,
     },
     frequencyOptions: {
         flexDirection: 'row',
-        gap: 8,
+        gap: SPACING.sm,
     },
     frequencyOption: {
         flex: 1,
-        padding: 12,
-        borderRadius: 10,
-        backgroundColor: COLORS.background,
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
         alignItems: 'center',
     },
-    frequencyOptionActive: {
-        backgroundColor: COLORS.primary,
-        borderColor: COLORS.primary,
-    },
     frequencyOptionText: {
-        fontSize: 13,
-        color: COLORS.textPrimary,
+        ...TYPOGRAPHY.captionSmall,
         fontFamily: FONTS.medium,
-    },
-    frequencyOptionTextActive: {
-        color: COLORS.white,
     },
     modalButtons: {
         flexDirection: 'row',
-        gap: 12,
-        marginTop: 16,
+        gap: SPACING.md,
+        marginTop: SPACING.lg,
     },
     deleteButton: {
         width: 52,
         height: 52,
-        borderRadius: 12,
-        backgroundColor: `${COLORS.danger}15`,
+        borderRadius: RADIUS.md,
         justifyContent: 'center',
         alignItems: 'center',
     },
     saveButton: {
         flex: 1,
-        backgroundColor: COLORS.primary,
-        padding: 16,
-        borderRadius: 12,
+        flexDirection: 'row',
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     saveButtonText: {
-        color: COLORS.white,
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+        color: '#FFFFFF',
+        ...TYPOGRAPHY.label,
     },
-    // Date Picker Styles
     datePickerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: SPACING.md,
     },
     dateAdjustButton: {
         width: 44,
         height: 44,
-        borderRadius: 12,
-        backgroundColor: COLORS.background,
+        borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
         justifyContent: 'center',
         alignItems: 'center',
     },
     dateAdjustText: {
         fontSize: 22,
-        color: COLORS.textPrimary,
         fontFamily: FONTS.bold,
     },
     dateDisplay: {
@@ -701,44 +772,37 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 10,
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        padding: 14,
+        gap: SPACING.sm,
+        borderRadius: RADIUS.md,
+        padding: SPACING.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
     },
     dateText: {
-        fontSize: 15,
-        color: COLORS.textPrimary,
+        ...TYPOGRAPHY.body,
         fontFamily: FONTS.medium,
     },
     endDateHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: SPACING.sm,
     },
     clearDateText: {
-        fontSize: 13,
-        color: COLORS.danger,
+        ...TYPOGRAPHY.caption,
         fontFamily: FONTS.medium,
     },
     addEndDateButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 8,
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        padding: 14,
+        gap: SPACING.sm,
+        borderRadius: RADIUS.md,
+        padding: SPACING.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
         borderStyle: 'dashed',
     },
     addEndDateText: {
-        fontSize: 14,
-        color: COLORS.primary,
+        ...TYPOGRAPHY.body,
         fontFamily: FONTS.medium,
     },
 });

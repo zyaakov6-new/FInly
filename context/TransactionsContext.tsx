@@ -79,6 +79,24 @@ export interface RecurringTransaction {
     isActive: boolean;
 }
 
+export interface InvoiceTemplate {
+    id: string;
+    name: string;
+    description?: string;
+    defaultAmount: string;
+    category?: string;
+    clientId?: string;
+    clientName?: string;
+    notes?: string;
+    items?: Array<{
+        description: string;
+        quantity: number;
+        unitPrice: number;
+    }>;
+    createdAt: Date;
+    usageCount: number;
+}
+
 interface TransactionsContextType {
     transactions: Transaction[];
     categories: string[];
@@ -135,6 +153,13 @@ interface TransactionsContextType {
     updateRecurringTransaction: (id: string, updates: Partial<RecurringTransaction>) => void;
     deleteRecurringTransaction: (id: string) => void;
     toggleRecurringActive: (id: string) => void;
+
+    // Invoice Templates
+    invoiceTemplates: InvoiceTemplate[];
+    addInvoiceTemplate: (template: InvoiceTemplate) => void;
+    updateInvoiceTemplate: (id: string, updates: Partial<InvoiceTemplate>) => void;
+    deleteInvoiceTemplate: (id: string) => void;
+    incrementTemplateUsage: (id: string) => void;
 }
 
 const TransactionsContext = createContext<TransactionsContextType | undefined>(undefined);
@@ -279,6 +304,35 @@ export const TransactionsProvider = ({ children }: { children: ReactNode }) => {
     const toggleRecurringActive = (id: string) =>
         setRecurringTransactions(prev => prev.map(r => r.id === id ? { ...r, isActive: !r.isActive } : r));
 
+    // Invoice Templates State
+    const [invoiceTemplates, setInvoiceTemplates] = useState<InvoiceTemplate[]>([]);
+
+    const addInvoiceTemplate = async (template: InvoiceTemplate) => {
+        const updated = [template, ...invoiceTemplates];
+        setInvoiceTemplates(updated);
+        await AsyncStorage.setItem('@finly_invoice_templates', JSON.stringify(updated));
+    };
+
+    const updateInvoiceTemplate = async (id: string, updates: Partial<InvoiceTemplate>) => {
+        const updated = invoiceTemplates.map(t => t.id === id ? { ...t, ...updates } : t);
+        setInvoiceTemplates(updated);
+        await AsyncStorage.setItem('@finly_invoice_templates', JSON.stringify(updated));
+    };
+
+    const deleteInvoiceTemplate = async (id: string) => {
+        const updated = invoiceTemplates.filter(t => t.id !== id);
+        setInvoiceTemplates(updated);
+        await AsyncStorage.setItem('@finly_invoice_templates', JSON.stringify(updated));
+    };
+
+    const incrementTemplateUsage = async (id: string) => {
+        const updated = invoiceTemplates.map(t =>
+            t.id === id ? { ...t, usageCount: t.usageCount + 1 } : t
+        );
+        setInvoiceTemplates(updated);
+        await AsyncStorage.setItem('@finly_invoice_templates', JSON.stringify(updated));
+    };
+
     // Persistence: Load Data
     useEffect(() => {
         const loadData = async () => {
@@ -320,6 +374,16 @@ export const TransactionsProvider = ({ children }: { children: ReactNode }) => {
 
                 const storedGoals = await AsyncStorage.getItem('@finly_goals');
                 if (storedGoals) setGoals(JSON.parse(storedGoals));
+
+                // Load invoice templates
+                const storedTemplates = await AsyncStorage.getItem('@finly_invoice_templates');
+                if (storedTemplates) {
+                    const templates = JSON.parse(storedTemplates).map((t: any) => ({
+                        ...t,
+                        createdAt: new Date(t.createdAt)
+                    }));
+                    setInvoiceTemplates(templates);
+                }
 
             } catch (e) {
                 console.error('Failed to load persistence data:', e);
@@ -659,6 +723,13 @@ export const TransactionsProvider = ({ children }: { children: ReactNode }) => {
             updateRecurringTransaction,
             deleteRecurringTransaction,
             toggleRecurringActive,
+
+            // Invoice Templates
+            invoiceTemplates,
+            addInvoiceTemplate,
+            updateInvoiceTemplate,
+            deleteInvoiceTemplate,
+            incrementTemplateUsage,
 
             ...kpis
         }}>

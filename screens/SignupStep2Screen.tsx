@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     StyleSheet,
     Text,
@@ -8,30 +8,85 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Animated,
     Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { ArrowLeft, Briefcase, TrendingUp, Code, Palette, Edit3 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { FONTS } from '../constants/theme';
+import {
+    ChevronRight,
+    Briefcase,
+    Code,
+    Palette,
+    TrendingUp,
+    Edit3,
+    CheckCircle,
+    ArrowLeft,
+} from 'lucide-react-native';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+import { getColors, FONTS, SPACING, RADIUS, TYPOGRAPHY, LAYOUT, SHADOWS } from '../constants/theme';
 import { useUserProfile } from '../context/UserProfileContext';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 const BUSINESS_CATEGORIES = [
-    { id: 'lab', label: 'מעבדת', icon: <Briefcase size={24} color="rgba(255,255,255,0.7)" /> },
-    { id: 'design', label: 'מפתח/ת', icon: <Code size={24} color="rgba(255,255,255,0.7)" /> },
-    { id: 'marketing', label: 'עיצוב/ת', icon: <Palette size={24} color="rgba(255,255,255,0.7)" /> },
-    { id: 'consulting', label: 'מחבר/ת', icon: <TrendingUp size={24} color="rgba(255,255,255,0.7)" /> },
-    { id: 'other', label: 'אחר', icon: <Edit3 size={24} color="rgba(255,255,255,0.7)" /> },
+    { id: 'developer', label: 'מפתח/ת', icon: Code, color: '#6366F1' },
+    { id: 'designer', label: 'מעצב/ת', icon: Palette, color: '#EC4899' },
+    { id: 'consultant', label: 'יועץ/ת', icon: Briefcase, color: '#F59E0B' },
+    { id: 'marketer', label: 'משווק/ת', icon: TrendingUp, color: '#10B981' },
+    { id: 'other', label: 'אחר', icon: Edit3, color: '#8B5CF6' },
 ];
 
 export default function SignupStep2Screen() {
     const navigation = useNavigation<any>();
+    const insets = useSafeAreaInsets();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { updateUserProfile } = useUserProfile();
+    const { saveOnboardingStep2 } = useAuth();
+
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [customCategory, setCustomCategory] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const headerAnim = useRef(new Animated.Value(0)).current;
+    const cardsAnim = useRef(new Animated.Value(0)).current;
+    const buttonAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.sequence([
+            Animated.parallel([
+                Animated.timing(fadeAnim, {
+                    toValue: 1,
+                    duration: 400,
+                    useNativeDriver: true,
+                }),
+                Animated.spring(headerAnim, {
+                    toValue: 1,
+                    tension: 50,
+                    friction: 8,
+                    useNativeDriver: true,
+                }),
+            ]),
+            Animated.spring(cardsAnim, {
+                toValue: 1,
+                tension: 40,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+            Animated.spring(buttonAnim, {
+                toValue: 1,
+                tension: 50,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, []);
 
     const handleCategorySelect = (id: string) => {
         setSelectedCategory(id);
@@ -41,25 +96,64 @@ export default function SignupStep2Screen() {
     };
 
     const handleContinue = async () => {
-        // Save business category data
+        if (!selectedCategory) return;
+
+        setIsLoading(true);
+
         const categoryToSave = selectedCategory === 'other' ? customCategory : selectedCategory;
+
+        // Save to Firebase
+        await saveOnboardingStep2(
+            categoryToSave || '',
+            selectedCategory === 'other' ? customCategory : undefined
+        );
+
+        // Also update local profile
         await updateUserProfile({
             businessCategory: categoryToSave || '',
             customCategory: selectedCategory === 'other' ? customCategory : undefined
         });
-        navigation.navigate('SignupStep3' as never);
+
+        setTimeout(() => {
+            setIsLoading(false);
+            navigation.navigate('SignupStep3');
+        }, 300);
     };
 
-    return (
-        <View style={styles.container}>
-            <StatusBar style="light" />
+    const isValid = selectedCategory !== null && (selectedCategory !== 'other' || customCategory.trim().length > 0);
 
-            {/* Dark Green Gradient Background */}
+    return (
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+
+            {/* Background Gradient */}
             <LinearGradient
-                colors={['#0a3d2e', '#1a5c47', '#0a3d2e']}
-                style={styles.gradient}
+                colors={isDark
+                    ? ['#18181B', '#27272A', '#18181B']
+                    : ['#10B981', '#059669', '#047857']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
+                style={styles.gradientBg}
+            />
+
+            {/* Decorative Elements */}
+            <Animated.View
+                style={[
+                    styles.decorCircle1,
+                    {
+                        opacity: isDark ? 0.1 : 0.2,
+                        transform: [{ scale: headerAnim }],
+                    }
+                ]}
+            />
+            <Animated.View
+                style={[
+                    styles.decorCircle2,
+                    {
+                        opacity: isDark ? 0.05 : 0.15,
+                        transform: [{ scale: headerAnim }],
+                    }
+                ]}
             />
 
             <KeyboardAvoidingView
@@ -67,102 +161,195 @@ export default function SignupStep2Screen() {
                 style={styles.keyboardView}
             >
                 <ScrollView
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 40 }
+                    ]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Step Progress Indicator - Scrolls with content */}
-                    <View style={styles.progressContainer}>
-                        <View style={styles.progressSteps}>
-                            <View style={[styles.progressStep, styles.progressStepActive]} />
-                            <View style={[styles.progressStep, styles.progressStepActive]} />
-                            <View style={styles.progressStep} />
-                            <View style={styles.progressStep} />
-                        </View>
-                    </View>
-
-                    {/* Back Button */}
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={() => navigation.goBack()}
+                    {/* Header */}
+                    <Animated.View
+                        style={[
+                            styles.header,
+                            {
+                                opacity: fadeAnim,
+                                transform: [{
+                                    translateY: headerAnim.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [-20, 0],
+                                    }),
+                                }],
+                            }
+                        ]}
                     >
-                        <ArrowLeft size={24} color="rgba(255,255,255,0.8)" style={{ transform: [{ rotate: '180deg' }] }} />
-                    </TouchableOpacity>
+                        {/* Back Button */}
+                        <TouchableOpacity
+                            style={[styles.backButton, { backgroundColor: isDark ? colors.surfaceSecondary : 'rgba(255,255,255,0.2)' }]}
+                            onPress={() => navigation.goBack()}
+                        >
+                            <ChevronRight size={24} color={isDark ? colors.textSecondary : '#FFFFFF'} />
+                        </TouchableOpacity>
 
-                    {/* Title */}
-                    <Text style={styles.title}>הצטרף לעידן החדש של בנקאות לעצמאיים</Text>
-                    <Text></Text>
-                    <Text></Text>
-                    {/* Business Category Selection */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>קטגוריית עסק</Text>
-                        <View style={styles.categoryGrid}>
-                            {BUSINESS_CATEGORIES.map((category) => (
-                                <TouchableOpacity
-                                    key={category.id}
-                                    style={[
-                                        styles.categoryButton,
-                                        selectedCategory === category.id && styles.categoryButtonActive,
-                                    ]}
-                                    onPress={() => handleCategorySelect(category.id)}
-                                    activeOpacity={0.7}
-                                >
-                                    <View style={styles.categoryIcon}>
-                                        {category.icon}
-                                    </View>
-                                    <Text
-                                        style={[
-                                            styles.categoryLabel,
-                                            selectedCategory === category.id && styles.categoryLabelActive,
-                                        ]}
-                                    >
-                                        {category.label}
-                                    </Text>
-                                    {selectedCategory === category.id && (
-                                        <View style={styles.categoryCheck}>
-                                            <Text style={styles.categoryCheckText}>✓</Text>
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-                            ))}
+                        {/* Progress Indicator */}
+                        <View style={styles.progressContainer}>
+                            <View style={[styles.progressStep, styles.progressActive, { backgroundColor: isDark ? colors.primary : '#FFFFFF' }]} />
+                            <View style={[styles.progressStep, styles.progressActive, { backgroundColor: isDark ? colors.primary : '#FFFFFF' }]} />
+                            <View style={[styles.progressStep, { backgroundColor: isDark ? colors.border : 'rgba(255,255,255,0.3)' }]} />
+                            <View style={[styles.progressStep, { backgroundColor: isDark ? colors.border : 'rgba(255,255,255,0.3)' }]} />
                         </View>
-                    </View>
+                    </Animated.View>
 
-                    {/* Custom Category Input - Shows when "Other" is selected */}
-                    {selectedCategory === 'other' && (
-                        <View style={styles.section}>
-                            <Text style={styles.sectionTitle}>מה תחום העיסוק שלך?</Text>
-                            <View style={styles.inputWrapper}>
+                    {/* Title Section */}
+                    <Animated.View
+                        style={[
+                            styles.titleSection,
+                            { opacity: fadeAnim }
+                        ]}
+                    >
+                        <Text style={[styles.title, { color: isDark ? colors.textPrimary : '#FFFFFF' }]}>
+                            מה תחום העיסוק שלך?
+                        </Text>
+                        <Text style={[styles.subtitle, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.8)' }]}>
+                            נתאים את האפליקציה לצרכים שלך
+                        </Text>
+                    </Animated.View>
+
+                    {/* Categories Grid */}
+                    <Animated.View
+                        style={[
+                            styles.categoriesContainer,
+                            {
+                                opacity: cardsAnim,
+                                transform: [{
+                                    translateY: cardsAnim.interpolate({
+                                        inputRange: [0, 1],
+                                        outputRange: [30, 0],
+                                    }),
+                                }],
+                            }
+                        ]}
+                    >
+                        <View style={styles.categoriesGrid}>
+                            {BUSINESS_CATEGORIES.map((category) => {
+                                const IconComponent = category.icon;
+                                const isSelected = selectedCategory === category.id;
+
+                                return (
+                                    <TouchableOpacity
+                                        key={category.id}
+                                        style={[
+                                            styles.categoryCard,
+                                            {
+                                                backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                                                borderColor: isSelected ? category.color : colors.border,
+                                                borderWidth: isSelected ? 2 : 1,
+                                            },
+                                            isSelected && SHADOWS.md
+                                        ]}
+                                        onPress={() => handleCategorySelect(category.id)}
+                                        activeOpacity={0.8}
+                                    >
+                                        <View style={[
+                                            styles.categoryIconContainer,
+                                            { backgroundColor: isSelected ? `${category.color}20` : colors.surfaceSecondary }
+                                        ]}>
+                                            <IconComponent
+                                                size={28}
+                                                color={isSelected ? category.color : colors.textTertiary}
+                                            />
+                                        </View>
+                                        <Text style={[
+                                            styles.categoryLabel,
+                                            { color: isSelected ? colors.textPrimary : colors.textSecondary }
+                                        ]}>
+                                            {category.label}
+                                        </Text>
+                                        {isSelected && (
+                                            <View style={[styles.checkBadge, { backgroundColor: category.color }]}>
+                                                <CheckCircle size={14} color="#FFFFFF" />
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+
+                        {/* Custom Category Input */}
+                        {selectedCategory === 'other' && (
+                            <View style={[
+                                styles.customInputCard,
+                                {
+                                    backgroundColor: isDark ? colors.surface : '#FFFFFF',
+                                },
+                                SHADOWS.sm
+                            ]}>
+                                <Text style={[styles.customInputLabel, { color: colors.textSecondary }]}>
+                                    ספר/י לנו מה תחום העיסוק שלך
+                                </Text>
                                 <TextInput
-                                    style={styles.input}
+                                    style={[
+                                        styles.customInput,
+                                        {
+                                            backgroundColor: colors.surfaceSecondary,
+                                            color: colors.textPrimary,
+                                            borderColor: colors.border,
+                                        }
+                                    ]}
                                     placeholder="לדוגמה: צלם, מאמן כושר, יועץ משכנתאות..."
-                                    placeholderTextColor="rgba(255,255,255,0.3)"
+                                    placeholderTextColor={colors.textQuaternary}
                                     value={customCategory}
                                     onChangeText={setCustomCategory}
                                     autoFocus
                                 />
                             </View>
-                        </View>
-                    )}
+                        )}
+                    </Animated.View>
 
                     {/* Continue Button */}
-                    <TouchableOpacity
-                        style={styles.continueButton}
-                        onPress={handleContinue}
-                        activeOpacity={0.8}
+                    <Animated.View
+                        style={[
+                            styles.buttonContainer,
+                            {
+                                opacity: buttonAnim,
+                                transform: [{ scale: buttonAnim }],
+                            }
+                        ]}
                     >
-                        <LinearGradient
-                            colors={['#00ff88', '#00cc6f']}
-                            style={styles.continueButtonGradient}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
+                        <TouchableOpacity
+                            style={[styles.continueButton]}
+                            onPress={handleContinue}
+                            activeOpacity={0.9}
+                            disabled={!isValid || isLoading}
                         >
-                            <Text style={styles.continueButtonText}>המשך</Text>
-                            <ArrowLeft size={20} color="#0a3d2e" style={styles.arrowIcon} />
-                        </LinearGradient>
-                    </TouchableOpacity>
+                            <LinearGradient
+                                colors={isValid
+                                    ? ['#10B981', '#059669']
+                                    : [colors.fillSecondary, colors.fillSecondary]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.continueButtonGradient}
+                            >
+                                <Text style={[
+                                    styles.continueButtonText,
+                                    { color: isValid ? '#FFFFFF' : colors.textTertiary }
+                                ]}>
+                                    המשך
+                                </Text>
+                                <ArrowLeft size={20} color={isValid ? '#FFFFFF' : colors.textTertiary} />
+                            </LinearGradient>
+                        </TouchableOpacity>
 
-
+                        {/* Skip Link */}
+                        <TouchableOpacity
+                            style={styles.skipButton}
+                            onPress={() => navigation.navigate('SignupStep3')}
+                        >
+                            <Text style={[styles.skipText, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.7)' }]}>
+                                דלג לשלב הבא
+                            </Text>
+                        </TouchableOpacity>
+                    </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -172,175 +359,160 @@ export default function SignupStep2Screen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0a3d2e',
     },
-    gradient: {
+    gradientBg: {
         position: 'absolute',
         left: 0,
         right: 0,
         top: 0,
-        bottom: 0,
+        height: height * 0.35,
     },
-    progressContainer: {
-        marginBottom: 32,
+    decorCircle1: {
+        position: 'absolute',
+        width: 250,
+        height: 250,
+        borderRadius: 125,
+        backgroundColor: '#FFFFFF',
+        top: -80,
+        right: -60,
     },
-    progressSteps: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    progressStep: {
-        flex: 1,
-        height: 4,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderRadius: 2,
-    },
-    progressStepActive: {
-        backgroundColor: '#00ff88',
+    decorCircle2: {
+        position: 'absolute',
+        width: 180,
+        height: 180,
+        borderRadius: 90,
+        backgroundColor: '#FFFFFF',
+        top: 120,
+        left: -50,
     },
     keyboardView: {
         flex: 1,
     },
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingTop: 60,
-        paddingBottom: 40,
+        paddingHorizontal: LAYOUT.screenPadding,
+    },
+    // Header
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: SPACING['2xl'],
     },
     backButton: {
-        alignSelf: 'flex-start',
-        padding: 8,
-        marginBottom: 20,
-    },
-    title: {
-        fontSize: 36,
-        fontFamily: FONTS.bold,
-        color: '#ffffff',
-        textAlign: 'left',
-        lineHeight: 44,
-    },
-    subtitle: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
-        textAlign: 'left',
-        marginTop: 12,
-        marginBottom: 40,
-        lineHeight: 20,
-    },
-    section: {
-        marginBottom: 28,
-    },
-    sectionTitle: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.8)',
-        marginBottom: 12,
-        textAlign: 'left',
-    },
-    categoryGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-    },
-    categoryButton: {
-        width: (width - 60) / 2,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        padding: 20,
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 110,
+    },
+    progressContainer: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+        flex: 1,
+        marginLeft: SPACING.lg,
+    },
+    progressStep: {
+        flex: 1,
+        height: 4,
+        borderRadius: 2,
+    },
+    progressActive: {},
+    // Title Section
+    titleSection: {
+        marginBottom: SPACING['2xl'],
+    },
+    title: {
+        ...TYPOGRAPHY.h1,
+        marginBottom: SPACING.sm,
+    },
+    subtitle: {
+        ...TYPOGRAPHY.body,
+        textAlign: 'right',
+    },
+    // Categories
+    categoriesContainer: {
+        flex: 1,
+    },
+    categoriesGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: SPACING.md,
+        marginBottom: SPACING.xl,
+    },
+    categoryCard: {
+        width: (width - LAYOUT.screenPadding * 2 - SPACING.md) / 2,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+        alignItems: 'center',
         position: 'relative',
     },
-    categoryButtonActive: {
-        backgroundColor: 'rgba(0,255,136,0.15)',
-        borderColor: '#00ff88',
-        borderWidth: 2,
-    },
-    categoryIcon: {
-        marginBottom: 12,
+    categoryIconContainer: {
+        width: 56,
+        height: 56,
+        borderRadius: RADIUS.lg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: SPACING.md,
     },
     categoryLabel: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.7)',
+        ...TYPOGRAPHY.label,
         textAlign: 'center',
     },
-    categoryLabelActive: {
-        color: '#00ff88',
-    },
-    categoryCheck: {
+    checkBadge: {
         position: 'absolute',
-        top: 12,
-        right: 12,
+        top: SPACING.sm,
+        right: SPACING.sm,
         width: 24,
         height: 24,
         borderRadius: 12,
-        backgroundColor: '#00ff88',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    categoryCheckText: {
-        fontSize: 14,
-        color: '#0a3d2e',
-        fontFamily: FONTS.bold,
+    // Custom Input
+    customInputCard: {
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+        marginBottom: SPACING.xl,
     },
-    inputWrapper: {
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        borderRadius: 16,
+    customInputLabel: {
+        ...TYPOGRAPHY.label,
+        marginBottom: SPACING.md,
+        textAlign: 'right',
+    },
+    customInput: {
+        height: LAYOUT.inputHeight,
+        borderRadius: RADIUS.lg,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        minHeight: 56,
+        paddingHorizontal: SPACING.lg,
+        ...TYPOGRAPHY.body,
+        textAlign: 'right',
     },
-    input: {
-        fontSize: 16,
-        fontFamily: FONTS.regular,
-        color: '#ffffff',
-        textAlign: 'left',
+    // Button
+    buttonContainer: {
+        marginTop: 'auto',
     },
     continueButton: {
-        marginTop: 40,
-        marginBottom: 24,
-        borderRadius: 16,
+        borderRadius: RADIUS.lg,
         overflow: 'hidden',
-        shadowColor: '#00ff88',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 8,
+        marginBottom: SPACING.md,
     },
     continueButtonGradient: {
-        paddingVertical: 18,
+        height: LAYOUT.buttonHeight,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: SPACING.sm,
     },
     continueButtonText: {
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-        color: '#0a3d2e',
-        marginRight: 8,
+        ...TYPOGRAPHY.button,
+        fontSize: 16,
     },
-    arrowIcon: {
-        transform: [{ rotate: '0deg' }],
-    },
-    loginContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
+    skipButton: {
         alignItems: 'center',
+        paddingVertical: SPACING.md,
     },
-    loginText: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
-    },
-    loginLink: {
-        fontSize: 14,
-        fontFamily: FONTS.bold,
-        color: '#00ff88',
+    skipText: {
+        ...TYPOGRAPHY.body,
     },
 });

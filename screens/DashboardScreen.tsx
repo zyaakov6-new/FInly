@@ -1,586 +1,824 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Animated, Modal, useColorScheme, StatusBar } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { Search, Menu, TrendingUp, Trash2, FileText, AlertCircle, ShoppingCart, X, Home, BarChart3, Settings, User, LogOut, ArrowUpRight, ArrowDownLeft, Info, Plus, ArrowUp, ArrowDown, Camera } from 'lucide-react-native';
-import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import React, { useRef, useEffect, useMemo } from 'react';
+import {
+    StyleSheet,
+    Text,
+    View,
+    ScrollView,
+    TouchableOpacity,
+    Animated,
+    Dimensions,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import {
+    TrendingUp,
+    TrendingDown,
+    ArrowUpRight,
+    ArrowDownRight,
+    ChevronLeft,
+    FileText,
+    Zap,
+    PieChart,
+    Users,
+    Receipt,
+    Clock,
+    Calendar,
+    Award,
+    Lightbulb,
+    AlertCircle,
+} from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
+import { useTheme } from '../context/ThemeContext';
 import { useUserProfile } from '../context/UserProfileContext';
-import { FONTS, getColors } from '../constants/theme';
-import { formatCurrency, formatPercent, formatNumber } from '../utils/formatters';
-import { AccessibleAmount } from '../components/AccessibleAmount';
-import { Tooltip } from '../components/Tooltip';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
+import { ReceiptReminders } from '../components/ReceiptReminders';
+import { SmartInsights } from '../components/SmartInsights';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+const CIRCLE_SIZE = 180;
+const STROKE_WIDTH = 12;
+
+// Animated circular progress component
+const CircularProgress = ({ progress, colors, isDark }: { progress: number; colors: any; isDark: boolean }) => {
+    const animatedValue = useRef(new Animated.Value(0)).current;
+    const radius = (CIRCLE_SIZE - STROKE_WIDTH) / 2;
+    const circumference = 2 * Math.PI * radius;
+
+    useEffect(() => {
+        Animated.timing(animatedValue, {
+            toValue: Math.min(progress, 100),
+            duration: 1500,
+            useNativeDriver: false,
+        }).start();
+    }, [progress]);
+
+    const strokeDashoffset = animatedValue.interpolate({
+        inputRange: [0, 100],
+        outputRange: [circumference, 0],
+    });
+
+    return (
+        <View style={styles.circularContainer}>
+            <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE} style={{ transform: [{ rotate: '-90deg' }] }}>
+                <Defs>
+                    <SvgGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <Stop offset="0%" stopColor={isDark ? '#818CF8' : '#6366F1'} />
+                        <Stop offset="100%" stopColor={isDark ? '#A78BFA' : '#8B5CF6'} />
+                    </SvgGradient>
+                </Defs>
+                {/* Background circle */}
+                <Circle
+                    cx={CIRCLE_SIZE / 2}
+                    cy={CIRCLE_SIZE / 2}
+                    r={radius}
+                    stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(99, 102, 241, 0.15)'}
+                    strokeWidth={STROKE_WIDTH}
+                    fill="none"
+                />
+                {/* Progress circle */}
+                <AnimatedCircle
+                    cx={CIRCLE_SIZE / 2}
+                    cy={CIRCLE_SIZE / 2}
+                    r={radius}
+                    stroke="url(#gradient)"
+                    strokeWidth={STROKE_WIDTH}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                />
+            </Svg>
+        </View>
+    );
+};
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function DashboardScreen() {
     const navigation = useNavigation<any>();
-    const colorScheme = useColorScheme();
-    const colors = getColors(colorScheme);
+    const insets = useSafeAreaInsets();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
+    const { userProfile } = useUserProfile();
 
-    const { userProfile: userProfileData } = useUserProfile();
     const {
+        transactions,
         totalRevenue,
         totalExpenses,
         netProfit,
-        profitMargin,
-        transactions,
-        getMonthlyExpenseProgress
+        getMonthlyExpenseProgress,
+        goals,
     } = useTransactions();
 
-    const [menuVisible, setMenuVisible] = useState(false);
-    const [chartView, setChartView] = useState<'expenses' | 'income'>('expenses');
-
-    // Get dynamic expense progress
     const expenseProgress = useMemo(() => getMonthlyExpenseProgress(), [getMonthlyExpenseProgress]);
 
-    const fadeAnim = useRef(new Animated.Value(0)).current;
-    const slideAnim = useRef(new Animated.Value(-width)).current;
+    // Get expenses without receipts (recent, last 30 days)
+    const expensesWithoutReceipts = useMemo(() => {
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Calculate year-over-year growth
-    const yearlyGrowth = useMemo(() => {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const lastYear = currentYear - 1;
-
-        const currentYearRevenue = transactions
-            .filter(tx => {
-                const txDate = new Date(tx.date);
-                return txDate.getFullYear() === currentYear && tx.isIncome && tx.status === 'paid';
-            })
-            .reduce((sum, tx) => sum + (parseFloat(tx.amount.replace(/[^\d.-]/g, '')) || 0), 0);
-
-        const lastYearRevenue = transactions
-            .filter(tx => {
-                const txDate = new Date(tx.date);
-                return txDate.getFullYear() === lastYear && tx.isIncome && tx.status === 'paid';
-            })
-            .reduce((sum, tx) => sum + (parseFloat(tx.amount.replace(/[^\d.-]/g, '')) || 0), 0);
-
-        if (lastYearRevenue === 0) return 0;
-        return parseFloat(((currentYearRevenue - lastYearRevenue) / lastYearRevenue * 100).toFixed(1));
+        return transactions.filter(t => {
+            if (t.type !== 'expense') return false;
+            if (t.receiptImageUri) return false;
+            const date = new Date(t.date);
+            return date >= thirtyDaysAgo;
+        }).map(t => ({
+            id: t.id,
+            title: t.title,
+            category: t.category,
+            amount: t.amount,
+            date: t.date,
+        }));
     }, [transactions]);
 
-    useFocusEffect(
-        useCallback(() => {
+    // Calculate freelancer score
+    const freelancerScore = useMemo(() => {
+        const invoices = transactions.filter(t => t.type === 'invoice');
+        const paidInvoices = invoices.filter(t => t.status === 'paid');
+
+        // Income to Expense Ratio (max 150)
+        const incomeExpenseRatio = totalExpenses > 0 ? totalRevenue / totalExpenses : totalRevenue > 0 ? 10 : 0;
+        const ratioScore = Math.min(Math.round(incomeExpenseRatio * 30), 150);
+
+        // Collection Rate (max 150)
+        const totalInvoicesCount = invoices.length;
+        const collectionRate = totalInvoicesCount > 0 ? (paidInvoices.length / totalInvoicesCount) * 100 : 100;
+        const collectionScore = Math.round((collectionRate / 100) * 150);
+
+        // Savings Rate (max 150)
+        const savingsRate = totalRevenue > 0 ? ((totalRevenue - totalExpenses) / totalRevenue) * 100 : 0;
+        const savingsScore = Math.round(Math.max(0, Math.min(savingsRate, 50)) * 3);
+
+        // Goal Achievement (max 150)
+        const incomeGoalProg = goals.monthlyIncomeTarget > 0
+            ? Math.min((totalRevenue / goals.monthlyIncomeTarget) * 100, 100)
+            : 50;
+        const goalScore = Math.round((incomeGoalProg / 100) * 150);
+
+        // Client Diversity (max 150)
+        const uniqueClients = new Set(invoices.map(i => i.clientName).filter(Boolean));
+        const diversityScore = Math.min(uniqueClients.size * 25, 150);
+
+        // Consistency (max 100)
+        const hasRecentActivity = transactions.some(t => {
+            const date = new Date(t.date);
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            return date >= thirtyDaysAgo;
+        });
+        const consistencyScore = hasRecentActivity ? 100 : 50;
+
+        const total = ratioScore + collectionScore + savingsScore + goalScore + diversityScore + consistencyScore;
+        return Math.min(total, 850);
+    }, [transactions, totalRevenue, totalExpenses, goals]);
+
+    const getScoreColor = (score: number) => {
+        if (score >= 750) return colors.success;
+        if (score >= 650) return colors.primary;
+        if (score >= 500) return colors.warning;
+        return colors.danger;
+    };
+
+    const getScoreLabel = (score: number) => {
+        if (score >= 750) return 'מצוין';
+        if (score >= 650) return 'טוב';
+        if (score >= 500) return 'בינוני';
+        return 'דורש שיפור';
+    };
+
+    // Calculate insights
+    const insights = useMemo(() => {
+        const now = new Date();
+        const thisMonth = now.getMonth();
+        const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+        const thisYear = now.getFullYear();
+        const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+
+        // Get expenses by category this month
+        const thisMonthExpenses = transactions.filter(t => {
+            const date = new Date(t.date);
+            return t.type === 'expense' && date.getMonth() === thisMonth && date.getFullYear() === thisYear;
+        });
+
+        const lastMonthExpenses = transactions.filter(t => {
+            const date = new Date(t.date);
+            return t.type === 'expense' && date.getMonth() === lastMonth && date.getFullYear() === lastMonthYear;
+        });
+
+        // Category breakdown
+        const categoryTotals: { [key: string]: number } = {};
+        thisMonthExpenses.forEach(t => {
+            const cat = t.category || 'אחר';
+            const amount = parseFloat(t.amount.replace(/[^0-9.-]+/g, '')) || 0;
+            categoryTotals[cat] = (categoryTotals[cat] || 0) + amount;
+        });
+
+        // Find biggest category
+        let biggestCategory = '';
+        let biggestAmount = 0;
+        Object.entries(categoryTotals).forEach(([cat, amount]) => {
+            if (amount > biggestAmount) {
+                biggestAmount = amount;
+                biggestCategory = cat;
+            }
+        });
+
+        // Compare to last month
+        const thisMonthTotal = thisMonthExpenses.reduce((sum, t) =>
+            sum + (parseFloat(t.amount.replace(/[^0-9.-]+/g, '')) || 0), 0);
+        const lastMonthTotal = lastMonthExpenses.reduce((sum, t) =>
+            sum + (parseFloat(t.amount.replace(/[^0-9.-]+/g, '')) || 0), 0);
+
+        const monthOverMonthChange = lastMonthTotal > 0
+            ? Math.round(((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100)
+            : 0;
+
+        // Pending invoices
+        const pendingInvoicesCount = transactions.filter(t =>
+            t.type === 'invoice' && t.status === 'pending'
+        ).length;
+
+        // Generate insights array
+        const insightsList: { text: string; type: 'info' | 'warning' | 'success'; icon: any }[] = [];
+
+        if (biggestCategory && biggestAmount > 0) {
+            insightsList.push({
+                text: `ההוצאה הגדולה החודש: ${biggestCategory} (₪${biggestAmount.toLocaleString()})`,
+                type: 'info',
+                icon: PieChart,
+            });
+        }
+
+        if (monthOverMonthChange > 20) {
+            insightsList.push({
+                text: `ההוצאות עלו ב-${monthOverMonthChange}% מהחודש שעבר`,
+                type: 'warning',
+                icon: TrendingUp,
+            });
+        } else if (monthOverMonthChange < -20) {
+            insightsList.push({
+                text: `חסכת ${Math.abs(monthOverMonthChange)}% בהוצאות מהחודש שעבר!`,
+                type: 'success',
+                icon: TrendingDown,
+            });
+        }
+
+        if (pendingInvoicesCount > 0) {
+            insightsList.push({
+                text: `יש לך ${pendingInvoicesCount} חשבוניות שממתינות לתשלום`,
+                type: 'warning',
+                icon: AlertCircle,
+            });
+        }
+
+        if (incomeProgress >= 100) {
+            insightsList.push({
+                text: 'עברת את יעד ההכנסות החודשי! כל הכבוד!',
+                type: 'success',
+                icon: Award,
+            });
+        }
+
+        return insightsList.slice(0, 3); // Max 3 insights
+    }, [transactions, incomeProgress]);
+
+    // Animations
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(30)).current;
+    const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+    useEffect(() => {
+        Animated.parallel([
             Animated.timing(fadeAnim, {
                 toValue: 1,
                 duration: 600,
                 useNativeDriver: true,
-            }).start();
+            }),
+            Animated.spring(slideAnim, {
+                toValue: 0,
+                tension: 50,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+            Animated.spring(scaleAnim, {
+                toValue: 1,
+                tension: 50,
+                friction: 8,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, []);
 
-            // Re-opening the menu if it was open could be tricky, 
-            // but usually we just want to ensure layout sync
-        }, [])
+    const now = new Date();
+    const isPositive = netProfit >= 0;
+    const pendingInvoices = transactions.filter(t => t.type === 'invoice' && t.status === 'pending');
+    const pendingTotal = pendingInvoices.reduce((sum, t) =>
+        sum + (parseFloat(t.amount.replace(/[^0-9.-]+/g, '')) || 0), 0
     );
 
-    const openMenu = () => {
-        setMenuVisible(true);
-        Animated.spring(slideAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-            tension: 50,
-            friction: 8,
-        }).start();
+    // Calculate goal progress
+    const incomeProgress = goals.monthlyIncomeTarget > 0
+        ? Math.min((totalRevenue / goals.monthlyIncomeTarget) * 100, 100)
+        : 0;
+
+    const getGreeting = () => {
+        const hour = now.getHours();
+        const firstName = userProfile?.fullName?.split(' ')[0] || '';
+        const nameSuffix = firstName ? `, ${firstName}` : '';
+
+        if (hour < 12) return `בוקר טוב${nameSuffix}`;
+        if (hour < 17) return `צהריים טובים${nameSuffix}`;
+        if (hour < 21) return `ערב טוב${nameSuffix}`;
+        return `לילה טוב${nameSuffix}`;
     };
 
-    const closeMenu = () => {
-        Animated.timing(slideAnim, {
-            toValue: -width,
-            duration: 250,
-            useNativeDriver: true,
-        }).start(() => setMenuVisible(false));
+    const formatCurrency = (amount: number) => {
+        if (amount >= 1000000) return `${(amount / 1000000).toFixed(1)}M`;
+        if (amount >= 1000) return `${(amount / 1000).toFixed(1)}K`;
+        return amount.toLocaleString();
     };
-
-    const onGestureEvent = (event: any) => {
-        const { translationX } = event.nativeEvent;
-        // Only allow pulling from the left if menu is closed
-        if (!menuVisible) {
-            if (translationX > 0) {
-                slideAnim.setValue(-width + translationX);
-            }
-        } else {
-            // Allow pushing back to the left if menu is open
-            if (translationX < 0) {
-                slideAnim.setValue(translationX);
-            }
-        }
-    };
-
-    const onHandlerStateChange = (event: any) => {
-        if (event.nativeEvent.state === State.END) {
-            const { translationX, velocityX } = event.nativeEvent;
-
-            if (!menuVisible) {
-                if (translationX > width * 0.25 || velocityX > 500) {
-                    openMenu();
-                } else {
-                    closeMenu();
-                }
-            } else {
-                if (translationX < -width * 0.25 || velocityX < -500) {
-                    closeMenu();
-                } else {
-                    openMenu();
-                }
-            }
-        }
-    };
-
-    // Get real transactions for chart - group by month
-    const monthlyChartData = useMemo(() => {
-        const monthNames = ['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יוני', 'יולי', 'אוג', 'ספט', 'אוק', 'נוב', 'דצמ'];
-        const last6Months = [];
-        const now = new Date();
-
-        for (let i = 5; i >= 0; i--) {
-            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            const monthIndex = date.getMonth();
-            const year = date.getFullYear();
-
-            // Filter transactions for this month
-            const monthTransactions = transactions.filter(tx => {
-                const txDate = new Date(tx.date);
-                return txDate.getMonth() === monthIndex &&
-                    txDate.getFullYear() === year &&
-                    (chartView === 'expenses' ? !tx.isIncome : tx.isIncome) &&
-                    tx.status === 'paid';
-            });
-
-            // Sum up the amounts
-            const total = monthTransactions.reduce((sum, tx) => {
-                const amount = parseFloat(tx.amount.replace(/[^\d.-]/g, '')) || 0;
-                return sum + amount;
-            }, 0);
-
-            last6Months.push({
-                month: monthNames[monthIndex],
-                value: total
-            });
-        }
-
-        return last6Months;
-    }, [transactions, chartView]);
-
-    const maxValue = Math.max(...monthlyChartData.map(d => d.value), 1);
-
-    // Get recent transactions (last 3)
-    const recentTransactions = useMemo(() => {
-        return transactions
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .slice(0, 3);
-    }, [transactions]);
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
-            <PanGestureHandler
-                onGestureEvent={onGestureEvent}
-                onHandlerStateChange={onHandlerStateChange}
-                activeOffsetX={[-10, 10]}
-            >
-                <View style={{ flex: 1 }}>
-                    <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-                    {/* Header */}
-                    <View style={styles.header}>
-                        <View style={styles.headerLeft}>
-                            <TouchableOpacity
-                                style={[styles.iconButton, { backgroundColor: colors.divider }]}
-                                onPress={openMenu}
-                            >
-                                <Menu size={24} color={colors.textPrimary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.iconButton, { backgroundColor: colors.divider }]}
-                            >
-                                <Search size={24} color={colors.textPrimary} />
-                            </TouchableOpacity>
-                        </View>
-                        <View style={styles.headerRight}>
-                            <Text style={[styles.greeting, { color: colors.textPrimary }]}>
-                                {userProfileData?.fullName || 'זיו המלך'}
-                            </Text>
-                            <TouchableOpacity onPress={() => navigation.navigate('Settings')}>
-                                <View style={styles.avatar}>
-                                    <Text style={styles.avatarText}>👤</Text>
-                                </View>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
-                    <ScrollView
-                        showsVerticalScrollIndicator={false}
-                        contentContainerStyle={styles.scrollContent}
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top }]}
+            >
+                <Animated.View style={{
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }, { scale: scaleAnim }]
+                }}>
+                    {/* Hero Section with Gradient */}
+                    <LinearGradient
+                        colors={isDark
+                            ? ['#18181B', '#27272A', '#18181B']
+                            : ['#6366F1', '#8B5CF6', '#6366F1']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.heroSection}
                     >
-                        {/* Main Balance Card */}
-                        <Animated.View style={[styles.balanceCard, { opacity: fadeAnim }]}>
-                            <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('PnL')}>
-                                <LinearGradient
-                                    colors={colorScheme === 'dark' ? ['#1a4d3e', '#0f3329', '#0a2419'] : ['#FD7979', '#FDACAC', '#FFCDC9']}
-                                    style={styles.balanceGradient}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 1 }}
-                                >
-                                    <View style={styles.balanceHeader}>
-                                        <Tooltip text="השוואה בין ההכנסות בשנה הנוכחית לעומת השנה הקודמת" colors={colors}>
-                                            <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
-                                                <Text style={styles.balanceLabel}>מיקוד שנתי</Text>
-                                                <Info size={12} color="rgba(255,255,255,0.6)" />
-                                            </View>
-                                        </Tooltip>
-                                        <View style={styles.percentageBadge}>
-                                            <TrendingUp size={12} color="#00ff88" />
-                                            <Text style={styles.percentageText}>
-                                                {formatPercent((yearlyGrowth >= 0 ? '+' : '') + yearlyGrowth)}
-                                            </Text>
-                                        </View>
-                                    </View>
+                        {/* Decorative circles */}
+                        <View style={[styles.decorCircle1, { opacity: isDark ? 0.05 : 0.15 }]} />
+                        <View style={[styles.decorCircle2, { opacity: isDark ? 0.03 : 0.1 }]} />
 
-                                    <AccessibleAmount
-                                        amount={totalRevenue}
-                                        label="סך הכנסות שנתיות"
-                                        style={styles.balanceAmount}
-                                        colors={colors}
-                                    />
-
-                                    <View style={styles.balanceFooter}>
-                                        <View style={styles.balanceItem}>
-                                            <Text style={styles.balanceItemLabel}>רווח נקי</Text>
-                                            <AccessibleAmount
-                                                amount={netProfit}
-                                                label="רווח נקי"
-                                                style={styles.balanceItemValue}
-                                                colors={colors}
-                                                type="income"
-                                            />
-                                        </View>
-                                        <View style={styles.balanceItem}>
-                                            <Tooltip text="היחס בין הרווח הנקי לסך ההכנסות" colors={colors}>
-                                                <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: 4 }}>
-                                                    <Text style={styles.balanceItemLabel}>מתח רווח</Text>
-                                                    <Info size={10} color="rgba(255,255,255,0.5)" />
-                                                </View>
-                                            </Tooltip>
-                                            <Text style={styles.balanceItemValue}>{formatPercent(profitMargin)}</Text>
-                                        </View>
-                                    </View>
-                                </LinearGradient>
-                            </TouchableOpacity>
-                        </Animated.View>
-
-                        {/* Quick Actions */}
-                        <View style={styles.quickActions}>
-                            <TouchableOpacity
-                                style={[styles.quickAction, { backgroundColor: colors.info + '15' }]}
-                                onPress={() => navigation.navigate('CreateInvoice')}
-                            >
-                                <View style={[styles.quickActionIcon, { backgroundColor: colors.info }]}>
-                                    <ArrowDown size={20} color="#fff" />
-                                </View>
-                                <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>הכנסה</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[styles.quickAction, { backgroundColor: colors.primary + '15' }]}
-                                onPress={() => navigation.navigate('AddExpense')}
-                            >
-                                <View style={[styles.quickActionIcon, { backgroundColor: colors.primary }]}>
-                                    <Plus size={20} color="#fff" />
-                                </View>
-                                <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>הוצאה</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={[styles.quickAction, { backgroundColor: colors.success + '15' }]}
-                                onPress={() => navigation.navigate('ReceiptGallery')}
-                            >
-                                <View style={[styles.quickActionIcon, { backgroundColor: colors.success }]}>
-                                    <Camera size={20} color="#fff" />
-                                </View>
-                                <Text style={[styles.quickActionText, { color: colors.textPrimary }]}>סריקה</Text>
-                            </TouchableOpacity>
+                        {/* Header */}
+                        <View style={styles.heroHeader}>
+                            <View>
+                                <Text style={[styles.greeting, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.8)' }]}>
+                                    {getGreeting()}
+                                </Text>
+                                <Text style={[styles.dateText, { color: isDark ? colors.textPrimary : '#FFFFFF' }]}>
+                                    {now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                </Text>
+                            </View>
                         </View>
 
-                        {/* Monthly Summary Section */}
-                        <View style={styles.section}>
-                            <View style={styles.sectionHeader}>
-                                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>סיכום חודשי</Text>
-                                <TouchableOpacity>
-                                    <View style={[styles.dateBadge, { backgroundColor: colors.divider }]}>
-                                        <FileText size={16} color={colors.success} />
-                                        <Text style={[styles.dateText, { color: colors.textSecondary }]}>
-                                            {new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' })}
-                                        </Text>
-                                    </View>
-                                </TouchableOpacity>
-                            </View>
-
-                            <TouchableOpacity
-                                style={[styles.summaryCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
-                                activeOpacity={0.9}
-                                onPress={() => navigation.navigate('ExpensesList')}
-                            >
-                                <View style={styles.summaryHeader}>
-                                    <AccessibleAmount
-                                        amount={expenseProgress.current}
-                                        label="הוצאות החודש"
-                                        style={[styles.summaryAmount, { color: colors.textPrimary }]}
-                                        colors={colors}
-                                    />
-                                    <Text style={[styles.summarySubtext, { color: colors.textTertiary }]}>
-                                        מתוך {formatCurrency(expenseProgress.limit)}
+                        {/* Balance Display */}
+                        <TouchableOpacity
+                            style={styles.balanceContainer}
+                            onPress={() => navigation.navigate('PnL')}
+                            activeOpacity={0.9}
+                        >
+                            <View style={styles.balanceContent}>
+                                <CircularProgress progress={incomeProgress} colors={colors} isDark={isDark} />
+                                <View style={styles.balanceTextContainer}>
+                                    <Text style={[styles.balanceLabel, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.7)' }]}>
+                                        יתרה חודשית
                                     </Text>
-                                </View>
-                                <Text style={[styles.summaryLabel, { color: colors.success }]}>
-                                    נוצלו {formatPercent(expenseProgress.percentage)} מהתקציב
-                                </Text>
-
-                                {/* Progress Bar */}
-                                <View style={[styles.progressBar, { backgroundColor: colors.divider }]}>
-                                    <View style={[styles.progressFill, { width: `${expenseProgress.percentage}%`, backgroundColor: colors.success }]} />
-                                </View>
-
-                                <Text style={[styles.summaryNote, { color: colors.textSecondary }]}>
-                                    {expenseProgress.percentage > 90
-                                        ? 'שים לב, אתה מתקרב למכסת ההוצאות החודשית שהגדרת.'
-                                        : 'ההוצאות שלך נמצאות בטווח היעדים שהגדרת לחודש זה.'}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Monthly Chart Section */}
-                        <View style={styles.section}>
-                            <View style={styles.sectionHeader}>
-                                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תנועה חודשית</Text>
-                                <View style={[styles.chartTabs, { backgroundColor: colors.divider }]}>
-                                    <TouchableOpacity
-                                        style={[styles.chartTab, chartView === 'expenses' && { backgroundColor: colors.success }]}
-                                        onPress={() => setChartView('expenses')}
+                                    <Text
+                                        style={[styles.balanceAmount, { color: isDark ? colors.textPrimary : '#FFFFFF' }]}
+                                        numberOfLines={1}
+                                        adjustsFontSizeToFit
                                     >
-                                        <Text style={[
-                                            chartView === 'expenses' ? styles.chartTabTextActive : styles.chartTabText,
-                                            { color: chartView === 'expenses' ? colors.background : colors.textSecondary }
-                                        ]}>
-                                            הוצאות
+                                        ₪{Math.abs(netProfit).toLocaleString()}
+                                    </Text>
+                                    <View style={[
+                                        styles.balanceBadge,
+                                        { backgroundColor: isPositive ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)' }
+                                    ]}>
+                                        {isPositive ? (
+                                            <TrendingUp size={14} color="#34D399" />
+                                        ) : (
+                                            <TrendingDown size={14} color="#F87171" />
+                                        )}
+                                        <Text style={[styles.badgeText, { color: isPositive ? '#34D399' : '#F87171' }]}>
+                                            {isPositive ? 'רווח' : 'הפסד'}
                                         </Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[styles.chartTab, chartView === 'income' && { backgroundColor: colors.info }]}
-                                        onPress={() => setChartView('income')}
-                                    >
-                                        <Text style={[
-                                            chartView === 'income' ? styles.chartTabTextActive : styles.chartTabText,
-                                            { color: chartView === 'income' ? colors.background : colors.textSecondary }
-                                        ]}>
-                                            הכנסות
-                                        </Text>
-                                    </TouchableOpacity>
+                                    </View>
                                 </View>
                             </View>
-
-                            <TouchableOpacity
-                                style={[styles.chartCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
-                                activeOpacity={0.9}
-                                onPress={() => navigation.navigate('PnL')}
-                            >
-                                <View style={styles.chart}>
-                                    {monthlyChartData.map((item, index) => (
-                                        <View key={index} style={styles.chartBar}>
-                                            <View style={styles.chartBarContainer}>
-                                                <View
-                                                    style={[
-                                                        styles.chartBarFill,
-                                                        {
-                                                            height: item.value > 0 ? `${(item.value / maxValue) * 100}%` : '5%',
-                                                            backgroundColor: index === monthlyChartData.length - 1
-                                                                ? (chartView === 'expenses' ? colors.success : colors.info)
-                                                                : (chartView === 'expenses' ? 'rgba(0,255,136,0.3)' : 'rgba(74,158,255,0.3)')
-                                                        }
-                                                    ]}
-                                                />
-                                            </View>
-                                            <Text style={[styles.chartLabel, { color: colors.textTertiary }]}>{item.month}</Text>
-                                        </View>
-                                    ))}
-                                </View>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Transactions Section */}
-                        <View style={styles.section}>
-                            <View style={styles.sectionHeader}>
-                                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>תשבוניות אחרונות</Text>
-                                <TouchableOpacity onPress={() => navigation.navigate('AllActivity')}>
-                                    <Text style={[styles.seeAllText, { color: colors.info }]}>צפה בהכל</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Real Transaction Items from user data */}
-                            {recentTransactions.length > 0 ? (
-                                recentTransactions.map((transaction) => (
-                                    <TouchableOpacity
-                                        key={transaction.id}
-                                        style={[styles.transactionCard, { backgroundColor: colors.surfaceLight, borderColor: colors.border }]}
-                                        onPress={() => {
-                                            if (transaction.isIncome) {
-                                                navigation.navigate('InvoiceDetails', { transactionId: transaction.id });
-                                            } else {
-                                                navigation.navigate('AddExpense', { transactionId: transaction.id });
-                                            }
-                                        }}
-                                    >
-                                        <View style={styles.transactionLeft}>
-                                            <View style={[
-                                                styles.transactionIcon,
-                                                {
-                                                    backgroundColor: transaction.isIncome
-                                                        ? 'rgba(74,158,255,0.1)'
-                                                        : transaction.status === 'overdue'
-                                                            ? 'rgba(255,154,74,0.1)'
-                                                            : 'rgba(170,170,170,0.1)'
-                                                }
-                                            ]}>
-                                                {transaction.isIncome ? (
-                                                    <ArrowDownLeft size={20} color={colors.info} />
-                                                ) : transaction.status === 'overdue' ? (
-                                                    <AlertCircle size={20} color={colors.warning} />
-                                                ) : (
-                                                    <ArrowUpRight size={20} color={colors.textTertiary} />
-                                                )}
-                                            </View>
-                                            <View>
-                                                <Text style={[styles.transactionTitle, { color: colors.textPrimary }]}>{transaction.title}</Text>
-                                                <Text style={[styles.transactionDate, { color: colors.textTertiary }]}>
-                                                    {formatNumber(transaction.amount)} |
-                                                    {transaction.status === 'paid' ? ' שולם' :
-                                                        transaction.status === 'pending' ? ' ממתין' :
-                                                            transaction.status === 'overdue' ? ' באיחור' : ' טיוטה'}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                        <AccessibleAmount
-                                            amount={transaction.amount}
-                                            label={`סכום ${transaction.isIncome ? 'הכנסה' : 'הוצאה'}`}
-                                            style={[
-                                                styles.transactionAmount,
-                                                { color: transaction.status === 'overdue' ? colors.warning : colors.textPrimary }
-                                            ]}
-                                            colors={colors}
-                                            type={transaction.isIncome ? 'income' : 'expense'}
-                                        />
-                                    </TouchableOpacity>
-                                ))
-                            ) : (
-                                <View style={styles.emptyState}>
-                                    <Text style={styles.emptyStateText}>אין תשבוניות אחרונות</Text>
-                                    <TouchableOpacity
-                                        style={styles.addButton}
-                                        onPress={() => navigation.navigate('AddExpense')}
-                                    >
-                                        <Text style={styles.addButtonText}>הוסף הוצאה</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            )}
-                        </View>
-
-                        <View style={{ height: 100 }} />
-                    </ScrollView>
-                </View>
-            </PanGestureHandler>
-
-            {/* Side Menu Overlay - Custom Implementation instead of Modal */}
-            {menuVisible && (
-                <TouchableOpacity
-                    activeOpacity={1}
-                    style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 99 }]}
-                    onPress={closeMenu}
-                />
-            )}
-
-            <PanGestureHandler
-                onGestureEvent={onGestureEvent}
-                onHandlerStateChange={onHandlerStateChange}
-                activeOffsetX={[-10, 10]}
-            >
-                <Animated.View
-                    style={[
-                        styles.menuContainer,
-                        {
-                            transform: [{ translateX: slideAnim }],
-                            position: 'absolute',
-                            top: 0,
-                            bottom: 0,
-                            left: 0,
-                            zIndex: 100
-                        }
-                    ]}
-                >
-                    <View style={[styles.menuGradient, { backgroundColor: colors.surface }]}>
-                        {/* Close Button */}
-                        <TouchableOpacity onPress={closeMenu} style={[styles.closeButton, { backgroundColor: colors.divider }]}>
-                            <X size={24} color={colors.textPrimary} />
                         </TouchableOpacity>
 
-                        {/* Menu Header */}
-                        <View style={[styles.menuHeader, { backgroundColor: colorScheme === 'dark' ? '#0f3329' : colors.primary }]}>
-                            <View style={styles.menuProfile}>
-                                <View style={styles.menuAvatar}>
-                                    <Text style={styles.menuAvatarText}>👤</Text>
+                        {/* Income/Expense Pills */}
+                        <View style={styles.statsPills}>
+                            <TouchableOpacity
+                                style={[styles.pill, { backgroundColor: isDark ? colors.surface : 'rgba(255,255,255,0.15)' }]}
+                                onPress={() => navigation.navigate('InvoicesList')}
+                            >
+                                <View style={[styles.pillIcon, { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                                    <ArrowDownRight size={16} color="#34D399" />
                                 </View>
-                                <Text style={[styles.menuName, { color: colors.textOnDark }]}>{userProfileData?.fullName || 'זיו המלך'}</Text>
-                                <Text style={[styles.menuEmail, { color: 'rgba(255,255,255,0.7)' }]}>{userProfileData?.email || 'user@finly.com'}</Text>
+                                <View style={styles.pillText}>
+                                    <Text style={[styles.pillLabel, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.7)' }]}>
+                                        הכנסות
+                                    </Text>
+                                    <Text style={[styles.pillValue, { color: isDark ? colors.success : '#34D399' }]}>
+                                        ₪{formatCurrency(totalRevenue)}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.pill, { backgroundColor: isDark ? colors.surface : 'rgba(255,255,255,0.15)' }]}
+                                onPress={() => navigation.navigate('Expenses')}
+                            >
+                                <View style={[styles.pillIcon, { backgroundColor: 'rgba(248, 113, 113, 0.2)' }]}>
+                                    <ArrowUpRight size={16} color="#F87171" />
+                                </View>
+                                <View style={styles.pillText}>
+                                    <Text style={[styles.pillLabel, { color: isDark ? colors.textTertiary : 'rgba(255,255,255,0.7)' }]}>
+                                        הוצאות
+                                    </Text>
+                                    <Text style={[styles.pillValue, { color: isDark ? colors.danger : '#F87171' }]}>
+                                        ₪{formatCurrency(totalExpenses)}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        </View>
+                    </LinearGradient>
+
+                    {/* Quick Actions - Creative Grid */}
+                    <View style={styles.actionsSection}>
+                        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                            פעולות מהירות
+                        </Text>
+                        <View style={styles.actionsGrid}>
+                            <TouchableOpacity
+                                style={[styles.actionCard, styles.actionLarge, { backgroundColor: colors.surface }, SHADOWS.md]}
+                                onPress={() => navigation.navigate('CreateInvoice')}
+                                activeOpacity={0.7}
+                            >
+                                <LinearGradient
+                                    colors={['rgba(99, 102, 241, 0.1)', 'rgba(139, 92, 246, 0.05)']}
+                                    style={styles.actionGradient}
+                                >
+                                    <View style={[styles.actionIconLarge, { backgroundColor: colors.primaryMuted }]}>
+                                        <FileText size={28} color={colors.primary} />
+                                    </View>
+                                    <Text style={[styles.actionLabelLarge, { color: colors.textPrimary }]}>
+                                        חשבונית חדשה
+                                    </Text>
+                                    <Text style={[styles.actionDesc, { color: colors.textTertiary }]}>
+                                        צור חשבונית ללקוח
+                                    </Text>
+                                </LinearGradient>
+                            </TouchableOpacity>
+
+                            <View style={styles.actionColumn}>
+                                <TouchableOpacity
+                                    style={[styles.actionCard, styles.actionSmall, { backgroundColor: colors.surface }, SHADOWS.sm]}
+                                    onPress={() => navigation.navigate('AddExpense')}
+                                >
+                                    <View style={[styles.actionIcon, { backgroundColor: colors.dangerMuted }]}>
+                                        <Receipt size={20} color={colors.danger} />
+                                    </View>
+                                    <Text style={[styles.actionLabel, { color: colors.textPrimary }]}>הוצאה</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={[styles.actionCard, styles.actionSmall, { backgroundColor: colors.surface }, SHADOWS.sm]}
+                                    onPress={() => navigation.navigate('Clients')}
+                                >
+                                    <View style={[styles.actionIcon, { backgroundColor: colors.infoMuted }]}>
+                                        <Users size={20} color={colors.info} />
+                                    </View>
+                                    <Text style={[styles.actionLabel, { color: colors.textPrimary }]}>לקוחות</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
-
-                        {/* Menu Items */}
-                        <ScrollView
-                            style={styles.menuItems}
-                            contentContainerStyle={styles.menuItemsContent}
-                            showsVerticalScrollIndicator={false}
-                        >
-                            <TouchableOpacity
-                                style={styles.menuItem}
-                                onPress={() => {
-                                    closeMenu();
-                                    navigation.navigate('Settings');
-                                }}
-                            >
-                                <Settings size={24} color={colors.info} />
-                                <View style={{ flex: 1, paddingRight: 10 }}>
-                                    <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות עסק</Text>
-                                </View>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.menuItem}
-                                onPress={() => {
-                                    closeMenu();
-                                    navigation.navigate('Settings');
-                                }}
-                            >
-                                <User size={24} color={colors.info} />
-                                <View style={{ flex: 1, paddingRight: 10 }}>
-                                    <Text style={[styles.menuItemText, { color: colors.textPrimary }]}>הגדרות פרופיל</Text>
-                                </View>
-                            </TouchableOpacity>
-
-                            <View style={[styles.menuDivider, { backgroundColor: colors.divider }]} />
-
-                            <TouchableOpacity
-                                style={styles.menuItem}
-                                onPress={() => {
-                                    closeMenu();
-                                    navigation.navigate('Login');
-                                }}
-                            >
-                                <LogOut size={24} color={colors.danger} />
-                                <View style={{ flex: 1, paddingRight: 10 }}>
-                                    <Text style={[styles.menuItemText, { color: colors.danger }]}>התנתק</Text>
-                                </View>
-                            </TouchableOpacity>
-                        </ScrollView>
                     </View>
+
+                    {/* New User Tip Card */}
+                    {transactions.length < 3 && (
+                        <View style={[styles.tipCard, { backgroundColor: colors.surface }, SHADOWS.sm]}>
+                            <View style={[styles.tipIconBox, { backgroundColor: colors.primaryMuted }]}>
+                                <Lightbulb size={20} color={colors.primary} />
+                            </View>
+                            <View style={styles.tipContent}>
+                                <Text style={[styles.tipTitle, { color: colors.textPrimary }]}>
+                                    טיפ: {transactions.length === 0 ? 'התחל להשתמש באפליקציה' : 'המשך לתעד'}
+                                </Text>
+                                <Text style={[styles.tipText, { color: colors.textTertiary }]}>
+                                    {transactions.length === 0
+                                        ? 'צור חשבונית ראשונה או הוסף הוצאה כדי להתחיל לעקוב אחרי הפיננסים שלך'
+                                        : 'תעד הכנסות והוצאות באופן קבוע כדי לקבל תמונה מלאה של המצב הפיננסי שלך'}
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Receipt Reminders */}
+                    {expensesWithoutReceipts.length > 0 && (
+                        <View style={{ marginTop: SPACING.xl }}>
+                            <ReceiptReminders expenses={expensesWithoutReceipts} />
+                        </View>
+                    )}
+
+                    {/* Smart Insights */}
+                    {transactions.length >= 3 && (
+                        <View style={{ marginTop: SPACING.xl }}>
+                            <SmartInsights onNavigate={(screen, params) => navigation.navigate(screen as any, params)} />
+                        </View>
+                    )}
+
+                    {/* Pending Invoices Card */}
+                    {pendingInvoices.length > 0 && (
+                        <TouchableOpacity
+                            style={[styles.pendingCard, { backgroundColor: colors.surface }, SHADOWS.md]}
+                            onPress={() => navigation.navigate('InvoicesList', { filter: 'pending' })}
+                            activeOpacity={0.8}
+                        >
+                            <LinearGradient
+                                colors={[colors.warningMuted, 'transparent']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={styles.pendingGradient}
+                            />
+                            <View style={styles.pendingContent}>
+                                <View style={[styles.pendingIconBox, { backgroundColor: colors.warningMuted }]}>
+                                    <Clock size={24} color={colors.warning} />
+                                </View>
+                                <View style={styles.pendingInfo}>
+                                    <Text style={[styles.pendingTitle, { color: colors.textPrimary }]}>
+                                        ממתינים לתשלום
+                                    </Text>
+                                    <Text style={[styles.pendingCount, { color: colors.textSecondary }]}>
+                                        {pendingInvoices.length} חשבוניות
+                                    </Text>
+                                </View>
+                                <View style={styles.pendingAmountBox}>
+                                    <Text style={[styles.pendingAmount, { color: colors.warning }]}>
+                                        ₪{pendingTotal.toLocaleString()}
+                                    </Text>
+                                    <ChevronLeft size={20} color={colors.textTertiary} />
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Goals Progress - Enhanced */}
+                    <TouchableOpacity
+                        style={[styles.goalsCard, { backgroundColor: colors.surface }, SHADOWS.lg]}
+                        onPress={() => navigation.navigate('Goals')}
+                        activeOpacity={0.8}
+                    >
+                        <LinearGradient
+                            colors={isDark
+                                ? ['rgba(16, 185, 129, 0.08)', 'transparent']
+                                : ['rgba(16, 185, 129, 0.1)', 'rgba(99, 102, 241, 0.05)']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={StyleSheet.absoluteFill}
+                        />
+                        <View style={styles.goalsHeader}>
+                            <View style={styles.goalsHeaderLeft}>
+                                <View style={[styles.goalsIconBox, { backgroundColor: colors.primaryMuted }]}>
+                                    <Zap size={18} color={colors.primary} />
+                                </View>
+                                <View>
+                                    <Text style={[styles.goalsTitle, { color: colors.textPrimary }]}>
+                                        יעדים חודשיים
+                                    </Text>
+                                    <Text style={[styles.goalsSubtitle, { color: colors.textTertiary }]}>
+                                        לחץ לעריכה
+                                    </Text>
+                                </View>
+                            </View>
+                            <ChevronLeft size={20} color={colors.textTertiary} />
+                        </View>
+
+                        <View style={styles.goalsContent}>
+                            {/* Income Goal */}
+                            <View style={styles.goalItem}>
+                                <View style={styles.goalHeader}>
+                                    <View style={styles.goalLabelRow}>
+                                        <View style={[styles.goalDot, { backgroundColor: colors.success }]} />
+                                        <Text style={[styles.goalLabel, { color: colors.textPrimary }]}>הכנסות</Text>
+                                    </View>
+                                    <Text style={[styles.goalPercent, { color: colors.success }]}>
+                                        {Math.round(incomeProgress)}%
+                                    </Text>
+                                </View>
+                                <View style={[styles.goalBar, { backgroundColor: colors.successMuted }]}>
+                                    <Animated.View
+                                        style={[
+                                            styles.goalFill,
+                                            {
+                                                width: `${incomeProgress}%`,
+                                                backgroundColor: colors.success,
+                                            }
+                                        ]}
+                                    />
+                                </View>
+                                {goals.monthlyIncomeTarget > 0 && (
+                                    <Text style={[styles.goalAmount, { color: colors.textTertiary }]}>
+                                        ₪{totalRevenue.toLocaleString()} / ₪{goals.monthlyIncomeTarget.toLocaleString()}
+                                    </Text>
+                                )}
+                            </View>
+
+                            {/* Expense Goal */}
+                            <View style={styles.goalItem}>
+                                <View style={styles.goalHeader}>
+                                    <View style={styles.goalLabelRow}>
+                                        <View style={[styles.goalDot, { backgroundColor: expenseProgress.percentage > 80 ? colors.danger : colors.primary }]} />
+                                        <Text style={[styles.goalLabel, { color: colors.textPrimary }]}>הוצאות</Text>
+                                    </View>
+                                    <Text style={[
+                                        styles.goalPercent,
+                                        { color: expenseProgress.percentage > 80 ? colors.danger : colors.primary }
+                                    ]}>
+                                        {Math.round(expenseProgress.percentage)}%
+                                    </Text>
+                                </View>
+                                <View style={[styles.goalBar, { backgroundColor: colors.primaryMuted }]}>
+                                    <Animated.View
+                                        style={[
+                                            styles.goalFill,
+                                            {
+                                                width: `${Math.min(expenseProgress.percentage, 100)}%`,
+                                                backgroundColor: expenseProgress.percentage > 80 ? colors.danger : colors.primary,
+                                            }
+                                        ]}
+                                    />
+                                </View>
+                                {goals.monthlyExpenseLimit > 0 && (
+                                    <Text style={[styles.goalAmount, { color: colors.textTertiary }]}>
+                                        ₪{totalExpenses.toLocaleString()} / ₪{goals.monthlyExpenseLimit.toLocaleString()}
+                                    </Text>
+                                )}
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+
+                    {/* Freelancer Score Card - Prominent */}
+                    <TouchableOpacity
+                        style={[styles.scoreCard, { backgroundColor: colors.surface }, SHADOWS.lg]}
+                        onPress={() => navigation.navigate('FreelancerScore')}
+                        activeOpacity={0.8}
+                    >
+                        <LinearGradient
+                            colors={isDark
+                                ? ['rgba(129, 140, 248, 0.15)', 'rgba(167, 139, 250, 0.05)']
+                                : [getScoreColor(freelancerScore) + '20', 'transparent']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.scoreGradient}
+                        />
+                        <View style={styles.scoreContent}>
+                            <View style={styles.scoreMainSection}>
+                                <View style={[styles.scoreBigNumber, { borderColor: getScoreColor(freelancerScore) }]}>
+                                    <Text style={[styles.scoreValue, { color: getScoreColor(freelancerScore) }]}>
+                                        {freelancerScore}
+                                    </Text>
+                                </View>
+                                <View style={styles.scoreTextSection}>
+                                    <Text style={[styles.scoreTitle, { color: colors.textPrimary }]}>
+                                        ציון פרילנסר
+                                    </Text>
+                                    <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(freelancerScore) + '20' }]}>
+                                        <Award size={14} color={getScoreColor(freelancerScore)} />
+                                        <Text style={[styles.scoreBadgeText, { color: getScoreColor(freelancerScore) }]}>
+                                            {getScoreLabel(freelancerScore)}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                            <ChevronLeft size={20} color={colors.textTertiary} />
+                        </View>
+                        <View style={[styles.scoreProgressBar, { backgroundColor: colors.fillSecondary }]}>
+                            <Animated.View
+                                style={[
+                                    styles.scoreProgressFill,
+                                    {
+                                        width: `${(freelancerScore / 850) * 100}%`,
+                                        backgroundColor: getScoreColor(freelancerScore),
+                                    }
+                                ]}
+                            />
+                        </View>
+                        <Text style={[styles.scoreHint, { color: colors.textTertiary }]}>
+                            לחץ לפירוט מלא • מתוך 850
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* Insights Card */}
+                    {insights.length > 0 && (
+                        <View style={[styles.insightsCard, { backgroundColor: colors.surface }, SHADOWS.md]}>
+                            <View style={styles.insightsHeader}>
+                                <View style={[styles.insightsIconBox, { backgroundColor: colors.warningMuted }]}>
+                                    <Lightbulb size={18} color={colors.warning} />
+                                </View>
+                                <Text style={[styles.insightsTitle, { color: colors.textPrimary }]}>
+                                    תובנות
+                                </Text>
+                            </View>
+                            <View style={styles.insightsList}>
+                                {insights.map((insight, index) => {
+                                    const IconComponent = insight.icon;
+                                    const iconColor = insight.type === 'success' ? colors.success
+                                        : insight.type === 'warning' ? colors.warning
+                                        : colors.info;
+                                    const bgColor = insight.type === 'success' ? colors.successMuted
+                                        : insight.type === 'warning' ? colors.warningMuted
+                                        : colors.infoMuted;
+
+                                    return (
+                                        <View
+                                            key={index}
+                                            style={[styles.insightItem, { backgroundColor: bgColor }]}
+                                        >
+                                            <IconComponent size={16} color={iconColor} />
+                                            <Text style={[styles.insightText, { color: colors.textPrimary }]}>
+                                                {insight.text}
+                                            </Text>
+                                        </View>
+                                    );
+                                })}
+                            </View>
+                        </View>
+                    )}
+
+                    {/* Recent Activity */}
+                    <View style={styles.recentSection}>
+                        <View style={styles.recentHeader}>
+                            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
+                                פעילות אחרונה
+                            </Text>
+                            <TouchableOpacity onPress={() => navigation.navigate('AllActivity')}>
+                                <Text style={[styles.seeAll, { color: colors.primary }]}>הכל</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {transactions.slice(0, 3).map((item, index) => (
+                            <TouchableOpacity
+                                key={item.id}
+                                style={[
+                                    styles.activityItem,
+                                    { backgroundColor: colors.surface },
+                                    index === 0 && SHADOWS.sm
+                                ]}
+                                onPress={() => {
+                                    if (item.type === 'invoice') {
+                                        navigation.navigate('InvoiceDetails', { transactionId: item.id });
+                                    }
+                                }}
+                            >
+                                <View style={[
+                                    styles.activityIcon,
+                                    { backgroundColor: item.isIncome ? colors.successMuted : colors.dangerMuted }
+                                ]}>
+                                    {item.isIncome ? (
+                                        <TrendingUp size={18} color={colors.success} />
+                                    ) : (
+                                        <TrendingDown size={18} color={colors.danger} />
+                                    )}
+                                </View>
+                                <View style={styles.activityInfo}>
+                                    <Text style={[styles.activityTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                                        {item.title}
+                                    </Text>
+                                    <Text style={[styles.activityDate, { color: colors.textTertiary }]}>
+                                        {new Date(item.date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })}
+                                    </Text>
+                                </View>
+                                <Text style={[
+                                    styles.activityAmount,
+                                    { color: item.isIncome ? colors.success : colors.danger }
+                                ]}>
+                                    {item.isIncome ? '+' : '-'}{item.amount}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+
+                        {transactions.length === 0 && (
+                            <View style={[styles.emptyActivity, { backgroundColor: colors.surface }]}>
+                                <Calendar size={32} color={colors.textTertiary} />
+                                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                                    אין פעילות עדיין
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={{ height: 120 }} />
                 </Animated.View>
-            </PanGestureHandler>
+            </ScrollView>
         </View>
     );
 }
@@ -588,441 +826,506 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0a0a0f',
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingTop: 50,
-        paddingBottom: 20,
-    },
-    headerLeft: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    headerRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    iconButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    greeting: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: '#fff',
-        textAlign: 'right',
-    },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#ff9a7a',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    avatarText: {
-        fontSize: 20,
     },
     scrollContent: {
-        paddingHorizontal: 20,
-        paddingBottom: 20,
+        paddingBottom: SPACING['2xl'],
     },
-    balanceCard: {
-        marginBottom: 24,
-        borderRadius: 24,
+    // Hero Section
+    heroSection: {
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingTop: SPACING.lg,
+        paddingBottom: SPACING['3xl'],
+        borderBottomLeftRadius: RADIUS['3xl'],
+        borderBottomRightRadius: RADIUS['3xl'],
         overflow: 'hidden',
+        position: 'relative',
     },
-    balanceGradient: {
-        padding: 24,
+    decorCircle1: {
+        position: 'absolute',
+        width: 200,
+        height: 200,
+        borderRadius: 100,
+        backgroundColor: '#FFFFFF',
+        top: -50,
+        right: -50,
     },
-    balanceHeader: {
+    decorCircle2: {
+        position: 'absolute',
+        width: 150,
+        height: 150,
+        borderRadius: 75,
+        backgroundColor: '#FFFFFF',
+        bottom: 20,
+        left: -30,
+    },
+    heroHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
+        alignItems: 'flex-start',
+        marginBottom: SPACING['2xl'],
     },
-    balanceLabel: {
-        fontSize: 13,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.6)',
-        textAlign: 'right',
-    },
-    percentageBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0,255,136,0.15)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        gap: 4,
-    },
-    percentageText: {
-        fontSize: 12,
-        fontFamily: FONTS.bold,
-        color: '#00ff88',
-    },
-    balanceAmount: {
-        fontSize: 40,
-        fontFamily: FONTS.bold,
-        color: '#fff',
-        textAlign: 'center',
-        marginBottom: 20,
-    },
-    balanceFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        backgroundColor: 'rgba(0,0,0,0.2)',
-        borderRadius: 16,
-        padding: 16,
-    },
-    balanceItem: {
-        flex: 1,
-    },
-    balanceItemLabel: {
-        fontSize: 12,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
-        marginBottom: 4,
-        textAlign: 'right',
-    },
-    balanceItemValue: {
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-        color: '#00ffdd',
-        textAlign: 'right',
-    },
-    quickActions: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 24,
-        gap: 12,
-    },
-    quickAction: {
-        flex: 1,
-        alignItems: 'center',
-        paddingVertical: 16,
-        borderRadius: 20,
-        gap: 8,
-    },
-    quickActionIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    quickActionText: {
-        fontSize: 12,
-        fontFamily: FONTS.bold,
-    },
-    section: {
-        marginBottom: 24,
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-        color: '#fff',
-        textAlign: 'right',
-    },
-    dateBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 12,
-        gap: 6,
+    greeting: {
+        ...TYPOGRAPHY.body,
+        marginBottom: SPACING.xs,
     },
     dateText: {
-        fontSize: 12,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.7)',
+        ...TYPOGRAPHY.h3,
     },
-    summaryCard: {
-        backgroundColor: '#151520',
-        borderRadius: 20,
-        padding: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+    // Balance
+    balanceContainer: {
+        marginBottom: SPACING['2xl'],
     },
-    summaryHeader: {
+    balanceContent: {
         flexDirection: 'row',
-        alignItems: 'baseline',
-        justifyContent: 'flex-end',
-        marginBottom: 8,
-        gap: 8,
+        alignItems: 'center',
     },
-    summaryAmount: {
-        fontSize: 28,
-        fontFamily: FONTS.bold,
-        color: '#fff',
+    circularContainer: {
+        marginLeft: SPACING.lg,
     },
-    summarySubtext: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.4)',
-    },
-    summaryLabel: {
-        fontSize: 13,
-        fontFamily: FONTS.medium,
-        color: '#00ff88',
-        marginBottom: 16,
-        textAlign: 'right',
-    },
-    progressBar: {
-        height: 6,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 3,
-        overflow: 'hidden',
-        marginBottom: 12,
-    },
-    progressFill: {
-        height: '100%',
-        backgroundColor: '#00ff88',
-        borderRadius: 3,
-    },
-    summaryNote: {
-        fontSize: 11,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.4)',
-        lineHeight: 16,
-        textAlign: 'right',
-    },
-    chartTabs: {
-        flexDirection: 'row',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderRadius: 12,
-        padding: 4,
-        gap: 4,
-    },
-    chartTab: {
-        paddingHorizontal: 16,
-        paddingVertical: 6,
-        borderRadius: 8,
-    },
-    chartTabActive: {
-        backgroundColor: '#00ffdd',
-    },
-    chartTabText: {
-        fontSize: 12,
-        fontFamily: FONTS.medium,
-        color: 'rgba(255,255,255,0.6)',
-    },
-    chartTabTextActive: {
-        fontSize: 12,
-        fontFamily: FONTS.bold,
-        color: '#0a0a0f',
-    },
-    chartCard: {
-        backgroundColor: '#151520',
-        borderRadius: 20,
-        padding: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
-    },
-    chart: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    balanceTextContainer: {
+        flex: 1,
         alignItems: 'flex-end',
-        height: 140,
     },
-    chartBar: {
-        flex: 1,
+    balanceLabel: {
+        ...TYPOGRAPHY.body,
+        marginBottom: SPACING.xs,
+    },
+    balanceAmount: {
+        fontSize: 42,
+        fontFamily: FONTS.bold,
+        letterSpacing: -1,
+        marginBottom: SPACING.sm,
+        flexShrink: 1,
+    },
+    balanceBadge: {
+        flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
+        borderRadius: RADIUS.full,
+        gap: SPACING.xs,
     },
-    chartBarContainer: {
+    badgeText: {
+        ...TYPOGRAPHY.labelSmall,
+    },
+    // Stats Pills
+    statsPills: {
+        flexDirection: 'row',
+        gap: SPACING.md,
+    },
+    pill: {
         flex: 1,
-        width: '70%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: SPACING.md,
+        borderRadius: RADIUS.xl,
+        gap: SPACING.sm,
+    },
+    pillIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    pillText: {
+        flex: 1,
+    },
+    pillLabel: {
+        ...TYPOGRAPHY.captionSmall,
+        marginBottom: 2,
+    },
+    pillValue: {
+        ...TYPOGRAPHY.label,
+    },
+    // Actions Section
+    actionsSection: {
+        paddingHorizontal: LAYOUT.screenPadding,
+        marginTop: -SPACING.xl,
+    },
+    sectionTitle: {
+        ...TYPOGRAPHY.h4,
+        marginBottom: SPACING.lg,
+        marginTop: SPACING['2xl'],
+    },
+    actionsGrid: {
+        flexDirection: 'row',
+        gap: SPACING.md,
+    },
+    actionCard: {
+        borderRadius: RADIUS.xl,
+        overflow: 'hidden',
+    },
+    actionLarge: {
+        flex: 1.5,
+        minHeight: 160,
+    },
+    actionSmall: {
+        flex: 1,
+        padding: SPACING.lg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 75,
+    },
+    actionColumn: {
+        flex: 1,
+        gap: SPACING.md,
+    },
+    actionGradient: {
+        flex: 1,
+        padding: SPACING.xl,
         justifyContent: 'flex-end',
     },
-    chartBarFill: {
-        width: '100%',
-        borderRadius: 6,
-        minHeight: 20,
-    },
-    chartLabel: {
-        fontSize: 11,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
-    },
-    seeAllText: {
-        fontSize: 13,
-        fontFamily: FONTS.medium,
-        color: '#00ffdd',
-    },
-    transactionCard: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    actionIconLarge: {
+        width: 56,
+        height: 56,
+        borderRadius: RADIUS.lg,
         alignItems: 'center',
-        backgroundColor: '#151520',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+        justifyContent: 'center',
+        marginBottom: SPACING.lg,
     },
-    transactionLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        flex: 1,
-    },
-    transactionIcon: {
+    actionIcon: {
         width: 44,
         height: 44,
-        borderRadius: 12,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
         justifyContent: 'center',
+        marginBottom: SPACING.sm,
     },
-    transactionTitle: {
-        fontSize: 14,
-        fontFamily: FONTS.bold,
-        color: '#fff',
-        marginBottom: 4,
-        textAlign: 'right',
+    actionLabelLarge: {
+        ...TYPOGRAPHY.h4,
+        marginBottom: SPACING.xs,
     },
-    transactionDate: {
-        fontSize: 12,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
-        textAlign: 'right',
+    actionLabel: {
+        ...TYPOGRAPHY.labelSmall,
+        textAlign: 'center',
     },
-    transactionAmount: {
-        fontSize: 16,
-        fontFamily: FONTS.bold,
-        color: '#fff',
+    actionDesc: {
+        ...TYPOGRAPHY.caption,
     },
-    emptyState: {
-        backgroundColor: '#151520',
-        borderRadius: 16,
-        padding: 32,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.05)',
+    // Pending Card
+    pendingCard: {
+        marginHorizontal: LAYOUT.screenPadding,
+        marginTop: SPACING.xl,
+        borderRadius: RADIUS.xl,
+        overflow: 'hidden',
     },
-    emptyStateText: {
-        fontSize: 14,
-        fontFamily: FONTS.regular,
-        color: 'rgba(255,255,255,0.5)',
-        marginBottom: 16,
-    },
-    addButton: {
-        backgroundColor: '#00ffdd',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 12,
-    },
-    addButtonText: {
-        fontSize: 14,
-        fontFamily: FONTS.bold,
-        color: '#0a0a0f',
-    },
-    // Menu Styles
-    menuOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    menuContainer: {
-        width: width * 0.75,
-        height: '100%',
-        backgroundColor: '#1a1a2e',
-        shadowColor: '#000',
-        shadowOffset: { width: 2, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 10,
-        elevation: 10,
-    },
-    menuGradient: {
-        flex: 1,
-        backgroundColor: '#1a1a2e',
-    },
-    menuHeader: {
-        paddingTop: 80,
-        paddingHorizontal: 24,
-        paddingBottom: 30,
-        backgroundColor: '#0f3329',
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255,255,255,0.1)',
-    },
-    closeButton: {
+    pendingGradient: {
         position: 'absolute',
-        top: 15,
-        left: 20,
-        zIndex: 10,
-        padding: 8,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 8,
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: '50%',
     },
-    menuProfile: {
-        alignItems: 'center',
-    },
-    menuAvatar: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: '#ff9a7a',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 12,
-        borderWidth: 3,
-        borderColor: '#00ffdd',
-    },
-    menuAvatarText: {
-        fontSize: 36,
-    },
-    menuName: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#ffffff',
-        marginBottom: 4,
-    },
-    menuEmail: {
-        fontSize: 14,
-        color: 'rgba(255,255,255,0.7)',
-    },
-    menuItems: {
-        flex: 1,
-    },
-    menuItemsContent: {
-        padding: 24,
-        paddingBottom: 40,
-    },
-    menuItem: {
+    pendingContent: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 15,
-        borderRadius: 12,
-        marginBottom: 10,
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        height: 55,
+        padding: SPACING.lg,
     },
-    menuItemText: {
-        fontSize: 18,
-        color: '#FFFFFF',
-        fontWeight: 'bold',
-        marginLeft: 15,
-        textAlignVertical: 'center',
+    pendingIconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: RADIUS.lg,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    menuDivider: {
-        height: 1,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        marginVertical: 12,
+    pendingInfo: {
+        flex: 1,
+        marginHorizontal: SPACING.md,
+    },
+    pendingTitle: {
+        ...TYPOGRAPHY.label,
+        marginBottom: 2,
+    },
+    pendingCount: {
+        ...TYPOGRAPHY.caption,
+    },
+    pendingAmountBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
+    },
+    pendingAmount: {
+        ...TYPOGRAPHY.moneySmall,
+    },
+    // Goals Card - Enhanced
+    goalsCard: {
+        marginHorizontal: LAYOUT.screenPadding,
+        marginTop: SPACING.lg,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.xl,
+        overflow: 'hidden',
+    },
+    goalsHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: SPACING.xl,
+    },
+    goalsHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.md,
+    },
+    goalsIconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    goalsTitle: {
+        ...TYPOGRAPHY.label,
+    },
+    goalsSubtitle: {
+        ...TYPOGRAPHY.captionSmall,
+        marginTop: 2,
+    },
+    goalsContent: {
+        gap: SPACING.xl,
+    },
+    goalItem: {
+        gap: SPACING.sm,
+    },
+    goalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    goalLabelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+    },
+    goalDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    goalLabel: {
+        ...TYPOGRAPHY.body,
+        fontFamily: FONTS.medium,
+    },
+    goalPercent: {
+        ...TYPOGRAPHY.label,
+    },
+    goalBar: {
+        height: 10,
+        borderRadius: 5,
+        overflow: 'hidden',
+    },
+    goalFill: {
+        height: '100%',
+        borderRadius: 5,
+    },
+    goalAmount: {
+        ...TYPOGRAPHY.captionSmall,
+        textAlign: 'left',
+    },
+    // Score Card - Prominent Design
+    scoreCard: {
+        marginHorizontal: LAYOUT.screenPadding,
+        marginTop: SPACING.lg,
+        borderRadius: RADIUS.xl,
+        overflow: 'hidden',
+        paddingBottom: SPACING.md,
+    },
+    scoreGradient: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    },
+    scoreContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: SPACING.lg,
+        paddingBottom: SPACING.sm,
+    },
+    scoreMainSection: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.lg,
+    },
+    scoreBigNumber: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        borderWidth: 3,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    scoreValue: {
+        fontSize: 28,
+        fontFamily: FONTS.bold,
+        letterSpacing: -1,
+    },
+    scoreTextSection: {
+        gap: SPACING.xs,
+    },
+    scoreBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: SPACING.xs,
+        borderRadius: RADIUS.full,
+        gap: SPACING.xs,
+        alignSelf: 'flex-start',
+    },
+    scoreBadgeText: {
+        ...TYPOGRAPHY.captionSmall,
+        fontFamily: FONTS.semiBold,
+    },
+    scoreProgressBar: {
+        height: 6,
+        marginHorizontal: SPACING.lg,
+        borderRadius: 3,
+        overflow: 'hidden',
+    },
+    scoreProgressFill: {
+        height: '100%',
+        borderRadius: 3,
+    },
+    scoreHint: {
+        ...TYPOGRAPHY.captionSmall,
+        textAlign: 'center',
+        marginTop: SPACING.sm,
+    },
+    scoreIconBox: {
+        width: 48,
+        height: 48,
+        borderRadius: RADIUS.lg,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    scoreInfo: {
+        flex: 1,
+        marginHorizontal: SPACING.md,
+    },
+    scoreTitle: {
+        ...TYPOGRAPHY.label,
+        marginBottom: 2,
+    },
+    scoreSubtitle: {
+        ...TYPOGRAPHY.caption,
+    },
+    // Insights Card
+    insightsCard: {
+        marginHorizontal: LAYOUT.screenPadding,
+        marginTop: SPACING.lg,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+    },
+    insightsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.md,
+        marginBottom: SPACING.md,
+    },
+    insightsIconBox: {
+        width: 36,
+        height: 36,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    insightsTitle: {
+        ...TYPOGRAPHY.label,
+    },
+    insightsList: {
+        gap: SPACING.sm,
+    },
+    insightItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        gap: SPACING.sm,
+    },
+    insightText: {
+        flex: 1,
+        ...TYPOGRAPHY.bodySmall,
+    },
+    // Recent Activity
+    recentSection: {
+        paddingHorizontal: LAYOUT.screenPadding,
+        marginTop: SPACING.xl,
+    },
+    recentHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: SPACING.lg,
+    },
+    seeAll: {
+        ...TYPOGRAPHY.label,
+    },
+    activityItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: SPACING.md,
+        borderRadius: RADIUS.lg,
+        marginBottom: SPACING.sm,
+    },
+    activityIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    activityInfo: {
+        flex: 1,
+        marginHorizontal: SPACING.md,
+    },
+    activityTitle: {
+        ...TYPOGRAPHY.body,
+        fontFamily: FONTS.medium,
+        marginBottom: 2,
+    },
+    activityDate: {
+        ...TYPOGRAPHY.captionSmall,
+    },
+    activityAmount: {
+        ...TYPOGRAPHY.label,
+    },
+    emptyActivity: {
+        padding: SPACING['3xl'],
+        borderRadius: RADIUS.xl,
+        alignItems: 'center',
+        gap: SPACING.md,
+    },
+    emptyText: {
+        ...TYPOGRAPHY.body,
+    },
+    // Tip Card for new users
+    tipCard: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginHorizontal: LAYOUT.screenPadding,
+        marginTop: SPACING.xl,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.lg,
+    },
+    tipIconBox: {
+        width: 40,
+        height: 40,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tipContent: {
+        flex: 1,
+        marginRight: SPACING.md,
+    },
+    tipTitle: {
+        ...TYPOGRAPHY.label,
+        marginBottom: SPACING.xs,
+    },
+    tipText: {
+        ...TYPOGRAPHY.bodySmall,
+        lineHeight: 20,
     },
 });

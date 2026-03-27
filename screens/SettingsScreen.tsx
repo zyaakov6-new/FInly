@@ -6,19 +6,19 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
-    Alert,
-    Switch,
     Image,
     Modal,
     FlatList,
     KeyboardAvoidingView,
-    Platform
+    Platform,
+    Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import {
     ChevronLeft,
+    ChevronRight,
     User,
     Users,
     Repeat,
@@ -39,22 +39,39 @@ import {
     X,
     MessageSquare,
     ExternalLink,
-    Lock
+    Lock,
+    Sun,
+    Moon,
+    Smartphone,
+    Palette,
+    Receipt,
+    Clock,
 } from 'lucide-react-native';
 import { useTransactions } from '../context/TransactionsContext';
-import { COLORS, FONTS } from '../constants/theme';
+import { useNotification } from '../context/NotificationContext';
+import { useTheme, ThemeMode } from '../context/ThemeContext';
+import { useUserProfile } from '../context/UserProfileContext';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 
 const SECTIONS = [
     { id: 'profile', title: 'פרופיל אישי', icon: User },
+    { id: 'appearance', title: 'מראה ותצוגה', icon: Palette },
     { id: 'business', title: 'הגדרות עסק', icon: Building2 },
     { id: 'clients', title: 'ניהול לקוחות', icon: Users, navigate: 'Clients' },
     { id: 'recurring', title: 'עסקאות חוזרות', icon: Repeat, navigate: 'Recurring' },
+    { id: 'templates', title: 'תבניות חשבוניות', icon: List, navigate: 'InvoiceTemplates' },
     { id: 'categories', title: 'ניהול קטגוריות', icon: List },
     { id: 'prices', title: 'מחירים וחיובים', icon: DollarSign },
-    { id: 'notifications', title: 'התראות (בקרוב)', icon: Bell, disabled: true },
+    { id: 'notifications', title: 'התראות ותזכורות', icon: Bell },
     { id: 'backup', title: 'גיבוי וייצוא (בקרוב)', icon: Database, disabled: true },
     { id: 'security', title: 'פרטיות ואבטחה', icon: Shield },
     { id: 'about', title: 'אודות ועזרה', icon: HelpCircle },
+];
+
+const THEME_OPTIONS: { value: ThemeMode; label: string; icon: any }[] = [
+    { value: 'light', label: 'בהיר', icon: Sun },
+    { value: 'dark', label: 'כהה', icon: Moon },
+    { value: 'system', label: 'לפי המערכת', icon: Smartphone },
 ];
 
 const INDUSTRIES = [
@@ -73,8 +90,13 @@ const INDUSTRIES = [
 export default function SettingsScreen() {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<any>();
+    const { resolvedTheme, themeMode, setThemeMode, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
+    const { showDeleteConfirm, showSuccess } = useNotification();
+    const { userProfile, updateUserProfile: updateUserProfileContext } = useUserProfile();
+
     const {
-        userProfile,
+        userProfile: legacyProfile,
         updateUserProfile,
         businessSettings,
         updateBusinessSettings,
@@ -92,7 +114,18 @@ export default function SettingsScreen() {
     const [newCategoryName, setNewCategoryName] = useState('');
     const [industryModalVisible, setIndustryModalVisible] = useState(false);
 
-    // Render Helpers
+    // Use persisted settings from context
+    const receiptReminders = userProfile?.receiptReminders ?? true;
+    const expenseReminders = userProfile?.expenseReminders ?? true;
+
+    const setReceiptReminders = (value: boolean) => {
+        updateUserProfileContext({ receiptReminders: value });
+    };
+
+    const setExpenseReminders = (value: boolean) => {
+        updateUserProfileContext({ expenseReminders: value });
+    };
+
     const toggleSection = (id: string) => {
         setActiveSection(activeSection === id ? null : id);
     };
@@ -105,13 +138,10 @@ export default function SettingsScreen() {
     };
 
     const handleCategoryDelete = (category: string) => {
-        Alert.alert(
+        showDeleteConfirm(
             'מחיקת קטגוריה',
             `האם למחוק את הקטגוריה "${category}"?`,
-            [
-                { text: 'ביטול', style: 'cancel' },
-                { text: 'מחק', style: 'destructive', onPress: () => deleteCategory(category) }
-            ]
+            () => deleteCategory(category)
         );
     };
 
@@ -123,58 +153,63 @@ export default function SettingsScreen() {
     };
 
     const handleDeleteAccount = () => {
-        Alert.alert(
+        showDeleteConfirm(
             'מחיקת חשבון',
             'זוהי פעולה בלתי הפיכה. האם אתה בטוח שברצונך למחוק את החשבון וכל הנתונים?',
-            [
-                { text: 'ביטול', style: 'cancel' },
-                { text: 'מחק הכל', style: 'destructive', onPress: () => Alert.alert('החשבון נמחק') }
-            ]
+            () => showSuccess('החשבון נמחק', 'כל הנתונים נמחקו בהצלחה')
         );
     };
 
     return (
-        <View style={styles.container}>
-            <StatusBar style="light" backgroundColor={COLORS.background} />
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
 
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ChevronLeft size={28} color={COLORS.textPrimary} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>הגדרות</Text>
-                <View style={{ width: 28 }} />
+            <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
+                <View style={{ width: 44 }} />
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>הגדרות</Text>
+                <View style={{ width: 44 }} />
             </View>
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={{ flex: 1 }}
             >
-                <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-
-                    {/* User Profile Summary Card */}
-                    <View style={styles.profileCard}>
+                <ScrollView
+                    contentContainerStyle={styles.content}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Profile Card */}
+                    <View style={[styles.profileCard, { backgroundColor: colors.surface }, SHADOWS.sm]}>
                         <TouchableOpacity style={styles.avatarContainer}>
-                            {userProfile.avatarUri ? (
-                                <Image source={{ uri: userProfile.avatarUri }} style={styles.avatar} />
+                            {userProfile?.profilePicture ? (
+                                <Image source={{ uri: userProfile.profilePicture }} style={styles.avatar} />
                             ) : (
-                                <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                                    <Text style={styles.avatarInitials}>{userProfile.name.charAt(0)}</Text>
+                                <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: colors.primary }]}>
+                                    <Text style={styles.avatarInitials}>{(userProfile?.fullName || 'U').charAt(0)}</Text>
                                 </View>
                             )}
-                            <View style={styles.cameraIcon}>
-                                <Camera size={14} color={COLORS.white} />
+                            <View style={[styles.cameraIcon, { backgroundColor: colors.surface, borderColor: colors.background }]}>
+                                <Camera size={12} color={colors.textSecondary} />
                             </View>
                         </TouchableOpacity>
                         <View style={styles.profileInfo}>
-                            <Text style={styles.profileName}>{userProfile.name}</Text>
-                            <Text style={styles.profileEmail}>{userProfile.email}</Text>
+                            <Text style={[styles.profileName, { color: colors.textPrimary }]}>{userProfile?.fullName || 'משתמש'}</Text>
+                            <Text style={[styles.profileEmail, { color: colors.textTertiary }]}>{userProfile?.email || ''}</Text>
                         </View>
                     </View>
 
                     {/* Sections */}
                     {SECTIONS.map((section) => (
-                        <View key={section.id} style={[styles.section, section.disabled && styles.sectionDisabled]}>
+                        <View
+                            key={section.id}
+                            style={[
+                                styles.section,
+                                { backgroundColor: colors.surface },
+                                SHADOWS.sm,
+                                section.disabled && { opacity: 0.5 }
+                            ]}
+                        >
                             <TouchableOpacity
                                 style={styles.sectionHeader}
                                 onPress={() => {
@@ -187,99 +222,144 @@ export default function SettingsScreen() {
                                 }}
                                 activeOpacity={section.disabled ? 1 : 0.7}
                             >
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    <View style={[styles.iconBox, section.disabled && { backgroundColor: '#2a2a2a' }]}>
-                                        <section.icon size={20} color={section.disabled ? COLORS.textTertiary : COLORS.primary} />
+                                <View style={styles.sectionLeft}>
+                                    <View style={[styles.iconBox, { backgroundColor: colors.primaryMuted }]}>
+                                        <section.icon size={18} color={section.disabled ? colors.textTertiary : colors.primary} />
                                     </View>
-                                    <Text style={[styles.sectionTitle, section.disabled && { color: COLORS.textTertiary }]}>
+                                    <Text style={[styles.sectionTitle, { color: section.disabled ? colors.textTertiary : colors.textPrimary }]}>
                                         {section.title}
                                     </Text>
                                 </View>
                                 {!section.disabled && (
                                     <ChevronLeft
-                                        size={20}
-                                        color={COLORS.textTertiary}
+                                        size={18}
+                                        color={colors.textTertiary}
                                         style={{ transform: [{ rotate: activeSection === section.id ? '-90deg' : '0deg' }] }}
                                     />
                                 )}
                             </TouchableOpacity>
 
                             {activeSection === section.id && (
-                                <View style={styles.sectionContent}>
-
-                                    {/* 1. User Profile Inputs */}
+                                <View style={[styles.sectionContent, { borderTopColor: colors.border }]}>
                                     {section.id === 'profile' && (
-                                        <View style={{ gap: 16 }}>
+                                        <View style={styles.inputList}>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>שם מלא</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>שם מלא</Text>
                                                 <TextInput
-                                                    style={styles.input}
-                                                    value={userProfile.name}
-                                                    onChangeText={(t) => updateUserProfile({ name: t })}
+                                                    style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
+                                                    value={userProfile?.fullName || ''}
+                                                    onChangeText={(t) => updateUserProfileContext({ fullName: t })}
                                                 />
                                             </View>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>אימייל (לקריאה בלבד)</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>אימייל</Text>
                                                 <TextInput
-                                                    style={[styles.input, styles.inputDisabled]}
-                                                    value={userProfile.email}
+                                                    style={[styles.input, styles.inputDisabled, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textTertiary }]}
+                                                    value={userProfile?.email || ''}
                                                     editable={false}
                                                 />
                                             </View>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>טלפון</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>טלפון</Text>
                                                 <TextInput
-                                                    style={styles.input}
-                                                    value={userProfile.phone}
-                                                    onChangeText={(t) => updateUserProfile({ phone: t })}
+                                                    style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
+                                                    value={userProfile?.phone || ''}
+                                                    onChangeText={(t) => updateUserProfileContext({ phone: t })}
                                                     keyboardType="phone-pad"
                                                 />
                                             </View>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>תחום עיסוק</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>תחום עיסוק</Text>
                                                 <TouchableOpacity
-                                                    style={styles.dropdownButton}
+                                                    style={[styles.dropdown, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
                                                     onPress={() => setIndustryModalVisible(true)}
                                                 >
-                                                    <Text style={styles.dropdownText}>{userProfile.industry}</Text>
-                                                    <ChevronDown size={20} color={COLORS.textTertiary} />
+                                                    <Text style={[styles.dropdownText, { color: colors.textPrimary }]}>{userProfile?.businessCategory || 'בחר תחום'}</Text>
+                                                    <ChevronDown size={18} color={colors.textTertiary} />
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
                                     )}
 
-                                    {/* 2. Business Settings Inputs */}
+                                    {section.id === 'appearance' && (
+                                        <View style={styles.inputList}>
+                                            <Text style={[styles.inputLabel, { color: colors.textSecondary, marginBottom: SPACING.md }]}>
+                                                בחר מצב תצוגה
+                                            </Text>
+                                            <View style={styles.themeOptions}>
+                                                {THEME_OPTIONS.map((option) => {
+                                                    const IconComponent = option.icon;
+                                                    const isSelected = themeMode === option.value;
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={option.value}
+                                                            style={[
+                                                                styles.themeOption,
+                                                                {
+                                                                    backgroundColor: isSelected ? colors.primaryMuted : colors.surfaceSecondary,
+                                                                    borderColor: isSelected ? colors.primary : colors.border,
+                                                                }
+                                                            ]}
+                                                            onPress={() => setThemeMode(option.value)}
+                                                        >
+                                                            <View style={[
+                                                                styles.themeIconBox,
+                                                                { backgroundColor: isSelected ? colors.primary : colors.fill }
+                                                            ]}>
+                                                                <IconComponent
+                                                                    size={20}
+                                                                    color={isSelected ? '#FFFFFF' : colors.textSecondary}
+                                                                />
+                                                            </View>
+                                                            <Text style={[
+                                                                styles.themeLabel,
+                                                                { color: isSelected ? colors.primary : colors.textPrimary }
+                                                            ]}>
+                                                                {option.label}
+                                                            </Text>
+                                                            {isSelected && (
+                                                                <View style={[styles.themeCheck, { backgroundColor: colors.primary }]}>
+                                                                    <Save size={10} color="#FFFFFF" />
+                                                                </View>
+                                                            )}
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </View>
+                                            <Text style={[styles.themeHint, { color: colors.textTertiary }]}>
+                                                {themeMode === 'system'
+                                                    ? 'המראה ישתנה אוטומטית לפי הגדרות המכשיר שלך'
+                                                    : themeMode === 'dark'
+                                                    ? 'מצב כהה פעיל'
+                                                    : 'מצב בהיר פעיל'
+                                                }
+                                            </Text>
+                                        </View>
+                                    )}
+
                                     {section.id === 'business' && (
-                                        <View style={{ gap: 16 }}>
+                                        <View style={styles.inputList}>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>שם העסק</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>שם העסק</Text>
                                                 <TextInput
-                                                    style={styles.input}
+                                                    style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                                     value={businessSettings.name}
                                                     onChangeText={(t) => updateBusinessSettings({ name: t })}
                                                 />
                                             </View>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>מטבע (נעול: שקלים)</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>ח.פ / עוסק מורשה</Text>
                                                 <TextInput
-                                                    style={[styles.input, styles.inputDisabled]}
-                                                    value={'שקל חדש (₪)'}
-                                                    editable={false}
-                                                />
-                                            </View>
-                                            <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>ח.פ / עוסק מורשה</Text>
-                                                <TextInput
-                                                    style={styles.input}
+                                                    style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                                     value={businessSettings.taxId}
                                                     onChangeText={(t) => updateBusinessSettings({ taxId: t })}
                                                     keyboardType="numeric"
                                                 />
                                             </View>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>כתובת העסק</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>כתובת העסק</Text>
                                                 <TextInput
-                                                    style={styles.input}
+                                                    style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                                     value={businessSettings.address}
                                                     onChangeText={(t) => updateBusinessSettings({ address: t })}
                                                 />
@@ -287,463 +367,534 @@ export default function SettingsScreen() {
                                         </View>
                                     )}
 
-                                    {/* 3. Categories Management */}
                                     {section.id === 'categories' && (
-                                        <View style={{ gap: 12 }}>
+                                        <View style={styles.inputList}>
                                             {categories.map((cat, index) => (
-                                                <View key={index} style={styles.categoryRow}>
+                                                <View key={index} style={[styles.categoryRow, { borderBottomColor: colors.border }]}>
                                                     {editingCategory === cat ? (
-                                                        <View style={{ flex: 1, flexDirection: 'row', gap: 8 }}>
+                                                        <View style={styles.categoryEditRow}>
                                                             <TextInput
-                                                                style={[styles.input, { flex: 1, paddingVertical: 8, height: 40 }]}
+                                                                style={[styles.input, styles.categoryInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                                                 value={tempCategoryName}
                                                                 onChangeText={setTempCategoryName}
                                                                 autoFocus
                                                             />
-                                                            <TouchableOpacity onPress={() => handleCategoryUpdate(cat)} style={styles.actionIcon}>
-                                                                <Save size={20} color={COLORS.success} />
+                                                            <TouchableOpacity onPress={() => handleCategoryUpdate(cat)} style={styles.categoryAction}>
+                                                                <Save size={18} color={colors.success} />
                                                             </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => setEditingCategory(null)} style={styles.actionIcon}>
-                                                                <X size={20} color={COLORS.danger} />
+                                                            <TouchableOpacity onPress={() => setEditingCategory(null)} style={styles.categoryAction}>
+                                                                <X size={18} color={colors.danger} />
                                                             </TouchableOpacity>
                                                         </View>
                                                     ) : (
                                                         <>
-                                                            <Text style={styles.categoryText}>{cat}</Text>
-                                                            <View style={{ flexDirection: 'row', gap: 12 }}>
-                                                                {cat !== 'אחר...' && (
-                                                                    <>
-                                                                        <TouchableOpacity
-                                                                            onPress={() => {
-                                                                                setEditingCategory(cat);
-                                                                                setTempCategoryName(cat);
-                                                                            }}
-                                                                        >
-                                                                            <Edit2 size={18} color={COLORS.primary} />
-                                                                        </TouchableOpacity>
-                                                                        <TouchableOpacity onPress={() => handleCategoryDelete(cat)}>
-                                                                            <Trash2 size={18} color={COLORS.danger} />
-                                                                        </TouchableOpacity>
-                                                                    </>
-                                                                )}
-                                                            </View>
+                                                            <Text style={[styles.categoryText, { color: colors.textPrimary }]}>{cat}</Text>
+                                                            {cat !== 'אחר...' && (
+                                                                <View style={styles.categoryActions}>
+                                                                    <TouchableOpacity
+                                                                        onPress={() => {
+                                                                            setEditingCategory(cat);
+                                                                            setTempCategoryName(cat);
+                                                                        }}
+                                                                    >
+                                                                        <Edit2 size={16} color={colors.primary} />
+                                                                    </TouchableOpacity>
+                                                                    <TouchableOpacity onPress={() => handleCategoryDelete(cat)}>
+                                                                        <Trash2 size={16} color={colors.danger} />
+                                                                    </TouchableOpacity>
+                                                                </View>
+                                                            )}
                                                         </>
                                                     )}
                                                 </View>
                                             ))}
-                                            <View style={[styles.inputGroup, { flexDirection: 'row', gap: 8, marginTop: 8 }]}>
+                                            <View style={styles.addCategoryRow}>
                                                 <TextInput
-                                                    style={[styles.input, { flex: 1 }]}
+                                                    style={[styles.input, styles.addCategoryInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                                     placeholder="הוסף קטגוריה חדשה..."
-                                                    placeholderTextColor={COLORS.textTertiary}
+                                                    placeholderTextColor={colors.textTertiary}
                                                     value={newCategoryName}
                                                     onChangeText={setNewCategoryName}
                                                 />
                                                 <TouchableOpacity
-                                                    style={[styles.addButton, !newCategoryName.trim() && { opacity: 0.5 }]}
+                                                    style={[styles.addCategoryButton, { backgroundColor: newCategoryName.trim() ? colors.primary : colors.fillSecondary }]}
                                                     onPress={handleAddCategory}
                                                     disabled={!newCategoryName.trim()}
                                                 >
-                                                    <Plus size={24} color={COLORS.white} />
+                                                    <Plus size={20} color={newCategoryName.trim() ? '#FFFFFF' : colors.textTertiary} />
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
                                     )}
 
-                                    {/* 4. Price Settings */}
                                     {section.id === 'prices' && (
-                                        <View style={{ gap: 16 }}>
+                                        <View style={styles.inputList}>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>מחיר שירות ברירת מחדל (₪)</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>מחיר שירות ברירת מחדל (₪)</Text>
                                                 <TextInput
-                                                    style={styles.input}
+                                                    style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                                     value={priceSettings.defaultServicePrice}
                                                     onChangeText={(t) => updatePriceSettings({ defaultServicePrice: t })}
                                                     keyboardType="numeric"
                                                 />
                                             </View>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>תעריף שעתי (₪)</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>תעריף שעתי (₪)</Text>
                                                 <TextInput
-                                                    style={styles.input}
+                                                    style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                                     value={priceSettings.hourlyRate}
                                                     onChangeText={(t) => updatePriceSettings({ hourlyRate: t })}
                                                     keyboardType="numeric"
                                                 />
                                             </View>
                                             <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>שיעור מע״מ (%)</Text>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>שיעור מע״מ (%)</Text>
                                                 <TextInput
-                                                    style={styles.input}
+                                                    style={[styles.input, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
                                                     value={priceSettings.taxRate.toString()}
                                                     onChangeText={(t) => updatePriceSettings({ taxRate: parseFloat(t) || 0 })}
                                                     keyboardType="numeric"
                                                 />
                                             </View>
-                                            <View style={styles.inputGroup}>
-                                                <Text style={styles.label}>הנחה קבועה (%)</Text>
-                                                <TextInput
-                                                    style={styles.input}
-                                                    value={priceSettings.defaultDiscount.toString()}
-                                                    onChangeText={(t) => updatePriceSettings({ defaultDiscount: parseFloat(t) || 0 })}
-                                                    keyboardType="numeric"
+                                        </View>
+                                    )}
+
+                                    {section.id === 'notifications' && (
+                                        <View style={styles.inputList}>
+                                            <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
+                                                <View style={styles.toggleInfo}>
+                                                    <Receipt size={18} color={colors.primary} />
+                                                    <View style={styles.toggleTextContainer}>
+                                                        <Text style={[styles.toggleTitle, { color: colors.textPrimary }]}>תזכורת קבלות</Text>
+                                                        <Text style={[styles.toggleSubtitle, { color: colors.textTertiary }]}>
+                                                            תזכורת להוסיף קבלות להוצאות
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <Switch
+                                                    value={receiptReminders}
+                                                    onValueChange={setReceiptReminders}
+                                                    trackColor={{ false: colors.border, true: `${colors.success}50` }}
+                                                    thumbColor={receiptReminders ? colors.success : colors.textQuaternary}
                                                 />
                                             </View>
+                                            <View style={[styles.toggleRow, { borderBottomColor: colors.border }]}>
+                                                <View style={styles.toggleInfo}>
+                                                    <Clock size={18} color={colors.primary} />
+                                                    <View style={styles.toggleTextContainer}>
+                                                        <Text style={[styles.toggleTitle, { color: colors.textPrimary }]}>תזכורת הוצאות</Text>
+                                                        <Text style={[styles.toggleSubtitle, { color: colors.textTertiary }]}>
+                                                            תזכורת יומית לתיעוד הוצאות
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                                <Switch
+                                                    value={expenseReminders}
+                                                    onValueChange={setExpenseReminders}
+                                                    trackColor={{ false: colors.border, true: `${colors.success}50` }}
+                                                    thumbColor={expenseReminders ? colors.success : colors.textQuaternary}
+                                                />
+                                            </View>
+                                            <Text style={[styles.settingsHint, { color: colors.textTertiary }]}>
+                                                התזכורות יופיעו בדשבורד כאשר יש הוצאות ללא קבלות
+                                            </Text>
                                         </View>
                                     )}
 
-                                    {/* 5. Privacy & Security */}
                                     {section.id === 'security' && (
-                                        <View style={{ gap: 16 }}>
-                                            <TouchableOpacity style={styles.linkRow}>
-                                                <Lock size={20} color={COLORS.primary} />
-                                                <Text style={styles.linkText}>שינוי סיסמה</Text>
-                                                <ChevronLeft size={16} color={COLORS.textTertiary} />
+                                        <View style={styles.inputList}>
+                                            <TouchableOpacity style={[styles.linkRow, { borderBottomColor: colors.border }]}>
+                                                <Lock size={18} color={colors.primary} />
+                                                <Text style={[styles.linkText, { color: colors.textPrimary }]}>שינוי סיסמה</Text>
+                                                <ChevronLeft size={16} color={colors.textTertiary} />
                                             </TouchableOpacity>
-                                            <TouchableOpacity style={styles.linkRow}>
-                                                <ExternalLink size={20} color={COLORS.primary} />
-                                                <Text style={styles.linkText}>מדיניות פרטיות</Text>
-                                                <ChevronLeft size={16} color={COLORS.textTertiary} />
+                                            <TouchableOpacity style={[styles.linkRow, { borderBottomColor: colors.border }]}>
+                                                <ExternalLink size={18} color={colors.primary} />
+                                                <Text style={[styles.linkText, { color: colors.textPrimary }]}>מדיניות פרטיות</Text>
+                                                <ChevronLeft size={16} color={colors.textTertiary} />
                                             </TouchableOpacity>
-                                            <TouchableOpacity
-                                                style={[styles.linkRow, { borderBottomWidth: 0 }]}
-                                                onPress={handleDeleteAccount}
-                                            >
-                                                <Trash2 size={20} color={COLORS.danger} />
-                                                <Text style={[styles.linkText, { color: COLORS.danger }]}>מחק חשבון (איזור סכנה)</Text>
+                                            <TouchableOpacity style={styles.linkRow} onPress={handleDeleteAccount}>
+                                                <Trash2 size={18} color={colors.danger} />
+                                                <Text style={[styles.linkText, { color: colors.danger }]}>מחק חשבון</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
 
-                                    {/* 6. About & Help */}
                                     {section.id === 'about' && (
-                                        <View style={{ gap: 16 }}>
-                                            <View style={styles.detailRow}>
-                                                <Text style={styles.label}>גרסה</Text>
-                                                <Text style={styles.value}>1.0.0 (Beta)</Text>
+                                        <View style={styles.inputList}>
+                                            <View style={[styles.detailRow, { borderBottomColor: colors.border }]}>
+                                                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>גרסה</Text>
+                                                <Text style={[styles.detailValue, { color: colors.textPrimary }]}>1.0.0</Text>
                                             </View>
                                             <TouchableOpacity style={styles.linkRow}>
-                                                <MessageSquare size={20} color={COLORS.primary} />
-                                                <Text style={styles.linkText}>צור קשר עם תמיכה</Text>
-                                                <ChevronLeft size={16} color={COLORS.textTertiary} />
+                                                <MessageSquare size={18} color={colors.primary} />
+                                                <Text style={[styles.linkText, { color: colors.textPrimary }]}>צור קשר עם תמיכה</Text>
+                                                <ChevronLeft size={16} color={colors.textTertiary} />
                                             </TouchableOpacity>
                                         </View>
                                     )}
-
                                 </View>
                             )}
                         </View>
                     ))}
 
-                    <TouchableOpacity style={styles.logoutButton} onPress={() => navigation.navigate('Login')}>
-                        <LogOut size={20} color={COLORS.danger} />
-                        <Text style={styles.logoutText}>התנתק</Text>
+                    {/* Logout Button */}
+                    <TouchableOpacity
+                        style={[styles.logoutButton, { backgroundColor: colors.dangerMuted, borderColor: colors.danger }]}
+                        onPress={() => navigation.navigate('Login')}
+                    >
+                        <LogOut size={18} color={colors.danger} />
+                        <Text style={[styles.logoutText, { color: colors.danger }]}>התנתק</Text>
                     </TouchableOpacity>
 
-                    <View style={{ height: 40 }} />
+                    <View style={{ height: 100 }} />
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* Industry Picker Modal */}
+            {/* Industry Modal */}
             <Modal visible={industryModalVisible} transparent animationType="fade">
                 <TouchableOpacity
-                    style={styles.modalOverlay}
+                    style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}
                     activeOpacity={1}
                     onPress={() => setIndustryModalVisible(false)}
                 >
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>בחר תחום עיסוק</Text>
+                    <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>בחר תחום עיסוק</Text>
                         <FlatList
                             data={INDUSTRIES}
                             keyExtractor={(item) => item}
                             renderItem={({ item }) => (
                                 <TouchableOpacity
-                                    style={styles.modalItem}
+                                    style={[styles.modalItem, { borderBottomColor: colors.border }]}
                                     onPress={() => {
-                                        updateUserProfile({ industry: item });
+                                        updateUserProfileContext({ businessCategory: item });
                                         setIndustryModalVisible(false);
                                     }}
                                 >
                                     <Text style={[
                                         styles.modalItemText,
-                                        userProfile.industry === item && { color: COLORS.primary, fontFamily: FONTS.bold }
+                                        { color: colors.textPrimary },
+                                        userProfile?.businessCategory === item && { color: colors.primary, fontFamily: FONTS.semiBold }
                                     ]}>{item}</Text>
-                                    {userProfile.industry === item && <Text style={{ color: COLORS.primary }}>✓</Text>}
+                                    {userProfile?.businessCategory === item && <Text style={{ color: colors.primary }}>✓</Text>}
                                 </TouchableOpacity>
                             )}
                         />
                     </View>
                 </TouchableOpacity>
             </Modal>
-        </View >
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingBottom: 20,
-        backgroundColor: COLORS.background,
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: SPACING.lg,
     },
     backButton: {
-        padding: 8,
-        borderRadius: 12,
-        backgroundColor: COLORS.surface,
-        borderWidth: 1,
-        borderColor: COLORS.border,
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     headerTitle: {
-        fontSize: 20,
-        fontFamily: FONTS.bold,
-        color: COLORS.textPrimary,
+        ...TYPOGRAPHY.h3,
     },
     content: {
-        padding: 20,
-        paddingTop: 10,
-        paddingBottom: 100,
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingTop: SPACING.sm,
     },
     profileCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.surface,
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 24,
-        borderWidth: 1,
-        borderColor: COLORS.border,
+        padding: SPACING.lg,
+        borderRadius: RADIUS.lg,
+        marginBottom: SPACING.xl,
     },
     avatarContainer: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        marginRight: 16,
-        marginLeft: 4,
+        position: 'relative',
+        marginLeft: SPACING.lg,
     },
     avatar: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
     },
     avatarPlaceholder: {
-        backgroundColor: COLORS.primary,
         alignItems: 'center',
         justifyContent: 'center',
     },
     avatarInitials: {
-        fontSize: 24,
-        color: COLORS.white, // Keep white as it's on primary color
+        fontSize: 22,
+        color: '#FFFFFF',
         fontFamily: FONTS.bold,
     },
     cameraIcon: {
         position: 'absolute',
         bottom: 0,
         right: 0,
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        width: 24,
-        height: 24,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 2,
-        borderColor: COLORS.background,
     },
     profileInfo: {
         flex: 1,
     },
     profileName: {
-        fontSize: 18,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
-        marginBottom: 4,
+        ...TYPOGRAPHY.h4,
+        marginBottom: 2,
     },
     profileEmail: {
-        fontSize: 14,
-        color: COLORS.textTertiary,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.bodySmall,
     },
     section: {
-        marginBottom: 16,
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: COLORS.border,
+        borderRadius: RADIUS.lg,
+        marginBottom: SPACING.md,
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-        elevation: 2,
-    },
-    sectionDisabled: {
-        opacity: 0.6,
-        backgroundColor: COLORS.background, // Or a slightly lighter generic bg
-        borderColor: COLORS.border,
     },
     sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: 16,
+        padding: SPACING.lg,
+    },
+    sectionLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.md,
     },
     iconBox: {
         width: 36,
         height: 36,
-        borderRadius: 10,
-        backgroundColor: 'rgba(132, 101, 243, 0.1)', // Keep rgba or map to primary/alpha
+        borderRadius: RADIUS.sm,
         alignItems: 'center',
         justifyContent: 'center',
     },
     sectionTitle: {
-        fontSize: 16,
-        color: COLORS.textPrimary,
+        ...TYPOGRAPHY.body,
         fontFamily: FONTS.medium,
     },
     sectionContent: {
-        padding: 16,
+        padding: SPACING.lg,
+        paddingTop: 0,
         borderTopWidth: 1,
-        borderTopColor: COLORS.border,
+    },
+    inputList: {
+        paddingTop: SPACING.lg,
     },
     inputGroup: {
-        marginBottom: 4,
+        marginBottom: SPACING.lg,
     },
-    label: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        marginBottom: 8,
-        fontFamily: FONTS.regular,
+    inputLabel: {
+        ...TYPOGRAPHY.caption,
+        marginBottom: SPACING.sm,
+        textAlign: 'right',
     },
     input: {
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        padding: 12,
-        color: COLORS.textPrimary,
+        height: 48,
+        borderRadius: RADIUS.md,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        fontFamily: FONTS.regular,
-        textAlign: 'right'
+        paddingHorizontal: SPACING.lg,
+        ...TYPOGRAPHY.body,
+        textAlign: 'right',
     },
     inputDisabled: {
         opacity: 0.6,
-        backgroundColor: COLORS.surface,
     },
-    dropdownButton: {
+    dropdown: {
+        height: 48,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        paddingHorizontal: SPACING.lg,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: COLORS.background,
-        borderRadius: 12,
-        padding: 12,
-        borderWidth: 1,
-        borderColor: COLORS.border,
     },
     dropdownText: {
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.body,
     },
     categoryRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingVertical: 12,
+        paddingVertical: SPACING.md,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
     categoryText: {
-        fontSize: 16,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.body,
     },
-    actionIcon: {
-        padding: 4,
+    categoryActions: {
+        flexDirection: 'row',
+        gap: SPACING.lg,
     },
-    addButton: {
-        backgroundColor: COLORS.primary,
+    categoryEditRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+    },
+    categoryInput: {
+        flex: 1,
+        height: 40,
+    },
+    categoryAction: {
+        padding: SPACING.xs,
+    },
+    addCategoryRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        marginTop: SPACING.md,
+    },
+    addCategoryInput: {
+        flex: 1,
+    },
+    addCategoryButton: {
         width: 48,
         height: 48,
-        borderRadius: 12,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
         justifyContent: 'center',
     },
     linkRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
+        paddingVertical: SPACING.md,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-        gap: 12
+        gap: SPACING.md,
     },
     linkText: {
-        fontSize: 16,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.regular,
         flex: 1,
-        textAlign: 'left'
+        ...TYPOGRAPHY.body,
+        textAlign: 'left',
     },
     detailRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        paddingVertical: SPACING.md,
+        borderBottomWidth: 1,
     },
-    value: {
-        fontSize: 16,
-        color: COLORS.textPrimary,
+    detailValue: {
+        ...TYPOGRAPHY.body,
         fontFamily: FONTS.medium,
     },
     logoutButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 24,
-        gap: 8,
-        padding: 16,
-        backgroundColor: 'rgba(255, 82, 82, 0.1)',
-        borderRadius: 16,
+        gap: SPACING.sm,
+        padding: SPACING.lg,
+        borderRadius: RADIUS.lg,
         borderWidth: 1,
-        borderColor: 'rgba(255, 82, 82, 0.3)',
+        marginTop: SPACING.xl,
     },
     logoutText: {
-        color: COLORS.danger,
-        fontSize: 16,
-        fontFamily: FONTS.medium,
+        ...TYPOGRAPHY.label,
     },
-    // Modal
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
         justifyContent: 'center',
-        padding: 20
+        padding: LAYOUT.screenPadding,
     },
     modalContent: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 24,
-        padding: 20,
+        borderRadius: RADIUS.xl,
+        padding: SPACING.xl,
         maxHeight: '70%',
     },
     modalTitle: {
-        fontSize: 20,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
-        marginBottom: 16,
+        ...TYPOGRAPHY.h3,
         textAlign: 'center',
+        marginBottom: SPACING.lg,
     },
     modalItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 16,
+        paddingVertical: SPACING.lg,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
     modalItemText: {
-        fontSize: 16,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.regular,
-    }
+        ...TYPOGRAPHY.body,
+    },
+    // Theme styles
+    themeOptions: {
+        flexDirection: 'row',
+        gap: SPACING.md,
+        marginBottom: SPACING.lg,
+    },
+    themeOption: {
+        flex: 1,
+        padding: SPACING.md,
+        borderRadius: RADIUS.lg,
+        borderWidth: 1.5,
+        alignItems: 'center',
+        position: 'relative',
+    },
+    themeIconBox: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: SPACING.sm,
+    },
+    themeLabel: {
+        ...TYPOGRAPHY.labelSmall,
+    },
+    themeCheck: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    themeHint: {
+        ...TYPOGRAPHY.caption,
+        textAlign: 'center',
+    },
+    // Toggle/notification styles
+    toggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: SPACING.md,
+        borderBottomWidth: 1,
+    },
+    toggleInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        gap: SPACING.md,
+    },
+    toggleTextContainer: {
+        flex: 1,
+    },
+    toggleTitle: {
+        ...TYPOGRAPHY.body,
+        fontFamily: FONTS.medium,
+        marginBottom: 2,
+    },
+    toggleSubtitle: {
+        ...TYPOGRAPHY.caption,
+    },
+    settingsHint: {
+        ...TYPOGRAPHY.caption,
+        textAlign: 'center',
+        marginTop: SPACING.lg,
+    },
 });

@@ -8,66 +8,58 @@ import {
     TextInput,
     Switch,
     Image,
-    Alert,
     Platform,
-    I18nManager,
     KeyboardAvoidingView,
     ActivityIndicator,
-    Modal
+    Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { ChevronRight, Camera, Image as ImageIcon, Calendar, ChevronDown, Check, Save, Layers, DollarSign, FileText, ArrowLeft, X, Wand2 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronRight, Camera, Image as ImageIcon, Calendar, ChevronDown, Check, Layers, X, Wand2 } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useTransactions } from '../context/TransactionsContext';
+import { useNotification } from '../context/NotificationContext';
+import { useTheme } from '../context/ThemeContext';
 import { SuccessModal } from '../components/SuccessModal';
-import { COLORS, FONTS } from '../constants/theme';
+import { getColors, FONTS, SPACING, RADIUS, SHADOWS, TYPOGRAPHY, LAYOUT } from '../constants/theme';
 import { scanReceipt } from '../services/GoogleVisionService';
 import { handleError } from '../utils/errorHandler';
 import { uploadReceiptToCloud } from '../utils/receiptStorage';
 
 export default function AddExpenseScreen({ route }: any) {
     const navigation = useNavigation();
+    const insets = useSafeAreaInsets();
+    const { resolvedTheme, isDark } = useTheme();
+    const colors = getColors(resolvedTheme);
     const { addTransaction, updateTransaction, categories, transactions } = useTransactions();
+    const { showWarning, showError } = useNotification();
 
-    // Check if editing existing expense
     const editingExpense = route?.params?.expense;
     const isEditMode = !!editingExpense;
 
-    // Form State - Pre-fill if editing
     const [amount, setAmount] = useState(editingExpense ? editingExpense.amount.replace(/[^0-9.]/g, '') : '');
     const [date, setDate] = useState(editingExpense ? new Date(editingExpense.date) : new Date());
     const [category, setCategory] = useState(editingExpense?.category || '');
     const [supplier, setSupplier] = useState(editingExpense?.supplier || '');
     const [description, setDescription] = useState(editingExpense?.title || '');
-
-    // Additional Expense Fields
     const [projectId, setProjectId] = useState<string | null>(editingExpense?.clientId || null);
     const [isDeductible, setIsDeductible] = useState(editingExpense?.isDeductible ?? true);
     const [hasVat, setHasVat] = useState(true);
     const [receiptUri, setReceiptUri] = useState<string | null>(editingExpense?.receiptImageUri || null);
     const [isScanning, setIsScanning] = useState(false);
-
-    // Dropdown State
     const [showCategories, setShowCategories] = useState(false);
-
-    // Modal State
     const [showSuccess, setShowSuccess] = useState(false);
-    const [keepForm, setKeepForm] = useState(false); // If true, "Save and Create Another"
+    const [keepForm, setKeepForm] = useState(false);
 
-    // Validation errors
-    const [amountError, setAmountError] = useState('');
-    const [categoryError, setCategoryError] = useState('');
-
-    // Recent Invoices for Project Linking
     const recentInvoices = transactions.filter(t => t.type === 'invoice').slice(0, 5);
 
     const handleCamera = async () => {
         try {
             const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
             if (!permissionResult.granted) {
-                Alert.alert("דרושה הרשאה", "אפליקציה זו זקוקה לגישה למצלמה.");
+                showWarning('דרושה הרשאה', 'אפליקציה זו זקוקה לגישה למצלמה');
                 return;
             }
 
@@ -81,15 +73,14 @@ export default function AddExpenseScreen({ route }: any) {
                 setReceiptUri(result.assets[0].uri);
             }
         } catch (error) {
-            console.error('Camera error:', error);
-            Alert.alert('שגיאה', 'שגיאה בפתיחת המצלמה');
+            showError('שגיאה', 'שגיאה בפתיחת המצלמה');
         }
     };
 
     const handleGallery = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permissionResult.granted) {
-            Alert.alert("דרושה הרשאה", "אפליקציה זו זקוקה לגישה לגלריה.");
+            showWarning('דרושה הרשאה', 'אפליקציה זו זקוקה לגישה לגלריה');
             return;
         }
 
@@ -107,7 +98,7 @@ export default function AddExpenseScreen({ route }: any) {
     const handleMagicScan = async () => {
         const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
         if (!permissionResult.granted) {
-            Alert.alert("דרושה הרשאה", "אפליקציה זו זקוקה לגישה למצלמה.");
+            showWarning('דרושה הרשאה', 'אפליקציה זו זקוקה לגישה למצלמה');
             return;
         }
 
@@ -126,17 +117,9 @@ export default function AddExpenseScreen({ route }: any) {
                 if (data.amount) setAmount(data.amount.toString());
                 if (data.date) setDate(new Date(data.date));
                 if (data.merchant) setSupplier(data.merchant);
-                // Simple category matching or default
-                if (data.category) {
-                    // Try to match or set description
-                    setDescription(data.category);
-                }
-                // Show success with auto-filled data
-                setShowSuccess(true);
-                setTimeout(() => setShowSuccess(false), 2000);
+                if (data.category) setDescription(data.category);
             } catch (error: any) {
-                handleError(error, true); // Show Hebrew error message
-                console.error('Scan error:', error);
+                handleError(error, true);
             } finally {
                 setIsScanning(false);
             }
@@ -151,11 +134,7 @@ export default function AddExpenseScreen({ route }: any) {
             });
 
             if (!result.canceled) {
-                const asset = result.assets[0];
-                const uri = asset.uri;
-                const name = asset.name;
-                const mimeType = asset.mimeType || 'application/octet-stream';
-
+                const uri = result.assets[0].uri;
                 setReceiptUri(uri);
                 setIsScanning(true);
 
@@ -164,15 +143,9 @@ export default function AddExpenseScreen({ route }: any) {
                     if (data.amount) setAmount(data.amount.toString());
                     if (data.date) setDate(new Date(data.date));
                     if (data.merchant) setSupplier(data.merchant);
-                    if (data.category) {
-                        setDescription(data.category);
-                    }
-                    // Show success with auto-filled data
-                    setShowSuccess(true);
-                    setTimeout(() => setShowSuccess(false), 2000);
+                    if (data.category) setDescription(data.category);
                 } catch (error: any) {
-                    handleError(error, true); // Show Hebrew error message
-                    console.error('File Scan error:', error);
+                    handleError(error, true);
                 } finally {
                     setIsScanning(false);
                 }
@@ -183,55 +156,23 @@ export default function AddExpenseScreen({ route }: any) {
     };
 
     const validateForm = (): boolean => {
-        let isValid = true;
-
-        // Validate amount
-        if (!amount || amount.trim() === '') {
-            setAmountError('שדה חובה');
-            isValid = false;
-        } else if (parseFloat(amount) <= 0) {
-            setAmountError('הסכום חייב להיות גדול מ-0');
-            isValid = false;
-        } else {
-            setAmountError('');
-        }
-
-        // Validate category
-        if (!category || category.trim() === '') {
-            setCategoryError('שדה חובה');
-            isValid = false;
-        } else {
-            setCategoryError('');
-        }
-
-        return isValid;
+        if (!amount || amount.trim() === '' || parseFloat(amount) <= 0) return false;
+        if (!category || category.trim() === '') return false;
+        return true;
     };
 
     const handleSave = async (createAnother: boolean = false) => {
         if (!validateForm()) {
-            // Show detailed error message
-            const missingFields = [];
-            if (!amount || amount.trim() === '') missingFields.push('סכום');
-            if (parseFloat(amount) <= 0) missingFields.push('סכום תקין');
-            if (!category || category.trim() === '') missingFields.push('קטגוריה');
-
-            Alert.alert(
-                'שדות חסרים',
-                `אנא מלא את השדות הבאים:\n• ${missingFields.join('\n• ')}`,
-                [{ text: 'אישור', style: 'default' }]
-            );
+            showWarning('שדות חסרים', 'אנא מלא סכום וקטגוריה');
             return;
         }
 
-        // Upload receipt to cloud if present
         let cloudReceiptUrl = receiptUri;
         if (receiptUri && !receiptUri.startsWith('http')) {
-            console.log('📤 Uploading receipt to cloud...');
             cloudReceiptUrl = await uploadReceiptToCloud(receiptUri, Date.now().toString());
         }
 
         if (isEditMode && editingExpense) {
-            // Update existing expense
             updateTransaction(editingExpense.id, {
                 title: supplier || description || 'הוצאה כללית',
                 amount: `₪ ${parseFloat(amount).toLocaleString()}`,
@@ -244,11 +185,8 @@ export default function AddExpenseScreen({ route }: any) {
                 isDeductible: isDeductible,
             });
             setShowSuccess(true);
-            setTimeout(() => {
-                navigation.goBack();
-            }, 1500);
+            setTimeout(() => navigation.goBack(), 1500);
         } else {
-            // Create new expense
             const newExpense = {
                 id: Date.now().toString(),
                 type: 'expense' as const,
@@ -274,18 +212,20 @@ export default function AddExpenseScreen({ route }: any) {
     const handleModalClose = () => {
         setShowSuccess(false);
         if (keepForm) {
-            // Reset crucial fields only
+            // Reset form for new entry
             setAmount('');
             setSupplier('');
             setDescription('');
             setReceiptUri(null);
+        } else {
+            // Navigate back to main screen
+            navigation.goBack();
         }
-        // Don't navigate back - let user review and edit
     };
 
     return (
-        <View style={styles.container}>
-            <StatusBar style="light" backgroundColor={COLORS.background} />
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <StatusBar style={isDark ? 'light' : 'dark'} />
             <SuccessModal
                 visible={showSuccess}
                 title="ההוצאה נשמרה!"
@@ -294,28 +234,32 @@ export default function AddExpenseScreen({ route }: any) {
             />
 
             {/* Loading Modal */}
-            <Modal
-                visible={isScanning}
-                transparent
-                animationType="fade"
-            >
-                <View style={styles.loadingOverlay}>
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={COLORS.primary} />
-                        <Text style={styles.loadingText}>סורק קבלה...</Text>
-                        <Text style={styles.loadingSubtext}>זה עשוי לקחת מספר שניות</Text>
+            <Modal visible={isScanning} transparent animationType="fade">
+                <View style={[styles.loadingOverlay, { backgroundColor: colors.overlay }]}>
+                    <View style={[styles.loadingContainer, { backgroundColor: colors.surface }]}>
+                        <ActivityIndicator size="large" color={colors.primary} />
+                        <Text style={[styles.loadingText, { color: colors.textPrimary }]}>סורק קבלה...</Text>
+                        <Text style={[styles.loadingSubtext, { color: colors.textSecondary }]}>זה עשוי לקחת מספר שניות</Text>
                     </View>
                 </View>
             </Modal>
 
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <ChevronRight size={28} color={COLORS.textPrimary} />
+            <View style={[styles.header, { paddingTop: insets.top + SPACING.md }]}>
+                <TouchableOpacity
+                    onPress={() => navigation.goBack()}
+                    style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
+                >
+                    <ChevronRight size={24} color={colors.textSecondary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{isEditMode ? 'עריכת הוצאה' : 'הוסף הוצאה'}</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('ExpenseTemplates' as never)} style={styles.templatesButton}>
-                    <Layers size={24} color={COLORS.primary} />
+                <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>
+                    {isEditMode ? 'עריכת הוצאה' : 'הוסף הוצאה'}
+                </Text>
+                <TouchableOpacity
+                    onPress={() => navigation.navigate('ExpenseTemplates' as never)}
+                    style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary }]}
+                >
+                    <Layers size={20} color={colors.primary} />
                 </TouchableOpacity>
             </View>
 
@@ -324,199 +268,223 @@ export default function AddExpenseScreen({ route }: any) {
                 style={{ flex: 1 }}
             >
                 <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-                    {/* SECTION 1: RECEIPT VISUAL */}
+                    {/* Receipt Section */}
                     <View style={styles.receiptSection}>
                         {receiptUri ? (
                             <View style={styles.previewContainer}>
                                 <Image source={{ uri: receiptUri }} style={styles.receiptPreview} />
-                                <TouchableOpacity onPress={() => setReceiptUri(null)} style={styles.removeImageBtn}>
-                                    <X size={20} color={COLORS.white} />
+                                <TouchableOpacity
+                                    onPress={() => setReceiptUri(null)}
+                                    style={[styles.removeImageBtn, { backgroundColor: colors.overlay }]}
+                                >
+                                    <X size={20} color="#FFFFFF" />
                                 </TouchableOpacity>
                             </View>
                         ) : (
-                            <View style={styles.placeholderContainer}>
-                                <Text style={styles.placeholderLabel}>העלה קבלה</Text>
+                            <View style={[styles.placeholderContainer, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
+                                <Text style={[styles.placeholderLabel, { color: colors.textTertiary }]}>העלה קבלה</Text>
                                 <View style={styles.imageActionsGrid}>
-                                    <TouchableOpacity style={styles.gridActionBtn} onPress={handleCamera}>
-                                        <Camera size={20} color={COLORS.primary} />
-                                        <Text style={styles.gridActionLabel}>צלם</Text>
+                                    <TouchableOpacity
+                                        style={[styles.gridActionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                                        onPress={handleCamera}
+                                    >
+                                        <Camera size={20} color={colors.textSecondary} />
+                                        <Text style={[styles.gridActionLabel, { color: colors.textPrimary }]}>צלם</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={styles.gridActionBtn} onPress={handleGallery}>
-                                        <ImageIcon size={20} color={COLORS.primary} />
-                                        <Text style={styles.gridActionLabel}>גלריה</Text>
+                                    <TouchableOpacity
+                                        style={[styles.gridActionBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                                        onPress={handleGallery}
+                                    >
+                                        <ImageIcon size={20} color={colors.textSecondary} />
+                                        <Text style={[styles.gridActionLabel, { color: colors.textPrimary }]}>גלריה</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={[styles.gridActionBtn, styles.gridActionHighlight]} onPress={handleMagicScan}>
-                                        <Wand2 size={20} color={COLORS.primary} />
-                                        <Text style={[styles.gridActionLabel, { color: COLORS.primary }]}>סרוק</Text>
+                                    <TouchableOpacity
+                                        style={[styles.gridActionBtn, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}
+                                        onPress={handleMagicScan}
+                                    >
+                                        <Wand2 size={20} color={colors.primary} />
+                                        <Text style={[styles.gridActionLabel, { color: colors.primary }]}>סרוק</Text>
                                     </TouchableOpacity>
-                                    <TouchableOpacity style={[styles.gridActionBtn, styles.gridActionHighlight]} onPress={handleGalleryScan}>
-                                        <ImageIcon size={20} color={COLORS.primary} />
-                                        <Text style={[styles.gridActionLabel, { color: COLORS.primary }]}>סרוק קובץ</Text>
+                                    <TouchableOpacity
+                                        style={[styles.gridActionBtn, { backgroundColor: colors.primaryMuted, borderColor: colors.primary }]}
+                                        onPress={handleGalleryScan}
+                                    >
+                                        <ImageIcon size={20} color={colors.primary} />
+                                        <Text style={[styles.gridActionLabel, { color: colors.primary }]}>סרוק קובץ</Text>
                                     </TouchableOpacity>
                                 </View>
-                                {isScanning && <Text style={{ textAlign: 'center', marginTop: 10, color: COLORS.primary }}>סורק קבלה...</Text>}
                             </View>
                         )}
                     </View>
 
-                    {/* SECTION 2: MAIN FORM - CLEAN LOOK */}
-                    <View style={styles.formContainer}>
+                    {/* Amount */}
+                    <View style={styles.amountSection}>
+                        <Text style={[styles.currencyPrefix, { color: colors.primary }]}>₪</Text>
+                        <TextInput
+                            style={[styles.amountInput, { color: colors.textPrimary }]}
+                            placeholder="0.00"
+                            placeholderTextColor={colors.textQuaternary}
+                            keyboardType="numeric"
+                            value={amount}
+                            onChangeText={setAmount}
+                            textAlign="center"
+                        />
+                    </View>
 
-                        {/* Amount - Big & Clean */}
-                        <View style={styles.amountInputContainer}>
-                            <Text style={styles.currencyPrefix}>₪</Text>
-                            <TextInput
-                                style={styles.amountInput}
-                                placeholder="0.00"
-                                placeholderTextColor={COLORS.textTertiary}
-                                keyboardType="numeric"
-                                value={amount}
-                                onChangeText={setAmount}
-                                textAlign={I18nManager.isRTL ? 'right' : 'left'}
-                            />
+                    {/* Date & Category */}
+                    <View style={styles.row}>
+                        <View style={[styles.inputGroup, { flex: 1, marginLeft: SPACING.md }]}>
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>תאריך</Text>
+                            <TouchableOpacity style={[styles.inputField, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
+                                <Text style={[styles.inputText, { color: colors.textPrimary }]}>{date.toLocaleDateString('he-IL')}</Text>
+                                <Calendar size={16} color={colors.textTertiary} />
+                            </TouchableOpacity>
                         </View>
 
-                        {/* Date & Category Row */}
-                        <View style={styles.row}>
-                            <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-                                <Text style={styles.miniLabel}>תאריך</Text>
-                                <TouchableOpacity style={styles.miniInput}>
-                                    <Text style={styles.inputText}>{date.toLocaleDateString()}</Text>
-                                    <Calendar size={16} color={COLORS.textSecondary} />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={[styles.inputGroup, { flex: 1.5 }]}>
-                                <Text style={styles.miniLabel}>קטגוריה</Text>
-                                <TouchableOpacity
-                                    style={[styles.miniInput, showCategories && { borderColor: COLORS.primary }]}
-                                    onPress={() => setShowCategories(!showCategories)}
-                                >
-                                    <Text style={[styles.inputText, !category && { color: COLORS.textSecondary }]}>
-                                        {category || "בחר קטגוריה"}
-                                    </Text>
-                                    <ChevronDown size={16} color={COLORS.textSecondary} />
-                                </TouchableOpacity>
-                            </View>
+                        <View style={[styles.inputGroup, { flex: 1.5 }]}>
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>קטגוריה</Text>
+                            <TouchableOpacity
+                                style={[
+                                    styles.inputField,
+                                    { backgroundColor: colors.surfaceSecondary, borderColor: showCategories ? colors.primary : colors.border }
+                                ]}
+                                onPress={() => setShowCategories(!showCategories)}
+                            >
+                                <Text style={[styles.inputText, { color: category ? colors.textPrimary : colors.textTertiary }]}>
+                                    {category || "בחר קטגוריה"}
+                                </Text>
+                                <ChevronDown size={16} color={colors.textTertiary} />
+                            </TouchableOpacity>
                         </View>
+                    </View>
 
-                        {/* Dropdown Expansion */}
-                        {showCategories && (
-                            <View style={styles.dropdownContainer}>
-                                <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
-                                    {categories.map((cat, idx) => (
-                                        <TouchableOpacity
-                                            key={idx}
-                                            style={styles.dropdownItem}
-                                            onPress={() => {
-                                                setCategory(cat);
-                                                setShowCategories(false);
-                                            }}
-                                        >
-                                            <Text style={[styles.dropdownText, category === cat && styles.dropdownTextActive]}>
-                                                {cat}
-                                            </Text>
-                                            {category === cat && <Check size={16} color={COLORS.primary} />}
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
-                            </View>
-                        )}
+                    {/* Dropdown */}
+                    {showCategories && (
+                        <View style={[styles.dropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                            <ScrollView style={{ maxHeight: 200 }} nestedScrollEnabled>
+                                {categories.map((cat, idx) => (
+                                    <TouchableOpacity
+                                        key={idx}
+                                        style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
+                                        onPress={() => { setCategory(cat); setShowCategories(false); }}
+                                    >
+                                        <Text style={[styles.dropdownText, { color: category === cat ? colors.primary : colors.textPrimary }]}>
+                                            {cat}
+                                        </Text>
+                                        {category === cat && <Check size={16} color={colors.primary} />}
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
 
-                        {/* Supplier */}
+                    {/* Supplier */}
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>שם העסק / ספק</Text>
+                        <TextInput
+                            style={[styles.textInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
+                            placeholder="איפה קנית?"
+                            placeholderTextColor={colors.textTertiary}
+                            value={supplier}
+                            onChangeText={setSupplier}
+                            textAlign="right"
+                        />
+                    </View>
+
+                    {/* Project Chips */}
+                    {recentInvoices.length > 0 && (
                         <View style={styles.inputGroup}>
-                            <Text style={styles.miniLabel}>שם העסק / ספק</Text>
-                            <TextInput
-                                style={styles.regularInput}
-                                placeholder="איפה קנית?"
-                                placeholderTextColor={COLORS.textSecondary}
-                                value={supplier}
-                                onChangeText={setSupplier}
-                                textAlign={I18nManager.isRTL ? 'right' : 'left'}
-                            />
-                        </View>
-
-                        {/* Project Links (Chips) */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.miniLabel}>שייך לפרויקט (אופציונלי)</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 4 }}>
+                            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>שייך לפרויקט</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                                 {recentInvoices.map(proj => (
                                     <TouchableOpacity
                                         key={proj.id}
-                                        style={[styles.chip, projectId === proj.id && styles.chipActive]}
+                                        style={[
+                                            styles.chip,
+                                            { backgroundColor: projectId === proj.id ? colors.primaryMuted : colors.surfaceSecondary, borderColor: projectId === proj.id ? colors.primary : colors.border }
+                                        ]}
                                         onPress={() => setProjectId(projectId === proj.id ? null : proj.id)}
                                     >
-                                        <Text style={[styles.chipText, projectId === proj.id && styles.chipTextActive]}>
+                                        <Text style={[styles.chipText, { color: projectId === proj.id ? colors.primary : colors.textTertiary }]}>
                                             {proj.title}
                                         </Text>
                                     </TouchableOpacity>
                                 ))}
                             </ScrollView>
                         </View>
+                    )}
 
-                        {/* Description */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.miniLabel}>תיאור</Text>
-                            <TextInput
-                                style={[styles.regularInput, { height: 80, textAlignVertical: 'top' }]}
-                                placeholder="פרטים נוספים..."
-                                placeholderTextColor={COLORS.textSecondary}
-                                multiline
-                                value={description}
-                                onChangeText={setDescription}
-                                textAlign={I18nManager.isRTL ? 'right' : 'left'}
+                    {/* Description */}
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>תיאור</Text>
+                        <TextInput
+                            style={[styles.textInput, styles.multilineInput, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, color: colors.textPrimary }]}
+                            placeholder="פרטים נוספים..."
+                            placeholderTextColor={colors.textTertiary}
+                            multiline
+                            value={description}
+                            onChangeText={setDescription}
+                            textAlign="right"
+                        />
+                    </View>
+
+                    {/* Settings Card */}
+                    <View style={[styles.settingsCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                        <View style={styles.settingRow}>
+                            <View>
+                                <Text style={[styles.settingTitle, { color: colors.textPrimary }]}>מוכר למס</Text>
+                                <Text style={[styles.settingSub, { color: colors.textTertiary }]}>האם ההוצאה מוכרת?</Text>
+                            </View>
+                            <Switch
+                                trackColor={{ false: colors.border, true: colors.primary }}
+                                thumbColor="#FFF"
+                                onValueChange={setIsDeductible}
+                                value={isDeductible}
                             />
                         </View>
 
-                        {/* Settings Toggles - Card Style */}
-                        <View style={styles.settingsCard}>
-                            <View style={styles.settingRow}>
-                                <View>
-                                    <Text style={styles.settingTitle}>מוכר למס</Text>
-                                    <Text style={styles.settingSub}>האם ההוצאה מוכרת?</Text>
-                                </View>
-                                <Switch
-                                    trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                                    thumbColor={"#FFF"}
-                                    onValueChange={setIsDeductible}
-                                    value={isDeductible}
-                                />
-                            </View>
-                            <View style={[styles.settingRow, { borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12, marginTop: 12 }]}>
-                                <View>
-                                    <Text style={styles.settingTitle}>כולל מע״מ</Text>
-                                    <Text style={styles.settingSub}>חישוב מע״מ אוטומטי</Text>
-                                </View>
-                                <Switch
-                                    trackColor={{ false: COLORS.border, true: COLORS.primary }}
-                                    thumbColor={"#FFF"}
-                                    onValueChange={setHasVat}
-                                    value={hasVat}
-                                />
-                            </View>
+                        <View style={[styles.settingDivider, { backgroundColor: colors.border }]} />
 
-                            {hasVat && amount && (
-                                <View style={styles.vatInfo}>
-                                    <Text style={styles.vatDetail}>מע״מ: ₪{(parseFloat(amount) - (parseFloat(amount) / 1.17)).toFixed(2)}</Text>
-                                    <Text style={styles.vatDetail}>נטו: ₪{(parseFloat(amount) / 1.17).toFixed(2)}</Text>
-                                </View>
-                            )}
+                        <View style={styles.settingRow}>
+                            <View>
+                                <Text style={[styles.settingTitle, { color: colors.textPrimary }]}>כולל מע״מ</Text>
+                                <Text style={[styles.settingSub, { color: colors.textTertiary }]}>חישוב מע״מ אוטומטי</Text>
+                            </View>
+                            <Switch
+                                trackColor={{ false: colors.border, true: colors.primary }}
+                                thumbColor="#FFF"
+                                onValueChange={setHasVat}
+                                value={hasVat}
+                            />
                         </View>
+
+                        {hasVat && amount && (
+                            <View style={[styles.vatInfo, { borderTopColor: colors.border }]}>
+                                <Text style={[styles.vatDetail, { color: colors.textTertiary }]}>
+                                    מע״מ: ₪{(parseFloat(amount) - (parseFloat(amount) / 1.17)).toFixed(2)}
+                                </Text>
+                                <Text style={[styles.vatDetail, { color: colors.textTertiary }]}>
+                                    נטו: ₪{(parseFloat(amount) / 1.17).toFixed(2)}
+                                </Text>
+                            </View>
+                        )}
                     </View>
 
-                    {/* SECTION 4: ACTIONS */}
-                    <View style={styles.footerActions}>
-                        <TouchableOpacity style={styles.saveBtn} onPress={() => handleSave(false)}>
-                            <Text style={styles.saveBtnText}>שמור הוצאה</Text>
+                    {/* Actions */}
+                    <View style={styles.actions}>
+                        <TouchableOpacity
+                            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+                            onPress={() => handleSave(false)}
+                        >
+                            <Text style={styles.primaryButtonText}>שמור הוצאה</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.secondaryBtn} onPress={() => handleSave(true)}>
-                            <Text style={styles.secondaryBtnText}>שמור וצור נוסף</Text>
+                        <TouchableOpacity style={styles.secondaryButton} onPress={() => handleSave(true)}>
+                            <Text style={[styles.secondaryButtonText, { color: colors.primary }]}>שמור וצור נוסף</Text>
                         </TouchableOpacity>
                     </View>
 
-                    <View style={{ height: 40 }} />
+                    <View style={{ height: 120 }} />
                 </ScrollView>
             </KeyboardAvoidingView>
         </View>
@@ -526,73 +494,64 @@ export default function AddExpenseScreen({ route }: any) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.background,
-        paddingTop: Platform.OS === 'android' ? 40 : 0,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingBottom: 20,
-        backgroundColor: COLORS.background,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
+        paddingHorizontal: LAYOUT.screenPadding,
+        paddingBottom: SPACING.lg,
     },
-    backButton: { padding: 8 },
-    templatesButton: { padding: 8 },
-    headerTitle: {
-        fontSize: 18,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.medium,
-    },
-    scrollContent: { padding: 24 },
-
-    // Receipt Visualization
-    receiptSection: {
-        marginBottom: 32,
+    headerButton: {
+        width: 44,
+        height: 44,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerTitle: {
+        ...TYPOGRAPHY.h3,
+    },
+    scrollContent: {
+        paddingHorizontal: LAYOUT.screenPadding,
+    },
+    receiptSection: {
+        marginBottom: SPACING['2xl'],
     },
     placeholderContainer: {
-        width: '100%',
-        height: 120,
-        backgroundColor: 'rgba(132, 101, 243, 0.05)',
         borderWidth: 1,
-        borderColor: COLORS.border,
         borderStyle: 'dashed',
-        borderRadius: 16,
-        justifyContent: 'center',
+        borderRadius: RADIUS.lg,
+        padding: SPACING.lg,
         alignItems: 'center',
     },
     placeholderLabel: {
-        color: COLORS.textSecondary,
-        marginBottom: 12,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.bodySmall,
+        marginBottom: SPACING.md,
     },
-    imageActions: {
+    imageActionsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: SPACING.sm,
+        width: '100%',
+    },
+    gridActionBtn: {
+        flex: 1,
+        minWidth: '45%',
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        gap: SPACING.sm,
+        paddingVertical: SPACING.md,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
     },
-    actionIconBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-    },
-    actionIconLabel: {
-        color: COLORS.primary,
-        marginLeft: 8,
-        fontFamily: FONTS.medium,
-    },
-    dividerVertical: {
-        width: 1,
-        height: 20,
-        backgroundColor: COLORS.border,
-        marginHorizontal: 8,
+    gridActionLabel: {
+        ...TYPOGRAPHY.label,
     },
     previewContainer: {
-        width: '100%',
-        height: 200,
-        borderRadius: 16,
+        height: 180,
+        borderRadius: RADIUS.lg,
         overflow: 'hidden',
         position: 'relative',
     },
@@ -603,128 +562,93 @@ const styles = StyleSheet.create({
     },
     removeImageBtn: {
         position: 'absolute',
-        top: 10,
-        right: 10,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        borderRadius: 20,
-        padding: 6,
+        top: SPACING.sm,
+        right: SPACING.sm,
+        borderRadius: RADIUS.full,
+        padding: SPACING.sm,
     },
-
-    // Form
-    formContainer: { gap: 24 },
-    amountInputContainer: {
+    amountSection: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: SPACING['2xl'],
     },
     currencyPrefix: {
-        fontSize: 32,
-        color: COLORS.primary,
-        fontFamily: FONTS.bold,
-        marginRight: 4,
+        ...TYPOGRAPHY.h1,
+        marginRight: SPACING.xs,
     },
     amountInput: {
-        fontSize: 40,
-        color: COLORS.textPrimary,
-        fontFamily: FONTS.bold,
-        minWidth: 100,
-        textAlign: 'center',
-        padding: 0,
+        ...TYPOGRAPHY.display,
+        minWidth: 120,
     },
-
-    row: { flexDirection: 'row' },
-    inputGroup: { gap: 8 },
-    miniLabel: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        fontFamily: FONTS.medium,
-        textAlign: 'left',
+    row: {
+        flexDirection: 'row',
+        marginBottom: SPACING.lg,
     },
-    miniInput: {
+    inputGroup: {
+        marginBottom: SPACING.lg,
+    },
+    inputLabel: {
+        ...TYPOGRAPHY.caption,
+        marginBottom: SPACING.sm,
+        textAlign: 'right',
+    },
+    inputField: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
+        height: LAYOUT.inputHeight,
+        borderRadius: RADIUS.md,
+        paddingHorizontal: SPACING.lg,
         borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    regularInput: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        color: COLORS.textPrimary,
-        fontSize: 16,
-        fontFamily: FONTS.regular,
-        borderWidth: 1,
-        borderColor: COLORS.border,
     },
     inputText: {
-        color: COLORS.textPrimary,
-        fontSize: 14,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.body,
     },
-
-    dropdownContainer: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
+    textInput: {
+        height: LAYOUT.inputHeight,
+        borderRadius: RADIUS.md,
+        paddingHorizontal: SPACING.lg,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        marginTop: -16,
+        ...TYPOGRAPHY.body,
+    },
+    multilineInput: {
+        height: 80,
+        textAlignVertical: 'top',
+        paddingTop: SPACING.md,
+    },
+    dropdown: {
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        marginTop: -SPACING.md,
+        marginBottom: SPACING.lg,
         zIndex: 10,
     },
     dropdownItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        padding: 16,
+        padding: SPACING.lg,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
     dropdownText: {
-        color: COLORS.textPrimary,
-        fontSize: 14,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.body,
     },
-    dropdownTextActive: {
-        color: COLORS.primary,
-        fontFamily: FONTS.medium,
-    },
-
-    // Chips
     chip: {
-        paddingVertical: 6,
-        paddingHorizontal: 12,
-        borderRadius: 20,
-        backgroundColor: COLORS.surface,
+        paddingVertical: SPACING.sm,
+        paddingHorizontal: SPACING.lg,
+        borderRadius: RADIUS.full,
         borderWidth: 1,
-        borderColor: COLORS.border,
-        marginRight: 8,
-    },
-    chipActive: {
-        backgroundColor: 'rgba(132, 101, 243, 0.15)',
-        borderColor: COLORS.primary,
+        marginRight: SPACING.sm,
     },
     chipText: {
-        color: COLORS.textTertiary,
-        fontSize: 12,
-        fontFamily: FONTS.regular,
-    },
-    chipTextActive: {
-        color: COLORS.primary,
+        ...TYPOGRAPHY.caption,
         fontFamily: FONTS.medium,
     },
-
-    // Settings Card
     settingsCard: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        padding: 20,
+        borderRadius: RADIUS.lg,
+        padding: SPACING.lg,
         borderWidth: 1,
-        borderColor: COLORS.border,
+        marginBottom: SPACING['2xl'],
     },
     settingRow: {
         flexDirection: 'row',
@@ -732,125 +656,65 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     settingTitle: {
-        color: COLORS.textPrimary,
-        fontSize: 14,
+        ...TYPOGRAPHY.body,
         fontFamily: FONTS.medium,
     },
     settingSub: {
-        color: COLORS.textSecondary,
-        fontSize: 12,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.caption,
         marginTop: 2,
+    },
+    settingDivider: {
+        height: 1,
+        marginVertical: SPACING.md,
     },
     vatInfo: {
         flexDirection: 'row',
-        marginTop: 16,
-        paddingTop: 16,
+        gap: SPACING.lg,
+        marginTop: SPACING.lg,
+        paddingTop: SPACING.lg,
         borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-        gap: 16,
     },
     vatDetail: {
-        color: COLORS.textTertiary,
-        fontSize: 12,
-        fontFamily: FONTS.regular,
+        ...TYPOGRAPHY.caption,
     },
-
-    // Footer
-    footerActions: {
-        marginTop: 40,
-        gap: 16,
+    actions: {
+        gap: SPACING.md,
     },
-    saveBtn: {
-        backgroundColor: COLORS.primary,
-        borderRadius: 16,
-        paddingVertical: 18,
+    primaryButton: {
+        height: LAYOUT.buttonHeight,
+        borderRadius: RADIUS.md,
         alignItems: 'center',
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
+        justifyContent: 'center',
     },
-    saveBtnText: {
-        color: COLORS.white, // Button text stays white
-        fontSize: 16,
-        fontFamily: FONTS.bold,
+    primaryButtonText: {
+        ...TYPOGRAPHY.h4,
+        color: '#FFFFFF',
     },
-    secondaryBtn: {
+    secondaryButton: {
         alignItems: 'center',
-        paddingVertical: 8,
+        paddingVertical: SPACING.md,
     },
-    secondaryBtnText: {
-        color: COLORS.primary,
-        fontSize: 14,
-        fontFamily: FONTS.medium,
+    secondaryButtonText: {
+        ...TYPOGRAPHY.label,
     },
-
-    // Loading Modal
     loadingOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
         justifyContent: 'center',
         alignItems: 'center',
     },
     loadingContainer: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 16,
-        padding: 32,
+        borderRadius: RADIUS.xl,
+        padding: SPACING['3xl'],
         alignItems: 'center',
         minWidth: 200,
     },
     loadingText: {
-        marginTop: 16,
-        fontSize: 18,
-        fontFamily: FONTS.bold,
-        color: COLORS.textPrimary,
+        ...TYPOGRAPHY.h4,
+        marginTop: SPACING.lg,
     },
     loadingSubtext: {
-        marginTop: 8,
-        fontSize: 14,
-        color: COLORS.textSecondary,
+        ...TYPOGRAPHY.bodySmall,
+        marginTop: SPACING.sm,
         textAlign: 'center',
-    },
-
-    // Validation Errors
-    errorText: {
-        color: COLORS.danger,
-        fontSize: 12,
-        marginTop: 4,
-        marginRight: 16,
-        fontFamily: FONTS.regular,
-    },
-
-    // Grid Button Layout
-    imageActionsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-        marginTop: 12,
-    },
-    gridActionBtn: {
-        flex: 1,
-        minWidth: '45%',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        backgroundColor: COLORS.surface,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    gridActionHighlight: {
-        backgroundColor: 'rgba(0, 212, 170, 0.1)',
-        borderColor: COLORS.primary,
-    },
-    gridActionLabel: {
-        fontSize: 14,
-        fontFamily: FONTS.medium,
-        color: COLORS.textPrimary,
     },
 });
